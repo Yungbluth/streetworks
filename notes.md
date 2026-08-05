@@ -11,3 +11,5 @@ todo
 - how many rows in each
 - do they have dates
 - is there a block or address field, or do i need to geocode
+
+the server caps how many rows you get per request, so i have to page through
