@@ -8,7 +8,14 @@ import (
 	"strconv"
 	"sync/atomic"
 	"testing"
+	"time"
 )
+
+func fastClient() *Client {
+	c := New()
+	c.Backoff = time.Millisecond
+	return c
+}
 
 func TestFetchPagesAndOrders(t *testing.T) {
 	const total = 1234
@@ -42,11 +49,42 @@ func TestFetchPagesAndOrders(t *testing.T) {
 	}))
 	defer srv.Close()
 	got := 0
-	n, err := New().Fetch(context.Background(), srv.URL+"/L/0", 2000, func(fs []Feature) error { got += len(fs); return nil })
+	n, err := fastClient().Fetch(context.Background(), srv.URL+"/L/0", 2000, func(fs []Feature) error { got += len(fs); return nil })
 	if err != nil || n != total || got != total {
 		t.Fatalf("n=%d got=%d err=%v", n, got, err)
 	}
 	if !sawOrder.Load() {
 		t.Error("expected orderByFields=OBJECTID")
+	}
+}
+
+func TestRetriesOnServerErrorAndBodyError(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch calls.Add(1) {
+		case 1:
+			w.WriteHeader(503)
+		case 2:
+			fmt.Fprint(w, `{"error":{"code":500,"message":"Error performing query operation"}}`)
+		default:
+			fmt.Fprint(w, `{"count":42}`)
+		}
+	}))
+	defer srv.Close()
+	n, err := fastClient().Count(context.Background(), srv.URL)
+	if err != nil || n != 42 || calls.Load() != 3 {
+		t.Fatalf("n=%d calls=%d err=%v", n, calls.Load(), err)
+	}
+}
+
+func TestClientErrorIsNotRetried(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		fmt.Fprint(w, `{"error":{"code":400,"message":"Invalid or missing input parameters"}}`)
+	}))
+	defer srv.Close()
+	if _, err := fastClient().Count(context.Background(), srv.URL); err == nil || calls.Load() != 1 {
+		t.Fatalf("calls=%d err=%v", calls.Load(), err)
 	}
 }

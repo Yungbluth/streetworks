@@ -1,6 +1,7 @@
 package arcgis
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,15 +9,18 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
 type Client struct {
-	HTTP *http.Client
+	HTTP    *http.Client
+	Retries int
+	Backoff time.Duration
 }
 
 func New() *Client {
-	return &Client{HTTP: &http.Client{Timeout: 90 * time.Second}}
+	return &Client{HTTP: &http.Client{Timeout: 90 * time.Second}, Retries: 4, Backoff: time.Second}
 }
 
 type Field struct {
@@ -43,29 +47,77 @@ type Stored struct {
 	Feature
 }
 
+type apiError struct {
+	Code    int      `json:"code"`
+	Message string   `json:"message"`
+	Details []string `json:"details"`
+}
+
+func (e *apiError) Error() string {
+	return fmt.Sprintf("arcgis error %d: %s %s", e.Code, e.Message, strings.Join(e.Details, "; "))
+}
+
+// get fetches a url and retries a few times on network errors, 429 and 5xx.
+// anything else (a 404, say) fails straight away
 func (c *Client) get(ctx context.Context, base string, q url.Values) ([]byte, error) {
 	u := base
 	if len(q) > 0 {
 		u += "?" + q.Encode()
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-	if err != nil {
-		return nil, err
+	var last error
+	tries := 0
+	for attempt := 0; attempt <= c.Retries; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(c.Backoff << (attempt - 1)):
+			}
+		}
+		tries++
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("User-Agent", "streetworks-time-machine/0.1 (portfolio project)")
+		resp, err := c.HTTP.Do(req)
+		if err != nil {
+			last = err
+			continue
+		}
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			last = err
+			continue
+		}
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+			last = fmt.Errorf("http %d", resp.StatusCode)
+			continue
+		}
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("http %d: %.200s", resp.StatusCode, body)
+		}
+		// arcgis sends errors back as a normal 200, so look for one near the start of the body
+		head := body
+		if len(head) > 64 {
+			head = head[:64]
+		}
+		if bytes.Contains(head, []byte(`"error"`)) {
+			var probe struct {
+				Error *apiError `json:"error"`
+			}
+			if json.Unmarshal(body, &probe) == nil && probe.Error != nil {
+				if probe.Error.Code >= 500 {
+					last = probe.Error
+					continue
+				}
+				return nil, probe.Error
+			}
+		}
+		return body, nil
 	}
-	req.Header.Set("User-Agent", "streetworks-time-machine/0.1 (portfolio project)")
-	resp, err := c.HTTP.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("http %d: %.200s", resp.StatusCode, body)
-	}
-	return body, nil
+	return nil, fmt.Errorf("giving up after %d attempts: %w", tries, last)
 }
 
 func (c *Client) Layer(ctx context.Context, layerURL string) (*LayerInfo, error) {
