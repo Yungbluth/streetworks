@@ -133,7 +133,6 @@ func (c *Client) Fetch(ctx context.Context, layerURL string, pageSize int, fn fu
 		if err := json.Unmarshal(body, &p); err != nil {
 			return total, fmt.Errorf("decode page at offset %d: %w", total, err)
 		}
-		fmt.Println("page", total, len(p.Features))
 		if len(p.Features) == 0 {
 			return total, nil
 		}
