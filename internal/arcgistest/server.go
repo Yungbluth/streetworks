@@ -2,6 +2,7 @@ package arcgistest
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -151,4 +152,14 @@ func New(layers ...Layer) *Server {
 	})
 	s.Server = httptest.NewServer(mux)
 	return s
+}
+
+func (s *Server) ServiceURL() string     { return s.URL + Base }
+func (s *Server) LayerURL(id int) string { return fmt.Sprintf("%s/%d", s.ServiceURL(), id) }
+
+// QueryLog returns the parameters of every /query request received
+func (s *Server) QueryLog() []url.Values {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]url.Values(nil), s.log...)
 }
