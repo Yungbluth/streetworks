@@ -3,6 +3,9 @@ package permits
 import (
 	"encoding/json"
 	"math"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -177,3 +180,46 @@ func TestCentroid(t *testing.T) {
 }
 
 func ftoa(f float64) string { b, _ := json.Marshal(f); return string(b) }
+
+func writeJSONL(t *testing.T, dir, name string, lines ...string) string {
+	t.Helper()
+	p := filepath.Join(dir, name)
+	if err := os.WriteFile(p, []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func TestLoadFiles(t *testing.T) {
+	dir := t.TempDir()
+	a := writeJSONL(t, dir, "a.jsonl",
+		`{"layer":"a","properties":{"PERMIT":"A1","DATE_ISSUED":1158883200000},"geometry":null}`,
+		`{"layer":"a","properties":{"PERMIT":"A2"},"geometry":{"type":"Point","coordinates":[-110.9,32.2]}}`)
+	b := writeJSONL(t, dir, "b.jsonl", `{"layer":"b","properties":{"PERMIT":"B1"},"geometry":null}`+"\n")
+	empty := writeJSONL(t, dir, "empty.jsonl")
+
+	recs, err := LoadFiles(a, empty, b)
+	if err != nil || len(recs) != 3 {
+		t.Fatalf("recs=%d err=%v", len(recs), err)
+	}
+	if recs[0].Permit != "A1" || recs[1].Permit != "A2" || recs[2].Permit != "B1" || recs[2].Layer != "b" {
+		t.Errorf("order or layer tags wrong: %+v", recs)
+	}
+	if recs[0].Date != "2006-09-22" || !recs[1].HasGeo || recs[0].HasGeo {
+		t.Errorf("fields wrong: %+v %+v", recs[0], recs[1])
+	}
+
+	if recs, err := LoadFiles(); err != nil || len(recs) != 0 {
+		t.Errorf("no files: %v %v", recs, err)
+	}
+	if _, err := LoadFiles(filepath.Join(dir, "missing.jsonl")); err == nil {
+		t.Error("missing file must be an error")
+	}
+	bad := writeJSONL(t, dir, "bad.jsonl", `{"layer":"x","properties":{"PERMIT":"OK"}}`, `{"layer":"x","properties":{`)
+	if _, err := LoadFiles(bad); err == nil || !strings.Contains(err.Error(), "bad.jsonl") {
+		t.Errorf("truncated file: err = %v (should name the file)", err)
+	}
+	if _, err := LoadFiles(writeJSONL(t, dir, "junk.jsonl", `not json`)); err == nil {
+		t.Error("garbage must be an error")
+	}
+}
