@@ -1,11 +1,14 @@
 package permits
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/yungbluth/streetworks/internal/arcgis"
 )
 
 func rec(permit, cat, status, street string, block int, year int) Record {
@@ -161,5 +164,148 @@ func TestBlocksGroupingAndOrdering(t *testing.T) {
 				t.Fatalf("unstable order on run %d", i)
 			}
 		}
+	}
+}
+
+func TestBlockLocationIsMeanOfRecordPoints(t *testing.T) {
+	a, b := rec("1", "Excavation", "CLOSED", "E A ST", 100, 2020), rec("2", "Excavation", "CLOSED", "E A ST", 100, 2020)
+	a.Lat, a.Lng, b.Lat, b.Lng = 32.0, -111.0, 32.2, -110.8
+	noGeo := rec("3", "Excavation", "CLOSED", "E A ST", 100, 2020)
+	noGeo.HasGeo, noGeo.Lat, noGeo.Lng = false, 0, 0 // must not drag the mean toward 0,0
+	bs := Build([]Record{a, b, noGeo}).Blocks(Filter{})
+	if len(bs) != 1 || bs[0].Count != 3 || fmt.Sprintf("%.4f,%.4f", bs[0].Lat, bs[0].Lng) != "32.1000,-110.9000" {
+		t.Errorf("%+v", bs)
+	}
+}
+
+func TestBlocksWithoutAnyGeometryAreNotMappedButStillReadable(t *testing.T) {
+	r := rec("1", "Excavation", "CLOSED", "E A ST", 100, 2020)
+	r.HasGeo = false
+	ix := Build([]Record{r})
+	if len(ix.Blocks(Filter{})) != 0 {
+		t.Error("a block with no coordinates must not be listed for the map")
+	}
+	if d, ok := ix.Block("E A ST|100", Filter{}); !ok || d.Count != 1 {
+		t.Errorf("detail still available: %+v %v", d, ok)
+	}
+}
+
+func TestBlockDetail(t *testing.T) {
+	ix := Build([]Record{
+		rec("1", "Excavation", "CLOSED", "E A ST", 100, 2019),
+		rec("2", "Excavation", "CLOSED", "E A ST", 100, 2023),
+		rec("3", "Excavation", "CLOSED", "E A ST", 100, 0),
+		rec("4", "Excavation", "CLOSED", "E A ST", 100, 2021),
+	})
+	d, ok := ix.Block("E A ST|100", Filter{})
+	if !ok || d.Street != "E A ST" || d.Block != 100 || d.Count != 4 {
+		t.Fatalf("%+v %v", d, ok)
+	}
+	var dates []string
+	for _, r := range d.Records {
+		dates = append(dates, r.Date)
+	}
+	if strings.Join(dates, ",") != "2023-06-01,2021-06-01,2019-06-01," {
+		t.Errorf("not newest-first with undated last: %v", dates)
+	}
+	if _, ok := ix.Block("nope|0", Filter{}); ok {
+		t.Error("unknown key")
+	}
+	if _, ok := ix.Block("", Filter{}); ok {
+		t.Error("empty key")
+	}
+	// An empty result set must marshal as [], not null (the UI calls .map on it)
+	d, _ = ix.Block("E A ST|100", Filter{From: 2100})
+	b, _ := json.Marshal(d)
+	if !strings.Contains(string(b), `"records":[]`) || d.Count != 0 {
+		t.Errorf("%s", b)
+	}
+}
+
+func TestEmptyIndex(t *testing.T) {
+	ix := Build(nil)
+	if len(ix.Blocks(Filter{})) != 0 || ix.Meta.Rows != 0 || ix.Meta.DateMin != "" {
+		t.Errorf("%+v", ix.Meta)
+	}
+	rep := ix.Meta.Report() // must not divide by zero
+	if !strings.Contains(rep, "Rows read:") || strings.Contains(rep, "NaN") || strings.Contains(rep, "Inf") {
+		t.Errorf("report: %s", rep)
+	}
+}
+
+func TestReportContents(t *testing.T) {
+	recs := []Record{rec("1", "Excavation", "CLOSED", "E A ST", 100, 2019), rec("2", "Barricade", "VOID", "E A ST", 100, 2020)}
+	recs[0].Type, recs[1].Type, recs[0].SubType = "EXCAVATION", "BARRICADE", "CURB"
+	rep := Build(recs).Meta.Report()
+	for _, want := range []string{"Unique permits:       2", "2019-06-01 to 2020-06-01", "Void/withdrawn/etc.:  1 (50.0%)", "Permit status", "CLOSED", "VOID", "PERMIT_TYPE values", "EXCAVATION", "SUB_TYPE values", "CURB", "Date field used", "DATE_ISSUED"} {
+		if !strings.Contains(rep, want) {
+			t.Errorf("report missing %q:\n%s", want, rep)
+		}
+	}
+}
+
+func TestRealSampleEndToEnd(t *testing.T) {
+	raw, err := os.ReadFile("testdata/real_sample.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []map[string]any
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		t.Fatal(err)
+	}
+	var recs []Record
+	for i, p := range rows {
+		// the sample was fetched without geometry; place each row at a distinct point
+		geom := fmt.Sprintf(`{"type":"Point","coordinates":[%f,32.2]}`, -110.9-float64(i)/100)
+		recs = append(recs, FromFeature(arcgis.Feature{Properties: p, Geometry: json.RawMessage(geom)}, "permits_inactive"))
+	}
+	m := Build(recs).Meta
+	if m.UniquePermits != 10 || m.DuplicateRows != 0 || m.NoWork != 0 || m.NoDate != 0 || m.BadDates != 0 {
+		t.Errorf("basic counts: %+v", m)
+	}
+	if m.NoBlock != 2 { // the two intersections ("GOLF LINKS RD & CATHY DR", "HEMISPHERE PL & HEMISPHERE LP")
+		t.Errorf("NoBlock = %d, want 2", m.NoBlock)
+	}
+	if m.StreetFromText != 1 { // "10602 E CERULEAN WAY" read from LOCATION
+		t.Errorf("StreetFromText = %d, want 1", m.StreetFromText)
+	}
+	if m.Blocks != 8 || m.DateMin != "2005-07-07" || m.DateMax != "2006-10-02" {
+		t.Errorf("blocks=%d range=%s..%s", m.Blocks, m.DateMin, m.DateMax)
+	}
+	if len(m.Categories) != 1 || m.Categories[0].Key != "Excavation" || m.Categories[0].N != 10 {
+		t.Errorf("categories = %+v", m.Categories)
+	}
+	if len(m.Statuses) != 1 || m.Statuses[0].Key != "CLOSED" {
+		t.Errorf("statuses = %+v", m.Statuses)
+	}
+	ix := Build(recs)
+	want := []string{"E GAS RD|3400", "W NAVAJO RD|100", "S PARK AVE|1400", "E SPEEDWAY BLVD|700", "S WILLIAMS BLVD|200", "S EASTSIDE LOOP|1400", "E CERULEAN WAY|10600", "E REES LOOP|10200"}
+	for _, k := range want {
+		d, ok := ix.Block(k, Filter{})
+		if !ok || d.Count != 1 {
+			t.Errorf("block %q: %+v %v", k, d, ok)
+		}
+	}
+	if d, _ := ix.Block("S WILLIAMS BLVD|200", Filter{}); d.Records[0].SubType != "CURB" || d.Records[0].ProURL == "" {
+		t.Errorf("%+v", d.Records[0])
+	}
+}
+
+func TestBuildAtRealScale(t *testing.T) {
+	if testing.Short() {
+		t.Skip("scale test")
+	}
+	// The inactive layer has 92,323 rows
+	recs := make([]Record, 0, 95000)
+	for i := 0; i < 92323; i++ {
+		recs = append(recs, rec(fmt.Sprintf("P%d", i), []string{"Excavation", "Barricade", "Combo"}[i%3], "CLOSED", fmt.Sprintf("E ST%d", i%900), (i%40)*100, 1996+i%30))
+	}
+	start := time.Now()
+	ix := Build(recs)
+	if bs := ix.Blocks(Filter{From: 2000, To: 2020}); len(bs) == 0 {
+		t.Fatal("no blocks")
+	}
+	if el := time.Since(start); el > 5*time.Second {
+		t.Errorf("Build+Blocks on 92k rows took %v", el)
 	}
 }
