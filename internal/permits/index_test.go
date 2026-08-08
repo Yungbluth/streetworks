@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -307,5 +308,161 @@ func TestBuildAtRealScale(t *testing.T) {
 	}
 	if el := time.Since(start); el > 5*time.Second {
 		t.Errorf("Build+Blocks on 92k rows took %v", el)
+	}
+}
+
+func TestBoundsFilterAndMetaBounds(t *testing.T) {
+	at := func(permit string, lat, lng float64, block int) Record {
+		r := rec(permit, "Excavation", "CLOSED", "E A ST", block, 2020)
+		r.Lat, r.Lng = lat, lng
+		return r
+	}
+	ix := Build([]Record{at("1", 32.20, -110.90, 100), at("2", 32.25, -110.95, 200), at("3", 32.30, -111.00, 300), at("4", 40.0, -100.0, 400)})
+	keys := func(f Filter) string {
+		var out []string
+		for _, b := range ix.Blocks(f) {
+			out = append(out, b.Key)
+		}
+		sort.Strings(out)
+		return strings.Join(out, ",")
+	}
+	cases := []struct {
+		name string
+		b    *Bounds
+		want string
+	}{
+		{"no bounds", nil, "E A ST|100,E A ST|200,E A ST|300,E A ST|400"},
+		{"around Tucson", &Bounds{32.1, -111.1, 32.4, -110.8}, "E A ST|100,E A ST|200,E A ST|300"},
+		{"edges are inclusive", &Bounds{32.20, -110.90, 32.20, -110.90}, "E A ST|100"},
+		{"just outside", &Bounds{32.2001, -110.9, 32.4, -110.8}, ""},
+		{"empty region", &Bounds{0, 0, 1, 1}, ""},
+		{"only the far outlier", &Bounds{39, -101, 41, -99}, "E A ST|400"},
+	}
+	for _, c := range cases {
+		if got := keys(Filter{Bounds: c.b}); got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
+	}
+	// Meta.Bounds uses percentiles, which for 4 points stays inside the data
+	b := ix.Meta.Bounds
+	if b[0] < 32.0 || b[2] > 40.0 || b[0] > b[2] || b[1] > b[3] {
+		t.Errorf("meta bounds = %v", b)
+	}
+	if Build(nil).Meta.Bounds != [4]float64{} {
+		t.Error("no data should give zero bounds")
+	}
+}
+
+func TestMetaBoundsIgnoreStrayGeocodes(t *testing.T) {
+	var recs []Record
+	for i := 0; i < 500; i++ {
+		r := rec(fmt.Sprintf("P%d", i), "Excavation", "CLOSED", "E A ST", 100+i*100, 2020)
+		r.Lat, r.Lng = 32.1+float64(i%50)/200, -111.0+float64(i%40)/100
+		recs = append(recs, r)
+	}
+	stray := rec("STRAY", "Excavation", "CLOSED", "E Z ST", 100, 2020)
+	stray.Lat, stray.Lng = 64.0, -150.0 // a bad geocode far from everything
+	b := Build(append(recs, stray)).Meta.Bounds
+	if b[2] > 33 || b[1] < -112 {
+		t.Errorf("one stray point stretched the bounds: %v", b)
+	}
+}
+
+func TestBlockDetailFlagsNoWorkRecords(t *testing.T) {
+	var recs []Record
+	for i, st := range []string{"CLOSED", "VOID", "WITHDRWN", "DENIED", "Canceled", "FINAL", "EXPIRED"} {
+		recs = append(recs, rec(fmt.Sprintf("P%d", i), "Excavation", st, "E A ST", 100, 2020))
+	}
+	d, _ := Build(recs).Block("E A ST|100", Filter{NoWork: true})
+	flags := map[string]bool{}
+	for _, r := range d.Records {
+		flags[r.Status] = r.NoWorkStatus
+	}
+	want := map[string]bool{"CLOSED": false, "VOID": true, "WITHDRWN": true, "DENIED": true, "Canceled": true, "FINAL": false, "EXPIRED": false}
+	for st, w := range want {
+		if flags[st] != w {
+			t.Errorf("status %q: no_work = %v, want %v", st, flags[st], w)
+		}
+	}
+	if d, _ := Build(recs).Block("E A ST|100", Filter{}); d.Count != 3 {
+		t.Errorf("default filter kept %d records, want 3 (CLOSED, FINAL, EXPIRED)", d.Count)
+	}
+	b, _ := json.Marshal(d.Records[0])
+	if strings.Contains(string(b), `"no_work":false`) {
+		t.Errorf("false flag should be omitted: %s", b)
+	}
+}
+
+func TestLayerStatsExposeOverlapBetweenLayers(t *testing.T) {
+	mk := func(layer, permit string, year int) Record {
+		r := rec(permit, "Excavation", "CLOSED", "E A ST", 100, year)
+		r.Layer = layer
+		return r
+	}
+	recs := []Record{
+		mk("old", "P1", 2019), mk("old", "P2", 2020), mk("old", "P2", 2020), // P2 repeated inside one layer
+		mk("new", "P1", 2019), mk("new", "P2", 2020), mk("new", "P3", 2026), mk("new", "P4", 2026), // P1, P2 already seen in "old"
+	}
+	m := Build(recs).Meta
+	want := []LayerStat{{"old", 3, 2, 1}, {"new", 4, 2, 2}}
+	if len(m.Layers) != 2 || m.Layers[0] != want[0] || m.Layers[1] != want[1] {
+		t.Errorf("layers = %+v, want %+v", m.Layers, want)
+	}
+	if m.Rows != 7 || m.UniquePermits != 4 || m.DuplicateRows != 3 {
+		t.Errorf("totals: %+v", m)
+	}
+	var rows, kept, dupes int
+	for _, l := range m.Layers {
+		rows, kept, dupes = rows+l.Rows, kept+l.Kept, dupes+l.Dupes
+		if l.Rows != l.Kept+l.Dupes {
+			t.Errorf("%s: rows != kept + dupes", l.Layer)
+		}
+	}
+	if rows != m.Rows || kept != m.UniquePermits || dupes != m.DuplicateRows {
+		t.Errorf("per-layer sums %d/%d/%d do not match totals", rows, kept, dupes)
+	}
+}
+
+func TestPerYearCounts(t *testing.T) {
+	recs := []Record{
+		rec("A", "Excavation", "CLOSED", "E A ST", 100, 2026), rec("B", "Excavation", "CLOSED", "E A ST", 100, 1996),
+		rec("C", "Excavation", "CLOSED", "E A ST", 100, 2026), rec("C", "Excavation", "CLOSED", "E A ST", 100, 2026), // repeat
+		rec("D", "Excavation", "CLOSED", "E A ST", 100, 0), // undated: not in any year
+		rec("E", "Excavation", "CLOSED", "E A ST", 100, 2010),
+	}
+	got := Build(recs).Meta.PerYear
+	want := []KV{{"1996", 1}, {"2010", 1}, {"2026", 2}}
+	if len(got) != len(want) {
+		t.Fatalf("per year = %+v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("per year[%d] = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+func TestDiagnosticsAreNeverNullInJSONAndShowInTheReport(t *testing.T) {
+	b, _ := json.Marshal(Build(nil).Meta)
+	if strings.Contains(string(b), "null") {
+		t.Errorf("empty meta has null: %s", b)
+	}
+	r := rec("A", "Excavation", "CLOSED", "E A ST", 100, 2024)
+	r.Layer = "permits_row_general"
+	rep := Build([]Record{r}).Meta.Report()
+	for _, want := range []string{"Source layers", "permits_row_general", "Permits per year", "2024"} {
+		if !strings.Contains(rep, want) {
+			t.Errorf("report missing %q:\n%s", want, rep)
+		}
+	}
+}
+
+func TestEmptyCategorySetMatchesNothing(t *testing.T) {
+	ix := Build([]Record{rec("1", "Excavation", "CLOSED", "E A ST", 100, 2020)})
+	if n := len(ix.Blocks(Filter{Cats: map[string]bool{}})); n != 0 {
+		t.Errorf("empty set: %d blocks", n)
+	}
+	if n := len(ix.Blocks(Filter{})); n != 1 {
+		t.Errorf("nil set (all categories): %d blocks", n)
 	}
 }

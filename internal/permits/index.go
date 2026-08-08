@@ -3,6 +3,7 @@ package permits
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -295,4 +296,44 @@ func (ix *Index) percentileBounds(lo, hi float64) [4]float64 {
 	sort.Float64s(lngs)
 	at := func(xs []float64, q float64) float64 { return xs[int(q*float64(len(xs)-1))] }
 	return [4]float64{at(lats, lo), at(lngs, lo), at(lats, hi), at(lngs, hi)}
+}
+
+// Report is a plain-text data-quality summary for the terminal.
+func (m Meta) Report() string {
+	var b strings.Builder
+	pct := func(n int) string {
+		if m.UniquePermits == 0 {
+			return "0%"
+		}
+		return fmt.Sprintf("%d (%.1f%%)", n, 100*float64(n)/float64(m.UniquePermits))
+	}
+	fmt.Fprintf(&b, "Rows read:            %d\n", m.Rows)
+	fmt.Fprintf(&b, "Unique permits:       %d (%d repeat rows dropped)\n", m.UniquePermits, m.DuplicateRows)
+	fmt.Fprintf(&b, "Date range:           %s to %s\n", m.DateMin, m.DateMax)
+	fmt.Fprintf(&b, "Void/withdrawn/etc.:  %s (hidden by default)\n", pct(m.NoWork))
+	fmt.Fprintf(&b, "No usable date:       %s\n", pct(m.NoDate))
+	fmt.Fprintf(&b, "Implausible dates:   %s (skipped; next date field used)\n", pct(m.BadDates))
+	fmt.Fprintf(&b, "Street from text:     %s (read from ADDRESS/LOCATION)\n", pct(m.StreetFromText))
+	fmt.Fprintf(&b, "No geometry:          %s\n", pct(m.NoGeo))
+	fmt.Fprintf(&b, "No street/block:      %s (cannot be mapped to a block)\n", pct(m.NoBlock))
+	fmt.Fprintf(&b, "Street blocks:        %d\n", m.Blocks)
+	kv := func(title string, xs []KV) {
+		fmt.Fprintf(&b, "%s:\n", title)
+		for _, x := range xs {
+			fmt.Fprintf(&b, "  %6d  %s\n", x.N, x.Key)
+		}
+	}
+	if len(m.Layers) > 0 {
+		fmt.Fprintf(&b, "Source layers (rows read / kept / dropped as repeats of a permit number already seen):\n")
+		for _, l := range m.Layers {
+			fmt.Fprintf(&b, "  %7d / %7d / %7d  %s\n", l.Rows, l.Kept, l.Dupes, l.Layer)
+		}
+	}
+	kv("Permits per year (by the date used)", m.PerYear)
+	kv("Date field used", m.DateBasis)
+	kv("Permit status", m.Statuses)
+	kv("Category (derived)", m.Categories)
+	kv("PERMIT_TYPE values", m.PermitTypes)
+	kv("SUB_TYPE values (top 25)", m.SubTypes)
+	return b.String()
 }
