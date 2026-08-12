@@ -125,3 +125,60 @@ func TestSearchAddresses(t *testing.T) {
 		t.Errorf("%+v", p)
 	}
 }
+
+func TestSearchStreets(t *testing.T) {
+	ix := testCity()
+	cases := []struct{ q, want string }{
+		{"Speedway Blvd", "street:E SPEEDWAY BLVD | street:W SPEEDWAY BLVD"},   // busiest first, suffix narrows
+		{"e speedway", "street:E SPEEDWAY BLVD | street:E SPEEDWAY ACCESS RD"}, // direction narrows
+		{"W Speedway", "street:W SPEEDWAY BLVD"},
+		{"N Campbell", "street:N CAMPBELL AVE"},
+		{"campbell avenue", "street:N CAMPBELL AVE"},
+		{"S Campbell", "street:N CAMPBELL AVE"}, // no S Campbell: direction ignored rather than nothing
+		{"4th ave", "street:N 4TH AVE"},
+		{"west st", "street:WEST ST"},
+		{"camp", "street:N CAMPBELL AVE"},  // typing in progress
+		{"pbell", "street:N CAMPBELL AVE"}, // contained, when nothing starts with it
+	}
+	for _, c := range cases {
+		if got := labels(ix.Search(c.q, 8)); got != c.want {
+			t.Errorf("Search(%q)\n  got  %s\n  want %s", c.q, got, c.want)
+		}
+	}
+	if got := labels(ix.Search("speed", 8)); !strings.HasPrefix(got, "street:N SPEED AVE") || !strings.Contains(got, "E SPEEDWAY BLVD") {
+		t.Errorf("speed: %s", got)
+	}
+	p := ix.Search("E Speedway Blvd", 1)[0]
+	if p.Bounds == nil || p.Bounds[1] > cLng+1*step+1e-9 || p.Bounds[3] < cLng+25*step-1e-9 || p.Permits != 21 {
+		t.Errorf("bounds/permits: %+v %v", p, p.Bounds)
+	}
+}
+
+func TestSearchIntersections(t *testing.T) {
+	ix := testCity()
+	for _, q := range []string{"Speedway & Campbell", "speedway and campbell", "Campbell / Speedway", "E Speedway Blvd at N Campbell Ave", "speedway@campbell"} {
+		got := ix.Search(q, 8)
+		if len(got) == 0 {
+			t.Errorf("%q: nothing", q)
+			continue
+		}
+		p := got[0]
+		names := p.Street + "+" + p.Cross
+		if p.Kind != "intersection" || !strings.Contains(names, "E SPEEDWAY BLVD") || !strings.Contains(names, "N CAMPBELL AVE") || !p.Exact {
+			t.Errorf("%q: %s", q, labels(got))
+		}
+		// the point lies between the nearest blocks: close to the real crossing
+		if d := DistanceMeters(p.Lat, p.Lng, speedwayLat, campbellLng); d > 150 {
+			t.Errorf("%q: point is %.0f m from the crossing", q, d)
+		}
+	}
+	got := ix.Search("4th Ave & West St", 8)
+	if len(got) == 0 || got[0].Exact || got[0].Gap < 500 {
+		t.Errorf("non-crossing streets: %+v", got)
+	}
+	for _, q := range []string{"& Campbell", "Speedway &", "nowhere & campbell", " & "} {
+		if got := ix.Search(q, 8); len(got) != 0 && got[0].Kind == "intersection" && strings.Contains(q, "nowhere") {
+			t.Errorf("%q should not find an intersection: %s", q, labels(got))
+		}
+	}
+}
