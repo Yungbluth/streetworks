@@ -36,6 +36,11 @@ type LayerInfo struct {
 	Fields         []Field `json:"fields"`
 }
 
+type LayerRef struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
 type Feature struct {
 	Properties map[string]any  `json:"properties"`
 	Geometry   json.RawMessage `json:"geometry"`
@@ -132,6 +137,20 @@ func (c *Client) Layer(ctx context.Context, layerURL string) (*LayerInfo, error)
 	return &info, nil
 }
 
+func (c *Client) ServiceLayers(ctx context.Context, serviceURL string) ([]LayerRef, error) {
+	body, err := c.get(ctx, serviceURL, url.Values{"f": {"json"}})
+	if err != nil {
+		return nil, err
+	}
+	var p struct {
+		Layers []LayerRef `json:"layers"`
+	}
+	if err := json.Unmarshal(body, &p); err != nil {
+		return nil, err
+	}
+	return p.Layers, nil
+}
+
 func (c *Client) Count(ctx context.Context, layerURL string) (int, error) {
 	body, err := c.get(ctx, layerURL+"/query", url.Values{"where": {"1=1"}, "returnCountOnly": {"true"}, "f": {"json"}})
 	if err != nil {
@@ -144,6 +163,35 @@ func (c *Client) Count(ctx context.Context, layerURL string) (int, error) {
 		return 0, err
 	}
 	return p.Count, nil
+}
+
+// DateRange returns the min and max of a date field.
+func (c *Client) DateRange(ctx context.Context, layerURL, field string) (lo, hi time.Time, err error) {
+	return c.DateRangeWhere(ctx, layerURL, field, "1=1")
+}
+
+func (c *Client) DateRangeWhere(ctx context.Context, layerURL, field, where string) (lo, hi time.Time, err error) {
+	stats := fmt.Sprintf(`[{"statisticType":"min","onStatisticField":%q,"outStatisticFieldName":"mn"},{"statisticType":"max","onStatisticField":%q,"outStatisticFieldName":"mx"}]`, field, field)
+	body, err := c.get(ctx, layerURL+"/query", url.Values{"where": {where}, "outStatistics": {stats}, "f": {"json"}})
+	if err != nil {
+		return
+	}
+	var p struct {
+		Features []struct {
+			Attributes struct{ Mn, Mx *float64 } `json:"attributes"`
+		} `json:"features"`
+	}
+	if err = json.Unmarshal(body, &p); err != nil || len(p.Features) == 0 {
+		return
+	}
+	a := p.Features[0].Attributes
+	if a.Mn != nil {
+		lo = time.UnixMilli(int64(*a.Mn)).UTC()
+	}
+	if a.Mx != nil {
+		hi = time.UnixMilli(int64(*a.Mx)).UTC()
+	}
+	return
 }
 
 // Fetch pages through every feature in a layer (WGS84 GeoJSON), calling fn per page
