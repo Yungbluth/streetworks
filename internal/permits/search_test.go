@@ -1,6 +1,7 @@
 package permits
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -180,5 +181,28 @@ func TestSearchIntersections(t *testing.T) {
 		if got := ix.Search(q, 8); len(got) != 0 && got[0].Kind == "intersection" && strings.Contains(q, "nowhere") {
 			t.Errorf("%q should not find an intersection: %s", q, labels(got))
 		}
+	}
+}
+
+func TestSearchInputSafety(t *testing.T) {
+	ix := testCity()
+	for _, q := range []string{"", "   ", "12345", "&", "!!!", "\x00\x01", strings.Repeat("speedway ", 200), "1234", "99999999999999 speedway", "a"} {
+		got := ix.Search(q, 8)
+		if got == nil {
+			t.Errorf("%q: nil (must be an empty list for JSON)", q)
+		}
+	}
+	if got := ix.Search("zzzz", 8); len(got) != 0 {
+		t.Errorf("unknown street: %s", labels(got))
+	}
+	if n := len(ix.Search("s", 100)); n > 20 {
+		t.Errorf("limit not capped: %d", n)
+	}
+	if got := Build(nil).Search("speedway", 8); got == nil || len(got) != 0 {
+		t.Errorf("empty index: %v", got)
+	}
+	b, _ := json.Marshal(ix.Search("zzzz", 8))
+	if string(b) != "[]" {
+		t.Errorf("JSON = %s", b)
 	}
 }
