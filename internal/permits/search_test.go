@@ -3,8 +3,10 @@ package permits
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
+	"time"
 )
 
 // a small city laid out like Tucson's grid
@@ -204,5 +206,166 @@ func TestSearchInputSafety(t *testing.T) {
 	b, _ := json.Marshal(ix.Search("zzzz", 8))
 	if string(b) != "[]" {
 		t.Errorf("JSON = %s", b)
+	}
+}
+
+func TestSplitStreet(t *testing.T) {
+	for in, want := range map[string][3]string{
+		"E SPEEDWAY BLVD":      {"E", "SPEEDWAY", "BLVD"},
+		"N 4TH AVE":            {"N", "4TH", "AVE"},
+		"WEST ST":              {"", "WEST", "ST"},
+		"E SPEEDWAY ACCESS RD": {"E", "SPEEDWAY ACCESS", "RD"},
+		"SPEEDWAY":             {"", "SPEEDWAY", ""},
+		"N LOOP RD":            {"N", "LOOP", "RD"},
+		"E":                    {"", "E", ""},
+		"":                     {"", "", ""},
+	} {
+		d, c, s := splitStreet(in)
+		if [3]string{d, c, s} != want {
+			t.Errorf("splitStreet(%q) = %q %q %q, want %v", in, d, c, s, want)
+		}
+	}
+}
+
+func TestDistanceMeters(t *testing.T) {
+	if d := DistanceMeters(32, -111, 33, -111); math.Abs(d-111195) > 100 {
+		t.Errorf("1 degree latitude = %.0f m", d)
+	}
+	if d := DistanceMeters(32.2217, -110.9747, 32.2319, -110.9535); math.Abs(d-2300) > 200 {
+		t.Errorf("city hall to Old Main = %.0f m", d)
+	}
+	if d := DistanceMeters(32.2, -110.9, 32.2, -110.9); d != 0 {
+		t.Errorf("same point = %v", d)
+	}
+}
+
+func TestNearby(t *testing.T) {
+	ix := testCity()
+	// A point on Speedway at the 1,200 block; blocks are ~94 m apart east-west.
+	lat, lng := speedwayLat, cLng+12*step
+	got := ix.Nearby(lat, lng, 120, Filter{}, 100)
+	blockSet := map[string]bool{}
+	for _, r := range got.Records {
+		blockSet[r.BlockKey] = true
+		if r.Distance > 120 {
+			t.Errorf("record %s is %.0f m away, outside the radius", r.Permit, r.Distance)
+		}
+	}
+	if !blockSet["E SPEEDWAY BLVD|1200"] || !blockSet["E SPEEDWAY BLVD|1300"] || blockSet["E SPEEDWAY BLVD|900"] {
+		t.Errorf("blocks in 120 m: %v", blockSet)
+	}
+	if got.Count != 6 || got.Blocks != 2 || len(got.Records) != 6 || got.Truncated {
+		t.Errorf("counts: %+v", got)
+	}
+	// a wider circle reaches Campbell's blocks near the crossing
+	wide := ix.Nearby(speedwayLat, campbellLng, 150, Filter{}, 100)
+	keys := map[string]bool{}
+	for _, r := range wide.Records {
+		keys[r.BlockKey] = true
+	}
+	if !keys["N CAMPBELL AVE|1000"] || !keys["E SPEEDWAY BLVD|1800"] {
+		t.Errorf("crossing: %v", keys)
+	}
+	// filters apply
+	if n := ix.Nearby(lat, lng, 120, Filter{From: 2030}, 100).Count; n != 0 {
+		t.Errorf("year filter: %d", n)
+	}
+	if n := ix.Nearby(lat, lng, 120, Filter{Cats: map[string]bool{}}, 100).Count; n != 0 {
+		t.Errorf("no categories: %d", n)
+	}
+	// Truncation keeps the totals
+	tr := ix.Nearby(lat, lng, 120, Filter{}, 2)
+	if len(tr.Records) != 2 || !tr.Truncated || tr.Count != 6 {
+		t.Errorf("truncation: %+v", tr)
+	}
+	// radius is clamped; nothing far away
+	if r := ix.Nearby(lat, lng, 1e9, Filter{}, 1).Radius; r != MaxRadius {
+		t.Errorf("radius not clamped: %v", r)
+	}
+	if n := ix.Nearby(0, 0, 500, Filter{}, 10).Count; n != 0 {
+		t.Errorf("far away: %d", n)
+	}
+	b, _ := json.Marshal(ix.Nearby(0, 0, 500, Filter{}, 10))
+	if strings.Contains(string(b), "null") {
+		t.Errorf("empty nearby has null: %s", b)
+	}
+}
+
+func TestNearbyIncludesPermitsWithoutABlock(t *testing.T) {
+	recs := ewStreet("E", "SPEEDWAY BLVD", speedwayLat, 1800)
+	x := rec("X1", "Combo", "CLOSED", "", -1, 2024)
+	x.Lat, x.Lng = speedwayLat, campbellLng
+	nogeo := rec("X2", "Combo", "CLOSED", "", -1, 2024) // no coordinates at all
+	ix := Build(append(recs, x, nogeo))
+	got := ix.Nearby(speedwayLat, campbellLng, 50, Filter{}, 10)
+	if got.Count != 2 || got.Unplaced != 1 || got.Blocks != 1 {
+		t.Fatalf("%+v", got)
+	}
+	found := false
+	for _, r := range got.Records {
+		if r.Permit == "X1" && r.BlockKey == "" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("the unplaced permit should be listed, with no block key")
+	}
+}
+
+func TestNearbyOrderAndFlags(t *testing.T) {
+	a := placed("OLD", "E A ST", 100, cLat, cLng, 2010)
+	b := placed("NEW", "E A ST", 100, cLat, cLng+0.0003, 2025)
+	c := placed("VOID", "E A ST", 100, cLat, cLng, 2026)
+	c.Status = "VOID"
+	got := Build([]Record{a, b, c}).Nearby(cLat, cLng, 100, Filter{NoWork: true}, 10)
+	var order []string
+	for _, r := range got.Records {
+		order = append(order, r.Permit)
+	}
+	if strings.Join(order, ",") != "VOID,NEW,OLD" {
+		t.Errorf("newest first: %v", order)
+	}
+	if !got.Records[0].NoWorkStatus || got.Records[1].NoWorkStatus {
+		t.Error("no-work flag should be set for the page")
+	}
+	if len(got.PerYear) != 3 || got.PerYear[0].Key != "2010" || got.PerYear[2].Key != "2026" {
+		t.Errorf("per year sorted by year: %+v", got.PerYear)
+	}
+	if got.Records[1].Distance < 20 || got.Records[1].Distance > 40 {
+		t.Errorf("distance of a point 0.0003 deg east: %v", got.Records[1].Distance)
+	}
+}
+
+func TestStreetProfile(t *testing.T) {
+	ix := testCity()
+	p, ok := ix.Street("E SPEEDWAY BLVD", Filter{})
+	if !ok || p.Count != 21 || len(p.Blocks) != 7 {
+		t.Fatalf("%+v %v", p, ok)
+	}
+	for i := 1; i < len(p.Blocks); i++ {
+		if p.Blocks[i].Block <= p.Blocks[i-1].Block {
+			t.Errorf("blocks not in order: %+v", p.Blocks)
+		}
+	}
+	p, _ = ix.Street("E SPEEDWAY BLVD", Filter{From: 2030})
+	if p.Count != 0 || len(p.Blocks) != 7 || p.Blocks[0].Count != 0 {
+		t.Errorf("filtered: %+v", p)
+	}
+	for _, name := range []string{"", "SPEEDWAY", "e speedway blvd", "E SPEEDWAY", "NOPE ST"} {
+		if _, ok := ix.Street(name, Filter{}); ok {
+			t.Errorf("%q should not match (exact canonical names only)", name)
+		}
+	}
+	_ = time.Now
+}
+
+func TestIntersectionDropsNonCrossingPairsWhenARealOneExists(t *testing.T) {
+	var recs []Record
+	recs = append(recs, ewStreet("E", "SPEEDWAY BLVD", speedwayLat, 1700, 1800, 1900)...)
+	recs = append(recs, nsStreet("N", "CAMPBELL AVE", campbellLng, 900, 1000, 1100)...)
+	recs = append(recs, nsStreet("S", "CAMPBELL AVE", campbellLng, 500, 600)...) // south of center: never meets Speedway
+	got := Build(recs).Search("speedway & campbell", 8)
+	if len(got) != 1 || got[0].Cross != "N CAMPBELL AVE" || !got[0].Exact {
+		t.Errorf("only the real crossing should be offered: %s", labels(got))
 	}
 }
