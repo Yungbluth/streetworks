@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -167,5 +170,39 @@ func TestPullWritesLayerAndMetadata(t *testing.T) {
 	}
 	if tmp, _ := filepath.Glob(filepath.Join(dir, "*.tmp")); len(tmp) != 0 {
 		t.Errorf("temp files left behind: %v", tmp)
+	}
+}
+
+func flaky(t *testing.T) string {
+	t.Helper()
+	var queries atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, "/query") {
+			fmt.Fprint(w, `{"name":"x","maxRecordCount":2,"fields":[{"name":"OBJECTID","type":"esriFieldTypeOID"}]}`)
+			return
+		}
+		if r.URL.Query().Get("returnCountOnly") == "true" {
+			fmt.Fprint(w, `{"count":10}`)
+			return
+		}
+		if queries.Add(1) > 1 {
+			w.WriteHeader(500)
+			return
+		}
+		fmt.Fprint(w, `{"features":[{"properties":{"OBJECTID":1},"geometry":null},{"properties":{"OBJECTID":2},"geometry":null}]}`)
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL + "/L/0"
+}
+
+func TestFailedPullLeavesNoPartialFile(t *testing.T) {
+	dir := t.TempDir()
+	n, err := pull(context.Background(), newClient(), layer{"overlay_t", flaky(t)}, dir, 2)
+	if err == nil || n != 2 {
+		t.Fatalf("n=%d err=%v", n, err)
+	}
+	entries, _ := os.ReadDir(dir)
+	if len(entries) != 0 {
+		t.Errorf("a failed download left files behind: %v", entries)
 	}
 }
