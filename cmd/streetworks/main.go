@@ -11,10 +11,13 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"sort"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/yungbluth/streetworks/internal/arcgis"
+	"github.com/yungbluth/streetworks/internal/permits"
 )
 
 var permitsService = "https://gis.tucsonaz.gov/arcgis/rest/services/PublicMaps/PermitsCode/MapServer"
@@ -209,4 +212,223 @@ func discover(ctx context.Context, w io.Writer, args []string) error {
 		}
 	}
 	return nil
+}
+
+func ingest(ctx context.Context, w io.Writer, args []string) error {
+	fs := flag.NewFlagSet("ingest", flag.ContinueOnError)
+	out := fs.String("out", "data", "output directory")
+	only := fs.String("only", "", "comma-separated layer names (default all)")
+	page := fs.Int("page", 2000, "records per request")
+	var extra multi
+	fs.Var(&extra, "extra", "name=url of another layer (repeatable)")
+	service := fs.String("service", permitsService, "MapServer checked for other permit layers")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *page <= 0 {
+		return fmt.Errorf("-page must be positive, got %d", *page)
+	}
+	ls, err := layersFrom(extra, *only)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(*out, 0o755); err != nil {
+		return err
+	}
+	c := newClient()
+	failed := 0
+	for _, l := range ls {
+		fmt.Fprintf(w, "%s ...\n", l.Name)
+		n, used, err := pullLayer(ctx, w, c, l, altsFor(l), *out, *page)
+		if err != nil {
+			failed++
+			fmt.Fprintf(w, "  FAILED after %d rows: %v\n", n, err)
+			if arcgis.IsUnreachable(err) {
+				fmt.Fprintf(w, "  This is a network problem, not a data problem: this computer could not connect to %s.\n"+
+					"  Check that https://%s opens in a browser, and whether a VPN, firewall or antivirus is blocking it.\n", hostOf(used), hostOf(used))
+			}
+			continue
+		}
+		fmt.Fprintf(w, "  %d rows saved\n", n)
+		if want, err := c.Count(ctx, used); err == nil && want != n {
+			fmt.Fprintf(w, "  WARNING: saved %d rows but the server reports %d. The layer may have changed during the download, or some rows could not be fetched.\n", n, want)
+		}
+		if n == 0 {
+			fmt.Fprintf(w, "  WARNING: this layer returned no rows. Run: streetworks discover -only %s\n", l.Name)
+		}
+	}
+	latest := ""
+	if recs, err := loadPermits(*out); err == nil && len(recs) > 0 {
+		m := permits.Build(recs).Meta
+		fmt.Fprintf(w, "\nData quality for permit layers\n------------------------------\n%s", m.Report())
+		latest = m.DateMax
+	}
+	suggestSurvey(ctx, w, c, *service, ls, latest)
+	if failed > 0 {
+		return fmt.Errorf("%d layer(s) failed; the others were saved", failed)
+	}
+	return nil
+}
+
+var nonName = regexp.MustCompile(`[^a-z0-9]+`)
+
+func suggestName(layerName string) string {
+	s := strings.Trim(nonName.ReplaceAllString(strings.ToLower(layerName), "_"), "_")
+	for _, p := range []string{"tdot_", "dtm_"} {
+		s = strings.TrimPrefix(s, p)
+	}
+	if !strings.HasPrefix(s, "permits") {
+		s = "permits_" + s
+	}
+	if len(s) > 48 {
+		s = strings.TrimRight(s[:48], "_")
+	}
+	return s
+}
+
+// isStreetWorkLayer is false for layers about events and banners
+func isStreetWorkLayer(name string) bool {
+	n := strings.ToUpper(name)
+	return !strings.Contains(n, "EVENT") && !strings.Contains(n, "BANNER")
+}
+
+// isRowPermitLayer picks out right-of-way permit layers by name
+func isRowPermitLayer(name string) bool {
+	n := strings.ToUpper(name)
+	return strings.Contains(n, "PERMIT") && (strings.Contains(n, "RW") || strings.Contains(n, "ROW") || strings.Contains(n, "TDOT"))
+}
+
+func normURL(u string) string { return strings.ToLower(strings.TrimRight(u, "/")) }
+
+// pulledURLs is every address the given layers may be downloaded from
+func pulledURLs(pulled []layer) map[string]bool {
+	have := map[string]bool{}
+	for _, l := range pulled {
+		have[normURL(l.URL)] = true
+		for _, a := range altsFor(l) {
+			have[normURL(a)] = true
+		}
+	}
+	return have
+}
+
+// suggestSurvey tells the user, briefly, that other permit layers exist
+func suggestSurvey(ctx context.Context, w io.Writer, c *arcgis.Client, service string, pulled []layer, latest string) {
+	if t, err := time.Parse("2006-01-02", latest); err == nil && t.After(time.Now().AddDate(0, -3, 0)) {
+		return // the newest permit is recent, so there is nothing to chase
+	}
+	refs, err := c.ServiceLayers(ctx, service)
+	if err != nil {
+		return // a suggestion is a courtesy; never fail the run over it
+	}
+	have, n := pulledURLs(pulled), 0
+	for _, r := range refs {
+		if isRowPermitLayer(r.Name) && !have[normURL(fmt.Sprintf("%s/%d", strings.TrimRight(service, "/"), r.ID))] {
+			n++
+		}
+	}
+	if n == 0 {
+		return
+	}
+	ends := ""
+	if latest != "" {
+		ends = " (the data you have ends " + latest + ")"
+	}
+	fmt.Fprintf(w, "\nThe city's permit service has %d other right-of-way permit layer%s that %s not downloaded%s.\n"+
+		"The inactive layer only holds closed permits, so newer ones are probably elsewhere. To see which\n"+
+		"layers have newer data and fit this tool, run:\n\n    go run ./cmd/streetworks survey\n", n, map[bool]string{true: "", false: "s"}[n == 1], map[bool]string{true: "was", false: "were"}[n == 1], ends)
+}
+
+// Fields the permit parser reads.
+var (
+	surveyFields = []string{"PERMIT", "PERMIT_TYPE", "PERMIT_STATUS", "STREET_NO", "STREET_NAME", "DATE_ISSUED"}
+	surveyDates  = []string{"DATE_ISSUED", "DATE_APPROVE", "DATE_START", "DATE_ENTERED", "CREATED_DATE", "DATE_ADDED"}
+)
+
+type surveyRow struct {
+	ID      int
+	Name    string
+	URL     string
+	Rows    int
+	Newest  time.Time
+	Field   string
+	Fits    int
+	Missing []string
+	Pulled  bool
+	Err     error
+}
+
+func hasFold(list []string, s string) bool {
+	for _, x := range list {
+		if strings.EqualFold(x, s) {
+			return true
+		}
+	}
+	return false
+}
+
+func surveyLayers(ctx context.Context, c *arcgis.Client, service string, pulled []layer) ([]surveyRow, error) {
+	refs, err := c.ServiceLayers(ctx, service)
+	if err != nil {
+		return nil, err
+	}
+	have := pulledURLs(pulled)
+	limitT := time.Now().AddDate(1, 0, 0)
+	limit := limitT.Format("2006-01-02")
+	var rows []surveyRow
+	for _, r := range refs {
+		if !isRowPermitLayer(r.Name) {
+			continue
+		}
+		u := fmt.Sprintf("%s/%d", strings.TrimRight(service, "/"), r.ID)
+		row := surveyRow{ID: r.ID, Name: r.Name, URL: u, Pulled: have[normURL(u)]}
+		info, err := c.Layer(ctx, u)
+		if err == nil {
+			row.Rows, err = c.Count(ctx, u)
+		}
+		if err != nil {
+			row.Err = err
+			rows = append(rows, row)
+			continue
+		}
+		for _, f := range surveyFields {
+			found := false
+			for _, lf := range info.Fields {
+				if strings.EqualFold(lf.Name, f) {
+					found = true
+					break
+				}
+			}
+			if found {
+				row.Fits++
+			} else {
+				row.Missing = append(row.Missing, f)
+			}
+		}
+		if row.Rows > 0 {
+			for _, f := range info.Fields {
+				if f.Type != "esriFieldTypeDate" || !hasFold(surveyDates, f.Name) {
+					continue
+				}
+				_, hi, err := c.DateRangeWhere(ctx, u, f.Name, fmt.Sprintf("%s <= timestamp '%s 00:00:00'", f.Name, limit))
+				if err != nil {
+					// the server did not accept the filter
+					if _, hi, err = c.DateRange(ctx, u, f.Name); err == nil && hi.After(limitT) {
+						hi = time.Time{}
+					}
+				}
+				if err == nil && hi.After(row.Newest) {
+					row.Newest, row.Field = hi, f.Name
+				}
+			}
+		}
+		rows = append(rows, row)
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		if !rows[i].Newest.Equal(rows[j].Newest) {
+			return rows[i].Newest.After(rows[j].Newest)
+		}
+		return rows[i].ID < rows[j].ID
+	})
+	return rows, nil
 }
