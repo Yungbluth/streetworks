@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -20,7 +22,26 @@ type Client struct {
 }
 
 func New() *Client {
-	return &Client{HTTP: &http.Client{Timeout: 90 * time.Second}, Retries: 4, Backoff: time.Second}
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	// Fail fast on a host we cannot reach instead of waiting out the OS default
+	tr.DialContext = (&net.Dialer{Timeout: 15 * time.Second, KeepAlive: 30 * time.Second}).DialContext
+	tr.TLSHandshakeTimeout = 15 * time.Second
+	return &Client{HTTP: &http.Client{Timeout: 90 * time.Second, Transport: tr}, Retries: 4, Backoff: time.Second}
+}
+
+func IsUnreachable(err error) bool {
+	if err == nil || errors.Is(err, context.Canceled) {
+		return false
+	}
+	var dns *net.DNSError
+	if errors.As(err, &dns) {
+		return true
+	}
+	var op *net.OpError
+	if errors.As(err, &op) && op.Op == "dial" {
+		return true
+	}
+	return strings.Contains(err.Error(), "TLS handshake timeout")
 }
 
 type Field struct {
@@ -88,6 +109,9 @@ func (c *Client) get(ctx context.Context, base string, q url.Values) ([]byte, er
 		resp, err := c.HTTP.Do(req)
 		if err != nil {
 			last = err
+			if attempt >= 1 && IsUnreachable(err) {
+				break // a host that cannot be reached twice will not answer on the fifth try
+			}
 			continue
 		}
 		body, err := io.ReadAll(resp.Body)
@@ -121,6 +145,13 @@ func (c *Client) get(ctx context.Context, base string, q url.Values) ([]byte, er
 			}
 		}
 		return body, nil
+	}
+	if IsUnreachable(last) {
+		host := u
+		if pu, err := url.Parse(u); err == nil && pu.Host != "" {
+			host = pu.Host
+		}
+		return nil, fmt.Errorf("giving up after %d attempts: cannot connect to %s (check the network, firewall, VPN or proxy; other sites working does not mean this one is reachable): %w", tries, host, last)
 	}
 	return nil, fmt.Errorf("giving up after %d attempts: %w", tries, last)
 }
