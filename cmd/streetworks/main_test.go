@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -205,4 +206,227 @@ func TestFailedPullLeavesNoPartialFile(t *testing.T) {
 	if len(entries) != 0 {
 		t.Errorf("a failed download left files behind: %v", entries)
 	}
+}
+
+func TestFailedPullDoesNotDestroyPreviousGoodData(t *testing.T) {
+	srv, dir := fakeCity(t), t.TempDir()
+	good := layer{"overlay_t", srv.LayerURL(13)}
+	if _, err := pull(context.Background(), newClient(), good, dir, 2000); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(filepath.Join(dir, "overlay_t.jsonl"))
+	metaBefore, _ := os.ReadFile(filepath.Join(dir, "overlay_t.meta.json"))
+	if _, err := pull(context.Background(), newClient(), layer{"overlay_t", flaky(t)}, dir, 2); err == nil {
+		t.Fatal("expected failure")
+	}
+	after, _ := os.ReadFile(filepath.Join(dir, "overlay_t.jsonl"))
+	metaAfter, _ := os.ReadFile(filepath.Join(dir, "overlay_t.meta.json"))
+	if string(before) != string(after) || string(metaBefore) != string(metaAfter) {
+		t.Error("previous data or its metadata was modified by a failed refresh")
+	}
+	if tmp, _ := filepath.Glob(filepath.Join(dir, "*.tmp")); len(tmp) != 0 {
+		t.Errorf("temp files left: %v", tmp)
+	}
+}
+
+func TestPullIntoMissingDirectoryFails(t *testing.T) {
+	srv := fakeCity(t)
+	if _, err := pull(context.Background(), newClient(), layer{"overlay_t", srv.LayerURL(13)}, filepath.Join(t.TempDir(), "nope"), 10); err == nil {
+		t.Error("expected an error when the output directory does not exist")
+	}
+}
+
+func TestIngestEndToEnd(t *testing.T) {
+	srv, dir := fakeCity(t), t.TempDir()
+	var out bytes.Buffer
+	args := []string{"-out", dir, "-only", "permits_t,overlay_t", "-page", "3",
+		"-extra", "permits_t=" + srv.LayerURL(75), "-extra", "overlay_t=" + srv.LayerURL(13)}
+	if err := ingest(context.Background(), &out, args); err != nil {
+		t.Fatalf("%v\n%s", err, out.String())
+	}
+	if got := countLines(t, filepath.Join(dir, "permits_t.jsonl")); got != 11 {
+		t.Errorf("permits lines = %d, want 11 (paged 3 at a time over a server capped at 4)", got)
+	}
+	report := out.String()
+	for _, want := range []string{"permits_t ...", "11 rows saved", "2 rows saved", "Data quality for permit layers",
+		"Rows read:            11", "Unique permits:       11",
+		"Implausible dates:   1 (9.1%)", // the 2049 typo is detected
+		"No street/block:      2 (18.2%)", "Street from text:     1 (9.1%)",
+		"Date range:           2005-07-07 to 2006-10-02", // 2049 did not become the max
+		"CLOSED", "EXCAVATION"} {
+		if !strings.Contains(report, want) {
+			t.Errorf("report missing %q\n%s", want, report)
+		}
+	}
+	ix, err := loadIndex(dir)
+	if err != nil || ix.Meta.UniquePermits != 11 || ix.Meta.Blocks != 9 {
+		t.Fatalf("index: %+v err=%v", ix.Meta, err)
+	}
+	// Re-running replaces data rather than appending to it
+	if err := ingest(context.Background(), &bytes.Buffer{}, args); err != nil {
+		t.Fatal(err)
+	}
+	if got := countLines(t, filepath.Join(dir, "permits_t.jsonl")); got != 11 {
+		t.Errorf("after second ingest: %d lines", got)
+	}
+	if tmp, _ := filepath.Glob(filepath.Join(dir, "*.tmp")); len(tmp) != 0 {
+		t.Errorf("temp files left: %v", tmp)
+	}
+}
+
+func TestIngestSavesGoodLayersWhenOneFails(t *testing.T) {
+	srv, dir := fakeCity(t), t.TempDir()
+	var out bytes.Buffer
+	err := ingest(context.Background(), &out, []string{"-out", dir, "-only", "permits_t,overlay_t,gone",
+		"-extra", "permits_t=" + srv.LayerURL(75), "-extra", "overlay_t=" + srv.LayerURL(13), "-extra", "gone=" + srv.LayerURL(404)})
+	if err == nil || !strings.Contains(err.Error(), "1 layer(s) failed") {
+		t.Fatalf("err = %v", err)
+	}
+	if !strings.Contains(out.String(), "FAILED") {
+		t.Errorf("failure not reported:\n%s", out.String())
+	}
+	if countLines(t, filepath.Join(dir, "permits_t.jsonl")) != 11 || countLines(t, filepath.Join(dir, "overlay_t.jsonl")) != 2 {
+		t.Error("good layers were not saved")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "gone.jsonl")); err == nil {
+		t.Error("failed layer must not leave a file")
+	}
+}
+
+func TestIngestArgumentErrors(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "afile")
+	if err := os.WriteFile(file, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"zero page", []string{"-page", "0", "-only", "permits_inactive"}, "-page must be positive"},
+		{"negative page", []string{"-page", "-5"}, "-page must be positive"},
+		{"unknown flag does not exit the process", []string{"-nope"}, "flag provided but not defined"},
+		{"help", []string{"-h"}, "help requested"},
+		{"unknown layer", []string{"-only", "nope"}, "unknown layer"},
+		{"bad extra", []string{"-extra", "oops"}, "name=url"},
+		{"output path is a file", []string{"-out", file, "-only", "permits_inactive"}, ""},
+	} {
+		err := ingest(context.Background(), &bytes.Buffer{}, c.args)
+		if err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: err = %v, want containing %q", c.name, err, c.want)
+		}
+	}
+}
+
+func TestIngestRespectsCancellation(t *testing.T) {
+	srv := fakeCity(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	start := time.Now()
+	err := ingest(ctx, &bytes.Buffer{}, []string{"-out", t.TempDir(), "-only", "overlay_t", "-extra", "overlay_t=" + srv.LayerURL(13)})
+	if err == nil || time.Since(start) > 5*time.Second {
+		t.Errorf("err=%v after %v", err, time.Since(start))
+	}
+}
+
+func TestDiscoverReportsWhatDecidesViability(t *testing.T) {
+	srv := fakeCity(t)
+	var out bytes.Buffer
+	err := discover(context.Background(), &out, []string{"-service", srv.ServiceURL(), "-only", "permits_t,overlay_t",
+		"-extra", "permits_t=" + srv.LayerURL(75), "-extra", "overlay_t=" + srv.LayerURL(13)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := out.String()
+	for _, want := range []string{
+		"75  TDOT_PERMITS_RW_INACTIVE   <-- permits-related", // flags the layer to add with -extra
+		"13  Prop409",
+		"11 rows", "max 4 per request", "esriGeometryPolygon",
+		"DATE_ISSUED:Date", "STREET_NAME:String",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("discover output missing %q:\n%s", want, s)
+		}
+	}
+	if !strings.Contains(s, "2005-07-07 to 2049-09-03") {
+		t.Errorf("date range not shown or wrong:\n%s", s)
+	}
+}
+
+func TestDiscoverSurvivesBrokenServices(t *testing.T) {
+	srv := fakeCity(t)
+	var out bytes.Buffer
+	// Unknown service path and an unknown layer: must report, not crash or hang
+	err := discover(context.Background(), &out, []string{"-service", srv.URL + "/nowhere", "-only", "x", "-extra", "x=" + srv.LayerURL(404)})
+	if err != nil {
+		t.Fatalf("discover should report problems, not fail: %v", err)
+	}
+	if !strings.Contains(out.String(), "could not list") || !strings.Contains(out.String(), "FAILED") {
+		t.Errorf("problems not reported:\n%s", out.String())
+	}
+	if err := discover(context.Background(), &out, []string{"-only", "nope"}); err == nil {
+		t.Error("unknown -only layer should be an error")
+	}
+}
+
+func TestLoadIndexErrors(t *testing.T) {
+	empty := t.TempDir()
+	if _, err := loadIndex(empty); err == nil || !strings.Contains(err.Error(), "run ingest first") {
+		t.Errorf("empty dir: %v", err)
+	}
+	if _, err := loadIndex(filepath.Join(empty, "missing")); err == nil {
+		t.Error("missing dir")
+	}
+	_ = os.WriteFile(filepath.Join(empty, "prop409_major.jsonl"), []byte(`{"layer":"p","properties":{},"geometry":null}`+"\n"), 0o644)
+	if _, err := loadIndex(empty); err == nil {
+		t.Error("overlay-only dir should not count as permit data")
+	}
+	bad := t.TempDir()
+	_ = os.WriteFile(filepath.Join(bad, "permits_x.jsonl"), []byte("garbage"), 0o644)
+	if _, err := loadIndex(bad); err == nil || !strings.Contains(err.Error(), "permits_x.jsonl") {
+		t.Errorf("corrupt file should be named in the error: %v", err)
+	}
+}
+
+func TestIngestWarnsWhenRowCountDoesNotMatchServer(t *testing.T) {
+	srv := arcgistest.New(arcgistest.Layer{ID: 1, Name: "L", Geometry: "esriGeometryPoint",
+		Fields: []arcgis.Field{arcgistest.OIDField()}, ReportedCount: 50,
+		Features: []arcgis.Feature{arcgistest.Feat(map[string]any{"OBJECTID": 1.0}, ""), arcgistest.Feat(map[string]any{"OBJECTID": 2.0}, "")}})
+	defer srv.Close()
+	var out bytes.Buffer
+	if err := ingest(context.Background(), &out, []string{"-out", t.TempDir(), "-only", "overlay_t", "-extra", "overlay_t=" + srv.LayerURL(1)}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "WARNING: saved 2 rows but the server reports 50") {
+		t.Errorf("no mismatch warning:\n%s", out.String())
+	}
+	good := fakeCity(t)
+	out.Reset()
+	if err := ingest(context.Background(), &out, []string{"-out", t.TempDir(), "-only", "overlay_t", "-extra", "overlay_t=" + good.LayerURL(13)}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out.String(), "WARNING") {
+		t.Errorf("unexpected warning:\n%s", out.String())
+	}
+}
+
+func TestIngestFlagsAnEmptyLayer(t *testing.T) {
+	srv := arcgistest.New(arcgistest.Layer{ID: 1, Name: "Empty", Geometry: "esriGeometryPolyline", Fields: []arcgis.Field{arcgistest.OIDField()}})
+	defer srv.Close()
+	var out bytes.Buffer
+	if err := ingest(context.Background(), &out, []string{"-out", t.TempDir(), "-only", "overlay_t", "-extra", "overlay_t=" + srv.LayerURL(1)}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "returned no rows") || !strings.Contains(out.String(), "discover -only overlay_t") {
+		t.Errorf("empty layer not called out:\n%s", out.String())
+	}
+}
+
+func deadURL(t *testing.T) string {
+	t.Helper()
+	srv := httptest.NewServer(http.NotFoundHandler())
+	u := srv.URL
+	srv.Close()
+	return u + "/arcgis/rest/services/Test/MapServer/1"
 }
