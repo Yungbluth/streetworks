@@ -1,15 +1,20 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log"
+	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -18,6 +23,7 @@ import (
 
 	"github.com/yungbluth/streetworks/internal/arcgis"
 	"github.com/yungbluth/streetworks/internal/permits"
+	"github.com/yungbluth/streetworks/internal/web"
 )
 
 var permitsService = "https://gis.tucsonaz.gov/arcgis/rest/services/PublicMaps/PermitsCode/MapServer"
@@ -431,4 +437,209 @@ func surveyLayers(ctx context.Context, c *arcgis.Client, service string, pulled 
 		return rows[i].ID < rows[j].ID
 	})
 	return rows, nil
+}
+
+func survey(ctx context.Context, w io.Writer, args []string) error {
+	fs := flag.NewFlagSet("survey", flag.ContinueOnError)
+	service := fs.String("service", permitsService, "MapServer whose permit layers to examine")
+	var extra multi
+	fs.Var(&extra, "extra", "name=url of a layer you already download (repeatable)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	pulled, err := layersFrom(extra, "")
+	if err != nil {
+		return err
+	}
+	c := newClient()
+	fmt.Fprintf(w, "Examining the right-of-way permit layers in %s\n(each layer is asked for its row count, newest date and field names; this takes a minute)\n\n", *service)
+	rows, err := surveyLayers(ctx, c, *service, pulled)
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		fmt.Fprintln(w, "No right-of-way permit layers found in this service.")
+		return nil
+	}
+	fmt.Fprintf(w, "%5s  %9s  %-10s  %-5s  %s\n", "ID", "Rows", "Newest", "Fits", "Layer")
+	var baseline time.Time
+	for _, r := range rows {
+		if r.Pulled && r.Newest.After(baseline) {
+			baseline = r.Newest
+		}
+		switch {
+		case r.Err != nil:
+			fmt.Fprintf(w, "%5d  %9s  %-10s  %-5s  %s   (could not read: %v)\n", r.ID, "?", "?", "?", r.Name, r.Err)
+		default:
+			newest := "none"
+			if r.Rows > 0 {
+				newest = "unknown"
+			}
+			if !r.Newest.IsZero() {
+				newest = r.Newest.Format("2006-01-02")
+			}
+			note := ""
+			if r.Pulled {
+				note = "   (already downloaded)"
+			}
+			if len(r.Missing) > 0 {
+				note += "   (no " + strings.Join(r.Missing, ", ") + ")"
+			}
+			fmt.Fprintf(w, "%5d  %9d  %-10s  %d/%-3d  %s%s\n", r.ID, r.Rows, newest, r.Fits, len(surveyFields), r.Name, note)
+		}
+	}
+	fmt.Fprintln(w, "\nFits = how many of the fields this tool reads (PERMIT, PERMIT_TYPE, PERMIT_STATUS, STREET_NO, STREET_NAME, DATE_ISSUED) the layer has.")
+	if !baseline.IsZero() {
+		fmt.Fprintf(w, "The layers you already download end %s.\n", baseline.Format("2006-01-02"))
+	}
+	used := map[string]bool{}
+	var recs []string
+	for _, r := range rows {
+		if r.Pulled || r.Err != nil || r.Rows == 0 || r.Fits < len(surveyFields)-1 || !r.Newest.After(baseline) || !isStreetWorkLayer(r.Name) {
+			continue
+		}
+		name := suggestName(r.Name)
+		if used[name] {
+			name = fmt.Sprintf("%s_%d", name, r.ID)
+		}
+		used[name] = true
+		recs = append(recs, fmt.Sprintf("  -extra %s=%s", name, r.URL))
+	}
+	if len(recs) == 0 {
+		fmt.Fprintln(w, "\nNo other layer fits and has newer permits.")
+		return nil
+	}
+	fmt.Fprintf(w, "\nLayers that fit and have newer permits. Add any of these to ingest (and repeat the flag for each):\n%s\n", strings.Join(recs, "\n"))
+	return nil
+}
+
+func pullLayer(ctx context.Context, w io.Writer, c *arcgis.Client, l layer, alts []string, dir string, page int) (int, string, error) {
+	urls := append([]string{l.URL}, alts...)
+	for i, u := range urls {
+		n, err := pull(ctx, c, layer{l.Name, u}, dir, page)
+		if err == nil || !arcgis.IsUnreachable(err) || i == len(urls)-1 {
+			return n, u, err
+		}
+		fmt.Fprintf(w, "  could not reach %s; trying %s\n", hostOf(u), hostOf(urls[i+1]))
+	}
+	return 0, l.URL, nil // unreachable: urls is never empty
+}
+
+// pull writes to a temp file and renames, so a failed run never leaves a half-written layer behind
+func pull(ctx context.Context, c *arcgis.Client, l layer, dir string, page int) (int, error) {
+	path := filepath.Join(dir, l.Name+".jsonl")
+	f, err := os.Create(path + ".tmp")
+	if err != nil {
+		return 0, err
+	}
+	w := bufio.NewWriter(f)
+	enc := json.NewEncoder(w)
+	n, err := c.Fetch(ctx, l.URL, page, func(fs []arcgis.Feature) error {
+		for _, ft := range fs {
+			if err := enc.Encode(arcgis.Stored{Layer: l.Name, Feature: ft}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err == nil {
+		err = w.Flush()
+	}
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		os.Remove(path + ".tmp")
+		return n, err
+	}
+	if err := os.Rename(path+".tmp", path); err != nil {
+		return n, err
+	}
+	meta, _ := json.Marshal(arcgis.SourceMeta{Name: l.Name, URL: l.URL, FetchedAt: time.Now().UTC(), Count: n})
+	return n, os.WriteFile(filepath.Join(dir, l.Name+".meta.json"), meta, 0o644)
+}
+
+func loadPermits(dir string) ([]permits.Record, error) {
+	paths, _ := filepath.Glob(filepath.Join(dir, "permits*.jsonl"))
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("no permits*.jsonl in %s; run ingest first", dir)
+	}
+	return permits.LoadFiles(paths...)
+}
+
+func loadIndex(dir string) (*permits.Index, error) {
+	recs, err := loadPermits(dir)
+	if err != nil {
+		return nil, err
+	}
+	return permits.Build(recs), nil
+}
+
+func watchForQuit(r io.Reader, stop func()) {
+	sc := bufio.NewScanner(r)
+	for sc.Scan() {
+		switch strings.ToLower(strings.TrimSpace(sc.Text())) {
+		case "q", "quit", "exit", "stop":
+			stop()
+			return
+		}
+	}
+}
+
+func runServer(ctx context.Context, ln net.Listener, h http.Handler, grace time.Duration) error {
+	srv := &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second}
+	errc := make(chan error, 1)
+	go func() { errc <- srv.Serve(ln) }()
+	select {
+	case err := <-errc:
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return err
+	case <-ctx.Done():
+	}
+	sctx, cancel := context.WithTimeout(context.Background(), grace)
+	defer cancel()
+	if err := srv.Shutdown(sctx); err != nil {
+		srv.Close() // grace period over: drop whatever is still connected
+	}
+	<-errc
+	return nil
+}
+
+func serve(ctx context.Context, stdin io.Reader, args []string) error {
+	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
+	dir := fs.String("data", "data", "data directory written by ingest")
+	addr := fs.String("addr", "127.0.0.1:8080", "listen address")
+	carto := fs.String("carto-key", os.Getenv("STREETWORKS_CARTO_KEY"), "free CARTO basemap key from carto.com/basemaps/apikey (or set STREETWORKS_CARTO_KEY)")
+	tiles := fs.String("tiles", "", "custom basemap tile URL template, e.g. https://host/{z}/{x}/{y}.png")
+	tilesDark := fs.String("tiles-dark", "", "tile URL template for dark mode (default: same as -tiles)")
+	credit := fs.String("attribution", "", "credit line shown on the map for a custom -tiles source")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	bm, err := web.NewBasemap(web.BasemapOptions{CartoKey: *carto, LightURL: *tiles, DarkURL: *tilesDark, Attribution: *credit})
+	if err != nil {
+		return err
+	}
+	ix, err := loadIndex(*dir)
+	if err != nil {
+		return err
+	}
+	ln, err := net.Listen("tcp", *addr)
+	if err != nil {
+		return fmt.Errorf("cannot listen on %s: %w\nIs another copy of streetworks still running? Stop it, or choose another address with -addr", *addr, err)
+	}
+	m := ix.Meta
+	log.Printf("loaded %d unique permits (%d blocks, %s to %s)", m.UniquePermits, m.Blocks, m.DateMin, m.DateMax)
+	log.Printf("basemap: %s", bm.Describe())
+	log.Printf("listening on http://%s", ln.Addr())
+	log.Printf("press Ctrl+C to stop (or type q and press Enter)")
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go watchForQuit(stdin, cancel)
+	err = runServer(ctx, ln, (&web.Server{Index: ix, Dir: *dir, Basemap: bm}).Handler(), 5*time.Second)
+	log.Printf("stopped")
+	return err
 }
