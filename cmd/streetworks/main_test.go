@@ -430,3 +430,225 @@ func deadURL(t *testing.T) string {
 	srv.Close()
 	return u + "/arcgis/rest/services/Test/MapServer/1"
 }
+
+func TestDefaultLayersAreOnTheHostThatWorks(t *testing.T) {
+	for _, l := range defaultLayers {
+		if hostOf(l.URL) != "gis.tucsonaz.gov" {
+			t.Errorf("%s: primary host is %s", l.Name, hostOf(l.URL))
+		}
+	}
+	for name, alts := range fallbacks {
+		if len(alts) == 0 || hostOf(alts[0]) != "publicgis.tucsonaz.gov" {
+			t.Errorf("%s: expected the OpenData host as fallback, got %v", name, alts)
+		}
+	}
+}
+
+func TestAltsForAndHostOf(t *testing.T) {
+	major := defaultLayers[1]
+	if got := altsFor(major); len(got) != 1 || !strings.Contains(got[0], "/MapServer/13") {
+		t.Errorf("default layer should get its fallback: %v", got)
+	}
+	if got := altsFor(layer{major.Name, "http://localhost:1/other"}); got != nil {
+		t.Errorf("a URL the user chose must not be silently swapped: %v", got)
+	}
+	if got := altsFor(defaultLayers[0]); got != nil {
+		t.Errorf("layer with no fallback: %v", got)
+	}
+	for in, want := range map[string]string{"https://gis.tucsonaz.gov/arcgis/x": "gis.tucsonaz.gov", "http://127.0.0.1:8080/a": "127.0.0.1:8080", "not a url": "not a url", "": ""} {
+		if got := hostOf(in); got != want {
+			t.Errorf("hostOf(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestPullLayerFallsBackWhenHostIsUnreachable(t *testing.T) {
+	good, dir := fakeCity(t), t.TempDir()
+	var out bytes.Buffer
+	n, used, err := pullLayer(context.Background(), &out, newClient(), layer{"overlay_t", deadURL(t)}, []string{good.LayerURL(13)}, dir, 2000)
+	if err != nil || n != 2 || used != good.LayerURL(13) {
+		t.Fatalf("n=%d used=%s err=%v", n, used, err)
+	}
+	if !strings.Contains(out.String(), "could not reach") {
+		t.Errorf("the switch should be announced:\n%s", out.String())
+	}
+	// the metadata must record the address that actually supplied the data
+	var m arcgis.SourceMeta
+	b, _ := os.ReadFile(filepath.Join(dir, "overlay_t.meta.json"))
+	if json.Unmarshal(b, &m) != nil || m.URL != good.LayerURL(13) {
+		t.Errorf("meta URL = %q", m.URL)
+	}
+}
+
+func TestPullLayerDoesNotFallBackOnServerErrors(t *testing.T) {
+	broken := arcgistest.New(arcgistest.Layer{ID: 1, Name: "L", Fields: []arcgis.Field{arcgistest.OIDField()}, QueryStatus: 500})
+	defer broken.Close()
+	alt := fakeCity(t)
+	_, used, err := pullLayer(context.Background(), &bytes.Buffer{}, newClient(), layer{"overlay_t", broken.LayerURL(1)}, []string{alt.LayerURL(13)}, t.TempDir(), 2000)
+	if err == nil || used != broken.LayerURL(1) {
+		t.Fatalf("a server that answers with an error must be reported, not hidden: used=%s err=%v", used, err)
+	}
+	if arcgis.IsUnreachable(err) {
+		t.Error("a 500 is not an unreachable host")
+	}
+	if len(alt.QueryLog()) != 0 {
+		t.Error("the fallback should not have been contacted")
+	}
+}
+
+func TestPullLayerLeavesFallbackAloneWhenPrimaryWorks(t *testing.T) {
+	good, alt := fakeCity(t), fakeCity(t)
+	n, used, err := pullLayer(context.Background(), &bytes.Buffer{}, newClient(), layer{"overlay_t", good.LayerURL(13)}, []string{alt.LayerURL(13)}, t.TempDir(), 2000)
+	if err != nil || n != 2 || used != good.LayerURL(13) || len(alt.QueryLog()) != 0 {
+		t.Errorf("n=%d used=%s err=%v altQueries=%d", n, used, err, len(alt.QueryLog()))
+	}
+}
+
+func TestPullLayerWhenEveryAddressIsUnreachable(t *testing.T) {
+	dir := t.TempDir()
+	_, used, err := pullLayer(context.Background(), &bytes.Buffer{}, newClient(), layer{"overlay_t", deadURL(t)}, []string{deadURL(t)}, dir, 2000)
+	if !arcgis.IsUnreachable(err) {
+		t.Fatalf("err = %v", err)
+	}
+	if used == "" {
+		t.Error("should report which address was tried last")
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
+		t.Errorf("nothing should be written: %v", entries)
+	}
+}
+
+func TestIngestExplainsAnUnreachableHost(t *testing.T) {
+	good, dir := fakeCity(t), t.TempDir()
+	dead := deadURL(t)
+	var out bytes.Buffer
+	err := ingest(context.Background(), &out, []string{"-out", dir, "-only", "overlay_t,overlay_dead",
+		"-extra", "overlay_t=" + good.LayerURL(13), "-extra", "overlay_dead=" + dead})
+	if err == nil || !strings.Contains(err.Error(), "1 layer(s) failed") {
+		t.Fatalf("err = %v", err)
+	}
+	for _, want := range []string{"network problem, not a data problem", hostOf(dead), "VPN"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("output should say %q:\n%s", want, out.String())
+		}
+	}
+	if countLines(t, filepath.Join(dir, "overlay_t.jsonl")) != 2 {
+		t.Error("the reachable layer must still be saved")
+	}
+}
+
+func TestSuggestName(t *testing.T) {
+	for in, want := range map[string]string{
+		"TDOT_PERMITS_RW_ACTIVE": "permits_rw_active",
+		"DTM_PERMITS_ROW_ACTIVE": "permits_row_active",
+		"TDOT_PERMITS_RW":        "permits_rw",
+		"Permits RW (Active)":    "permits_rw_active",
+		"RW_ACTIVE":              "permits_rw_active",
+		"tdot_row-permits":       "permits_row_permits",
+		"Inactive General ROW Permits (2020 - Present)": "permits_inactive_general_row_permits_2020_presen",
+	} {
+		got := suggestName(in)
+		if got != want || !nameRE.MatchString(got) || !strings.HasPrefix(got, "permits") || len(got) > 48 {
+			t.Errorf("suggestName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestIsRowPermitLayer(t *testing.T) {
+	for name, want := range map[string]bool{
+		"TDOT_PERMITS_RW_ACTIVE": true, "DTM_PERMITS_ROW_ACTIVE": true, "Active General ROW Permits": true, "TDOT_PERMITS_CIVIC_EVENTS": true,
+		"PDSD_BUILDING_PERMITS": false, "Prop409": false, "BUSLIC": false, "litecode": false, "": false,
+	} {
+		if got := isRowPermitLayer(name); got != want {
+			t.Errorf("isRowPermitLayer(%q) = %v, want %v", name, got, want)
+		}
+	}
+}
+
+func ms(y int, m time.Month, d int) float64 {
+	return float64(time.Date(y, m, d, 0, 0, 0, 0, time.UTC).UnixMilli())
+}
+
+// surveyCity is a permit service shaped like the city's
+func surveyCity(t *testing.T) *arcgistest.Server { return surveyCityWith(t, false) }
+
+func surveyCityWith(t *testing.T, rejectWhere bool) *arcgistest.Server {
+	t.Helper()
+	full := []arcgis.Field{arcgistest.OIDField(), {Name: "PERMIT", Type: "esriFieldTypeString"}, {Name: "PERMIT_TYPE", Type: "esriFieldTypeString"}, {Name: "PERMIT_STATUS", Type: "esriFieldTypeString"},
+		{Name: "STREET_NO", Type: "esriFieldTypeString"}, {Name: "STREET_NAME", Type: "esriFieldTypeString"}, {Name: "DATE_ISSUED", Type: "esriFieldTypeDate"}}
+	with := func(dates ...float64) []arcgis.Feature {
+		var fs []arcgis.Feature
+		for i, d := range dates {
+			fs = append(fs, arcgistest.Feat(map[string]any{"OBJECTID": float64(i + 1), "DATE_ISSUED": d}, ""))
+		}
+		return fs
+	}
+	srv := arcgistest.New(
+		arcgistest.Layer{ID: 75, Name: "TDOT_PERMITS_RW_INACTIVE", Fields: full, Features: with(ms(2010, 1, 1), ms(2025, 2, 12), ms(2049, 9, 3)), RejectWhere: rejectWhere}, // 2049 is a typo date
+		arcgistest.Layer{ID: 32, Name: "TDOT_PERMITS_RW_ACTIVE", Fields: full, Features: with(ms(2026, 6, 1), ms(2026, 7, 1)), RejectWhere: rejectWhere},
+		arcgistest.Layer{ID: 133, Name: "DTM_PERMITS_ROW_ACTIVE", Fields: full, Features: with(ms(2026, 7, 20))},
+		arcgistest.Layer{ID: 33, Name: "TDOT_PERMITS_PIA_ACTIVE", Fields: []arcgis.Field{arcgistest.OIDField(), {Name: "PERMIT", Type: "esriFieldTypeString"}, {Name: "DATE_ISSUED", Type: "esriFieldTypeDate"}}, Features: with(ms(2026, 7, 25))},
+		arcgistest.Layer{ID: 62, Name: "DTM_PERMITS_ROW_CIP_JOC", Fields: full},                            // empty
+		arcgistest.Layer{ID: 90, Name: "TDOT_PERMITS_OLDER", Fields: full, Features: with(ms(2019, 5, 5))}, // older than what we have
+		arcgistest.Layer{ID: 91, Name: "TDOT_PERMITS_BROKEN", Fields: full, Features: with(ms(2026, 7, 1)), QueryStatus: 500},
+		arcgistest.Layer{ID: 12, Name: "PDSD_BUILDING_PERMITS", Fields: full, Features: with(ms(2026, 7, 25))}, // not right-of-way
+		arcgistest.Layer{ID: 13, Name: "Prop409", Fields: full},
+	)
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestSurveyTablesAndRecommendsOnlyLayersThatFitAndAreNewer(t *testing.T) {
+	srv := surveyCity(t)
+	var out bytes.Buffer
+	if err := survey(context.Background(), &out, []string{"-service", srv.ServiceURL(), "-extra", "permits_inactive=" + srv.LayerURL(75)}); err != nil {
+		t.Fatalf("%v\n%s", err, out.String())
+	}
+	s := out.String()
+	line := func(id string) string {
+		for _, l := range strings.Split(s, "\n") {
+			if f := strings.Fields(l); len(f) > 0 && f[0] == id {
+				return l
+			}
+		}
+		return ""
+	}
+	if l := line("75"); !strings.Contains(l, "2025-02-12") || !strings.Contains(l, "already downloaded") || !strings.Contains(l, "6/6") {
+		t.Errorf("inactive layer (typo year must be ignored): %q", l)
+	}
+	if l := line("32"); !strings.Contains(l, "2026-07-01") || !strings.Contains(l, "6/6") {
+		t.Errorf("active layer: %q", l)
+	}
+	if l := line("33"); !strings.Contains(l, "2/6") {
+		t.Errorf("poorly fitting layer: %q", l)
+	}
+	if l := line("62"); !strings.Contains(l, "none") {
+		t.Errorf("empty layer: %q", l)
+	}
+	if l := line("91"); !strings.Contains(l, "could not read") {
+		t.Errorf("broken layer should be reported, not abort the survey: %q", l)
+	}
+	for _, id := range []string{"12", "13"} {
+		if line(id) != "" {
+			t.Errorf("layer %s is not a right-of-way permit layer and should not be listed", id)
+		}
+	}
+	i := strings.Index(s, "Layers that fit")
+	if i < 0 {
+		t.Fatalf("no recommendation block:\n%s", s)
+	}
+	rec := s[i:]
+	for _, want := range []string{"-extra permits_rw_active=" + srv.LayerURL(32), "-extra permits_row_active=" + srv.LayerURL(133)} {
+		if !strings.Contains(rec, want) {
+			t.Errorf("should recommend %q:\n%s", want, rec)
+		}
+	}
+	for _, unwanted := range []string{srv.LayerURL(75), srv.LayerURL(33), srv.LayerURL(62), srv.LayerURL(90), srv.LayerURL(91)} {
+		if strings.Contains(rec, unwanted+"\n") || strings.HasSuffix(strings.TrimSpace(rec), unwanted) {
+			t.Errorf("should not recommend %s:\n%s", unwanted, rec)
+		}
+	}
+	if strings.Index(s, "  133 ") > strings.Index(s, "  75 ") && strings.Index(s, "  133 ") != -1 {
+		t.Errorf("table should list newest layers first:\n%s", s)
+	}
+}
