@@ -652,3 +652,54 @@ func TestSurveyTablesAndRecommendsOnlyLayersThatFitAndAreNewer(t *testing.T) {
 		t.Errorf("table should list newest layers first:\n%s", s)
 	}
 }
+
+func TestSurveyIgnoresFutureDatesViaAFilter(t *testing.T) {
+	srv := surveyCity(t)
+	if err := survey(context.Background(), &bytes.Buffer{}, []string{"-service", srv.ServiceURL()}); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, q := range srv.QueryLog() {
+		if q.Get("outStatistics") != "" {
+			found = true
+			if !strings.Contains(q.Get("where"), "timestamp") {
+				t.Errorf("date range query is not limited to plausible dates: %q", q.Get("where"))
+			}
+		}
+	}
+	if !found {
+		t.Error("no date range queries were made")
+	}
+}
+
+func TestSurveyWhenNothingIsNewer(t *testing.T) {
+	srv := arcgistest.New(arcgistest.Layer{ID: 75, Name: "TDOT_PERMITS_RW_INACTIVE", Fields: []arcgis.Field{arcgistest.OIDField(), {Name: "DATE_ISSUED", Type: "esriFieldTypeDate"}},
+		Features: []arcgis.Feature{arcgistest.Feat(map[string]any{"OBJECTID": 1.0, "DATE_ISSUED": ms(2025, 2, 12)}, "")}})
+	defer srv.Close()
+	var out bytes.Buffer
+	if err := survey(context.Background(), &out, []string{"-service", srv.ServiceURL(), "-extra", "permits_inactive=" + srv.LayerURL(75)}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "No other layer fits and has newer permits") {
+		t.Errorf("%s", out.String())
+	}
+}
+
+func TestSurveyErrors(t *testing.T) {
+	var out bytes.Buffer
+	if err := survey(context.Background(), &out, []string{"-service", deadURL(t)}); err == nil {
+		t.Error("an unreachable service should be an error")
+	}
+	empty := arcgistest.New(arcgistest.Layer{ID: 1, Name: "litecode"})
+	defer empty.Close()
+	out.Reset()
+	if err := survey(context.Background(), &out, []string{"-service", empty.ServiceURL()}); err != nil || !strings.Contains(out.String(), "No right-of-way permit layers") {
+		t.Errorf("err=%v\n%s", err, out.String())
+	}
+	if err := survey(context.Background(), &out, []string{"-extra", "bad"}); err == nil {
+		t.Error("bad -extra")
+	}
+	if err := survey(context.Background(), &out, []string{"-nope"}); err == nil {
+		t.Error("unknown flag")
+	}
+}
