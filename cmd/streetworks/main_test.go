@@ -703,3 +703,174 @@ func TestSurveyErrors(t *testing.T) {
 		t.Error("unknown flag")
 	}
 }
+
+func TestIngestPointsToSurveyInsteadOfListingEveryLayer(t *testing.T) {
+	srv := surveyCity(t)
+	var out bytes.Buffer
+	args := []string{"-out", t.TempDir(), "-only", "permits_t", "-extra", "permits_t=" + srv.LayerURL(75), "-service", srv.ServiceURL()}
+	if err := ingest(context.Background(), &out, args); err != nil {
+		t.Fatalf("%v\n%s", err, out.String())
+	}
+	s := out.String()
+	if !strings.Contains(s, "go run ./cmd/streetworks survey") || !strings.Contains(s, "6 other right-of-way permit layers that were not downloaded") {
+		t.Errorf("should point to survey with a count:\n%s", s)
+	}
+	if strings.Contains(s, "-extra permits_rw_active") {
+		t.Errorf("ingest should not dump a flag per layer any more:\n%s", s)
+	}
+	if !strings.Contains(s, "the data you have ends 2025-02-12") {
+		t.Errorf("should say where the data ends:\n%s", s)
+	}
+	// an unreachable service must never fail the run, and nothing to suggest prints nothing
+	out.Reset()
+	if err := ingest(context.Background(), &out, []string{"-out", t.TempDir(), "-only", "permits_t", "-extra", "permits_t=" + srv.LayerURL(75), "-service", deadURL(t)}); err != nil {
+		t.Errorf("a failed lookup must not fail ingest: %v", err)
+	}
+	if strings.Contains(out.String(), "survey") {
+		t.Errorf("no suggestion expected when the service cannot be read:\n%s", out.String())
+	}
+}
+
+func TestSurveyFallsBackWhenServerRejectsTheDateFilter(t *testing.T) {
+	srv := surveyCityWith(t, true)
+	var out bytes.Buffer
+	if err := survey(context.Background(), &out, []string{"-service", srv.ServiceURL(), "-extra", "permits_inactive=" + srv.LayerURL(75)}); err != nil {
+		t.Fatal(err)
+	}
+	line := func(id string) string {
+		for _, l := range strings.Split(out.String(), "\n") {
+			if f := strings.Fields(l); len(f) > 0 && f[0] == id {
+				return l
+			}
+		}
+		return ""
+	}
+	if l := line("75"); !strings.Contains(l, "unknown") || strings.Contains(l, "2049") {
+		t.Errorf("a future date from an unfiltered query must be reported as unknown: %q", l)
+	}
+	if l := line("32"); !strings.Contains(l, "2026-07-01") {
+		t.Errorf("a normal date must still be shown: %q", l)
+	}
+}
+
+// the default permit layers were chosen from the output of `survey` against the live service
+func TestDefaultPermitLayersAreTheCurrentDTMOnes(t *testing.T) {
+	want := map[string]string{
+		"permits_row_active": "/133", "permits_row_utility": "/139", "permits_row_general": "/135", "permits_row_cip_joc": "/62",
+		"permits_row_development": "/64", "permits_row_homedev": "/134", "permits_row_residential": "/136",
+	}
+	got := map[string]string{}
+	for _, l := range defaultLayers {
+		if strings.HasPrefix(l.Name, "permits") && l.Name != "permits_inactive" {
+			got[l.Name] = strings.TrimPrefix(l.URL, permitsServiceReal)
+		}
+	}
+	for name, id := range want {
+		if got[name] != id {
+			t.Errorf("%s: id %q, want %q", name, got[name], id)
+		}
+	}
+	if len(got) != len(want) {
+		t.Errorf("unexpected default permit layers: %v", got)
+	}
+	// Not street work, or stale and mis-shaped: must not be defaults
+	for _, id := range []string{"/137", "/138", "/31", "/32", "/33", "/76", "/73"} {
+		for name, g := range got {
+			if g == id {
+				t.Errorf("%s (%s) should not be a default", name, id)
+			}
+		}
+	}
+	for _, l := range defaultLayers {
+		if !nameRE.MatchString(l.Name) {
+			t.Errorf("bad layer name %q", l.Name)
+		}
+	}
+}
+
+func TestIsStreetWorkLayer(t *testing.T) {
+	for name, want := range map[string]bool{
+		"DTM_PERMITS_ROW_General": true, "DTM_PERMITS_ROW_Utility": true, "DTM_PERMITS_ROW_CIP_JOC": true,
+		"DTM_PERMITS_ROW_SpecialEvents": false, "Active Special Event ROW Permits": false, "TDOT_PERMITS_CIVIC_EVENTS": false,
+		"DTM_PERMITS_ROW_StreetBanners": false, "Inactive Street Banner Permits": false,
+	} {
+		if got := isStreetWorkLayer(name); got != want {
+			t.Errorf("isStreetWorkLayer(%q) = %v, want %v", name, got, want)
+		}
+	}
+}
+
+func TestSurveyShowsMissingFieldsAndSkipsEventLayers(t *testing.T) {
+	full := []arcgis.Field{arcgistest.OIDField(), {Name: "PERMIT", Type: "esriFieldTypeString"}, {Name: "PERMIT_TYPE", Type: "esriFieldTypeString"}, {Name: "PERMIT_STATUS", Type: "esriFieldTypeString"},
+		{Name: "STREET_NO", Type: "esriFieldTypeString"}, {Name: "STREET_NAME", Type: "esriFieldTypeString"}, {Name: "DATE_ISSUED", Type: "esriFieldTypeDate"}}
+	one := func(y int) []arcgis.Feature {
+		return []arcgis.Feature{arcgistest.Feat(map[string]any{"OBJECTID": 1.0, "DATE_ISSUED": ms(y, 6, 1)}, "")}
+	}
+	noStatus := append([]arcgis.Field(nil), full[:3]...)
+	noStatus = append(noStatus, full[4:]...) // no PERMIT_STATUS
+	srv := arcgistest.New(
+		arcgistest.Layer{ID: 75, Name: "TDOT_PERMITS_RW_INACTIVE", Fields: full, Features: one(2024)},
+		arcgistest.Layer{ID: 137, Name: "DTM_PERMITS_ROW_SpecialEvents", Fields: full, Features: one(2026)},
+		arcgistest.Layer{ID: 138, Name: "DTM_PERMITS_ROW_StreetBanners", Fields: full, Features: one(2026)},
+		arcgistest.Layer{ID: 112, Name: "Active Residential Temporary Use ROW Permits", Fields: noStatus, Features: one(2026)},
+		arcgistest.Layer{ID: 133, Name: "DTM_PERMITS_ROW_ACTIVE", Fields: full, Features: one(2026)},
+	)
+	defer srv.Close()
+	var out bytes.Buffer
+	if err := survey(context.Background(), &out, []string{"-service", srv.ServiceURL(), "-extra", "permits_inactive=" + srv.LayerURL(75)}); err != nil {
+		t.Fatal(err)
+	}
+	s := out.String()
+	if !strings.Contains(s, "5/6") || !strings.Contains(s, "(no PERMIT_STATUS)") {
+		t.Errorf("a layer's missing fields should be named:\n%s", s)
+	}
+	i := strings.Index(s, "Layers that fit")
+	if i < 0 {
+		t.Fatalf("no recommendations:\n%s", s)
+	}
+	rec := s[i:]
+	if !strings.Contains(rec, srv.LayerURL(133)) {
+		t.Errorf("DTM_PERMITS_ROW_ACTIVE should be recommended:\n%s", rec)
+	}
+	for _, id := range []int{137, 138} {
+		if strings.Contains(rec, srv.LayerURL(id)) {
+			t.Errorf("event/banner layer %d should not be recommended:\n%s", id, rec)
+		}
+		if !strings.Contains(s, fmt.Sprintf("%5d", id)) {
+			t.Errorf("but it should still appear in the table:\n%s", s)
+		}
+	}
+}
+
+func TestIngestOnlyNudgesTowardSurveyWhenDataIsStale(t *testing.T) {
+	oid := []arcgis.Field{arcgistest.OIDField(), {Name: "DATE_ISSUED", Type: "esriFieldTypeDate"}}
+	run := func(newest time.Time) string {
+		f := []arcgis.Feature{arcgistest.Feat(map[string]any{"OBJECTID": 1.0, "PERMIT": "T1", "DATE_ISSUED": float64(newest.UnixMilli())}, "")}
+		srv := arcgistest.New(
+			arcgistest.Layer{ID: 75, Name: "TDOT_PERMITS_RW_INACTIVE", Fields: oid, Features: f},
+			arcgistest.Layer{ID: 76, Name: "DTM_PERMITS_ROW_ACTIVE", Fields: oid, Features: f},
+		)
+		defer srv.Close()
+		var out bytes.Buffer
+		args := []string{"-out", t.TempDir(), "-only", "permits_t", "-extra", "permits_t=" + srv.LayerURL(75), "-service", srv.ServiceURL()}
+		if err := ingest(context.Background(), &out, args); err != nil {
+			t.Fatal(err)
+		}
+		return out.String()
+	}
+	now := time.Now().UTC()
+	for name, tc := range map[string]struct {
+		newest time.Time
+		nudge  bool
+	}{
+		"yesterday":               {now.AddDate(0, 0, -1), false},
+		"two months ago":          {now.AddDate(0, -2, 0), false},
+		"scheduled in the future": {now.AddDate(0, 2, 0), false},
+		"four months ago":         {now.AddDate(0, -4, 0), true},
+		"the real stale case":     {time.Date(2025, 2, 12, 0, 0, 0, 0, time.UTC), true},
+	} {
+		if got := strings.Contains(run(tc.newest), "go run ./cmd/streetworks survey"); got != tc.nudge {
+			t.Errorf("%s: nudge shown = %v, want %v", name, got, tc.nudge)
+		}
+	}
+}
