@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Streetworks: Tucson right-of-way permits by street block</title>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<aside id="panel">
+  <header>
+    <h1>Streetworks</h1>
+    <p>Right-of-way permits by street block, City of Tucson</p>
+  </header>
+
+  <section class="search" aria-labelledby="h-search">
+    <h2 id="h-search">Find a place</h2>
+    <form id="search" role="search" autocomplete="off">
+      <input id="q" type="search" spellcheck="false" placeholder="1200 E Speedway, Speedway &amp; Campbell, or a street"
+        aria-label="Address, street, or two cross streets" role="combobox" aria-autocomplete="list" aria-controls="results" aria-expanded="false">
+      <button type="submit">Go</button>
+    </form>
+    <ul id="results" role="listbox" aria-label="Places found" hidden></ul>
+    <label class="radius">Show work within
+      <select id="radius">
+        <option value="76">250 ft</option>
+        <option value="152" selected>500 ft</option>
+        <option value="402">a quarter mile</option>
+        <option value="805">half a mile</option>
+        <option value="1609">a mile</option>
+      </select>
+    </label>
+  </section>
+
+  <section id="focus" aria-live="polite" aria-label="Search result" hidden></section>
+
+  <section aria-labelledby="h-filter">
+    <h2 id="h-filter">Show</h2>
+    <div class="years">
+      <label>From <select id="from"></select></label>
+      <label>to <select id="to"></select></label>
+    </div>
+    <p id="yearnote" class="hint note"></p>
+    <p class="hint note">Permit types, ticked ones are shown. Click to show or hide.</p>
+    <div id="cats" class="chips" role="group" aria-label="Permit types to show"></div>
+    <div class="chip-tools"><button type="button" class="linkish" id="cats-all">Show all</button><button type="button" class="linkish" id="cats-none">Hide all</button></div>
+    <label class="check"><input type="checkbox" id="nowork"> Include voided, withdrawn, denied and still-pending permits</label>
+  </section>
+
+  <section aria-labelledby="h-key">
+    <h2 id="h-key">Permits per block</h2>
+    <ul class="key">
+      <li><i style="background:var(--c1)"></i>1–3</li>
+      <li><i style="background:var(--c2)"></i>4–6</li>
+      <li><i style="background:var(--c3)"></i>7–9</li>
+      <li><i style="background:var(--c4)"></i>10 or more</li>
+    </ul>
+    <div id="overlays"></div>
+  </section>
+
+  <section id="detail" aria-live="polite" aria-label="Selected block">
+    <p class="hint">Select a dot on the map, or a block from the list below.</p>
+  </section>
+
+  <section aria-labelledby="h-top">
+    <h2 id="h-top">Busiest in view</h2>
+    <ol id="top" class="top"></ol>
+  </section>
+
+  <details id="about">
+    <summary>About this data</summary>
+    <ul id="gaps"></ul>
+    <p id="foot"></p>
+  </details>
+</aside>
+
+<main id="mapwrap">
+  <div id="map" role="application" aria-label="Map of permit activity by street block"></div>
+  <p id="status" role="status">Loading…</p>
+</main>
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
