@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -180,5 +181,203 @@ func TestMetaListsSourcesAndOverlaysAndSkipsJunk(t *testing.T) {
 	}
 	if len(m.Overlays) != 1 || m.Overlays[0] != "prop409_major" {
 		t.Errorf("overlays = %v (permit layers and badly named files must be excluded)", m.Overlays)
+	}
+}
+
+func TestMethodsAndUnknownRoutes(t *testing.T) {
+	srv, _ := newTestServer(t, nil, nil)
+	for _, p := range []string{"/api/meta", "/api/blocks", "/api/block?key=x", "/api/overlay/x"} {
+		if resp, _ := fetch(t, srv, "POST", p); resp.StatusCode != http.StatusMethodNotAllowed {
+			t.Errorf("POST %s = %d, want 405", p, resp.StatusCode)
+		}
+	}
+	for _, p := range []string{"/api/nope", "/nope.html", "/../etc/passwd", "/static/../../go.mod"} {
+		if resp, _ := fetch(t, srv, "GET", p); resp.StatusCode == http.StatusOK {
+			t.Errorf("GET %s = 200", p)
+		}
+	}
+}
+
+func TestOverlayStreamsValidGeoJSON(t *testing.T) {
+	var lines []string
+	for i := 0; i < 3000; i++ {
+		geom := `{"type":"LineString","coordinates":[[-110.9,32.2],[-110.8,32.3]]}`
+		if i%100 == 0 {
+			geom = `null`
+		}
+		lines = append(lines, fmt.Sprintf(`{"layer":"o","properties":{"OBJECTID":%d,"NAME":"S%d"},"geometry":%s}`, i, i, geom))
+	}
+	srv, _ := newTestServer(t, map[string]string{"overlay_x.jsonl": strings.Join(lines, "\n") + "\n"}, nil)
+	resp, body := fetch(t, srv, "GET", "/api/overlay/overlay_x")
+	var fc struct {
+		Type     string `json:"type"`
+		Features []struct {
+			Type       string         `json:"type"`
+			Properties map[string]any `json:"properties"`
+		} `json:"features"`
+	}
+	if err := json.Unmarshal([]byte(body), &fc); err != nil || fc.Type != "FeatureCollection" || len(fc.Features) != 3000 || fc.Features[0].Type != "Feature" {
+		t.Fatalf("err=%v n=%d", err, len(fc.Features))
+	}
+	if resp.Header.Get("Content-Type") != "application/geo+json" {
+		t.Errorf("content type %q", resp.Header.Get("Content-Type"))
+	}
+}
+
+func TestOverlayEdgeCases(t *testing.T) {
+	srv, _ := newTestServer(t, map[string]string{
+		"overlay_empty.jsonl":   "",
+		"overlay_corrupt.jsonl": `{"layer":"o","properties":{"A":1},"geometry":null}` + "\n" + `{"layer":"o","prop`,
+		"permits_x.jsonl":       `{"layer":"x","properties":{},"geometry":null}` + "\n",
+	}, nil)
+	if _, body := fetch(t, srv, "GET", "/api/overlay/overlay_empty"); !json.Valid([]byte(body)) || !strings.Contains(body, `"features":[]`) {
+		t.Errorf("empty overlay: %s", body)
+	}
+	if _, body := fetch(t, srv, "GET", "/api/overlay/overlay_corrupt"); !json.Valid([]byte(body)) || !strings.Contains(body, `"A":1`) {
+		t.Errorf("corrupt overlay: %s", body)
+	}
+	for _, name := range []string{"missing", "permits_x", "..%2F..%2Fetc%2Fpasswd", "UPPER", "a.b", "with space", "overlay_empty.jsonl"} {
+		if resp, _ := fetch(t, srv, "GET", "/api/overlay/"+name); resp.StatusCode != 404 {
+			t.Errorf("overlay %q = %d, want 404", name, resp.StatusCode)
+		}
+	}
+}
+
+func TestBlockEndpointValidation(t *testing.T) {
+	srv, _ := newTestServer(t, nil, []permits.Record{rec("1", "Excavation", "CLOSED", "E A ST", 100, 2020)})
+	for _, c := range []struct {
+		q    string
+		code int
+	}{{"key=E+A+ST%7C100", 200}, {"key=E%20A%20ST%7C100", 200}, {"key=", 404}, {"", 404}, {"key=E+A+ST%7C999", 404}, {"key=%00", 404}, {"key=" + strings.Repeat("A", 100000), 404}} {
+		if resp, _ := fetch(t, srv, "GET", "/api/block?"+c.q); resp.StatusCode != c.code {
+			t.Errorf("%.40s = %d, want %d", c.q, resp.StatusCode, c.code)
+		}
+	}
+}
+
+func TestConcurrentRequests(t *testing.T) { // run with -race
+	srv, _ := newTestServer(t, nil, []permits.Record{rec("1", "Excavation", "CLOSED", "E A ST", 100, 2020), rec("2", "Barricade", "CLOSED", "E A ST", 100, 2021)})
+	done := make(chan error, 40)
+	for i := 0; i < 40; i++ {
+		go func(i int) {
+			_, body := fetch(t, srv, "GET", fmt.Sprintf("/api/blocks?from=%d", 2019+i%3))
+			if !json.Valid([]byte(body)) {
+				done <- fmt.Errorf("invalid json: %s", body)
+				return
+			}
+			done <- nil
+		}(i)
+	}
+	for i := 0; i < 40; i++ {
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// --- UI checks: there is no browser in `go test`
+
+func readStatic(t *testing.T, name string) string {
+	t.Helper()
+	b, err := static.ReadFile("static/" + name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+func TestIndexIsServed(t *testing.T) {
+	srv, _ := newTestServer(t, nil, nil)
+	resp, body := fetch(t, srv, "GET", "/")
+	if resp.StatusCode != 200 || !strings.Contains(body, "Streetworks") || !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/html") {
+		t.Errorf("status=%d type=%q", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+}
+
+func TestEveryLocalAssetIsServed(t *testing.T) {
+	srv, _ := newTestServer(t, nil, nil)
+	html := readStatic(t, "index.html")
+	refs := regexp.MustCompile(`(?:src|href)="([^"#]+)"`).FindAllStringSubmatch(html, -1)
+	if len(refs) < 3 {
+		t.Fatalf("found only %d asset references", len(refs))
+	}
+	for _, m := range refs {
+		if strings.HasPrefix(m[1], "http") {
+			continue
+		}
+		resp, body := fetch(t, srv, "GET", "/"+m[1])
+		if resp.StatusCode != 200 || len(body) < 100 {
+			t.Errorf("/%s: status %d, %d bytes", m[1], resp.StatusCode, len(body))
+		}
+	}
+	if !strings.Contains(readStatic(t, "vendor/leaflet/leaflet.js"), "Leaflet 1.9") {
+		t.Error("vendored Leaflet missing or unexpected version")
+	}
+	if len(readStatic(t, "vendor/leaflet/LICENSE")) < 100 {
+		t.Error("Leaflet's license must ship with it")
+	}
+}
+
+func TestUIReferencesOnlyElementsThatExist(t *testing.T) {
+	ids := map[string]bool{}
+	for _, m := range regexp.MustCompile(`id="([^"]+)"`).FindAllStringSubmatch(readStatic(t, "index.html"), -1) {
+		ids[m[1]] = true
+	}
+	refs := regexp.MustCompile(`\$\("#([A-Za-z0-9_-]+)"\)`).FindAllStringSubmatch(readStatic(t, "app.js"), -1)
+	if len(refs) < 10 {
+		t.Fatalf("only found %d id references; pattern broken?", len(refs))
+	}
+	for _, m := range refs {
+		if !ids[m[1]] {
+			t.Errorf(`app.js uses $("#%s") but index.html has no id="%s"`, m[1], m[1])
+		}
+	}
+}
+
+func TestUIUsesOnlyRoutesAndFieldsTheAPIProvides(t *testing.T) {
+	js := readStatic(t, "app.js")
+	srv, _ := newTestServer(t, map[string]string{"overlay_x.jsonl": ""}, []permits.Record{rec("1", "Excavation", "CLOSED", "E A ST", 100, 2020)})
+	for _, m := range regexp.MustCompile(`["'`+"`"+`](/api/[a-z]+)`).FindAllStringSubmatch(js, -1) {
+		path := m[1]
+		switch path {
+		case "/api/overlay":
+			path += "/overlay_x"
+		case "/api/block":
+			path += "?key=E+A+ST%7C100"
+		case "/api/nearby":
+			path += "?lat=32.2&lng=-110.9&r=100"
+		case "/api/street":
+			path += "?name=E+A+ST"
+		}
+		if resp, _ := fetch(t, srv, "GET", path); resp.StatusCode != 200 {
+			t.Errorf("app.js calls %s but the server answers %d", path, resp.StatusCode)
+		}
+	}
+	// Fields read from /api/meta, /api/blocks and /api/block responses.
+	_, meta := fetch(t, srv, "GET", "/api/meta")
+	for _, f := range []string{"unique_permits", "date_min", "date_max", "categories", "overlays", "sources", "no_block", "no_date", "bad_dates", "no_work", "attribution", "bounds"} {
+		if !strings.Contains(js, "."+f) {
+			t.Errorf("app.js no longer reads meta.%s; update this list if intentional", f)
+		}
+		if !strings.Contains(meta, `"`+f+`"`) {
+			t.Errorf("app.js reads meta.%s but the API does not send it", f)
+		}
+	}
+	_, blocks := fetch(t, srv, "GET", "/api/blocks")
+	_, block := fetch(t, srv, "GET", "/api/block?key=E+A+ST%7C100")
+	for _, f := range []string{"key", "street", "block", "count", "lat", "lng"} {
+		if !strings.Contains(blocks, `"`+f+`"`) {
+			t.Errorf("/api/blocks does not send %q", f)
+		}
+	}
+	for _, f := range []string{"records", "date", "category", "status", "permit", "raw_street", "street"} {
+		if !strings.Contains(block, `"`+f+`"`) {
+			t.Errorf("/api/block does not send %q", f)
+		}
+	}
+	for _, f := range []string{"description", "sub_type", "pro_url", "date_basis", "date_flag", "street_source", "no_work"} {
+		if !strings.Contains(js, "r."+f) {
+			t.Errorf("app.js no longer shows record field %q", f)
+		}
 	}
 }
