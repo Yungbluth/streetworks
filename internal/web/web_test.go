@@ -1,6 +1,8 @@
 package web
 
 import (
+	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -79,5 +81,104 @@ func TestParseFilter(t *testing.T) {
 		if got.From != c.want.From || got.To != c.want.To || got.NoWork != c.want.NoWork || strings.Join(cats, ",") != strings.Join(c.cats, ",") {
 			t.Errorf("%q: got %+v cats=%v; want %+v cats=%v", c.query, got, cats, c.want, c.cats)
 		}
+	}
+}
+
+func TestBlocksEndpoint(t *testing.T) {
+	var recs []permits.Record
+	for i := 0; i < 12; i++ { // 12 blocks with 1..12 permits each
+		for j := 0; j <= i; j++ {
+			recs = append(recs, rec(fmt.Sprintf("P%d-%d", i, j), "Excavation", "CLOSED", "E A ST", (i+1)*100, 2020))
+		}
+	}
+	srv, _ := newTestServer(t, nil, recs)
+
+	resp, body := fetch(t, srv, "GET", "/api/blocks")
+	var all []permits.BlockSummary
+	if err := json.Unmarshal([]byte(body), &all); err != nil || len(all) != 12 {
+		t.Fatalf("err=%v n=%d", err, len(all))
+	}
+	if resp.Header.Get("Content-Type") != "application/json" || resp.Header.Get("Cache-Control") != "no-store" || resp.Header.Get("X-Total-Blocks") != "12" {
+		t.Errorf("headers: %v", resp.Header)
+	}
+	if all[0].Count != 12 || all[11].Count != 1 {
+		t.Errorf("not sorted busiest first: %d..%d", all[0].Count, all[11].Count)
+	}
+
+	for _, c := range []struct {
+		q    string
+		want int
+	}{{"limit=5", 5}, {"limit=12", 12}, {"limit=100", 12}, {"limit=0", 12}, {"limit=-3", 12}, {"limit=abc", 12}} {
+		resp, body := fetch(t, srv, "GET", "/api/blocks?"+c.q)
+		var got []permits.BlockSummary
+		_ = json.Unmarshal([]byte(body), &got)
+		if len(got) != c.want || resp.Header.Get("X-Total-Blocks") != "12" {
+			t.Errorf("%s: got %d (total header %q), want %d of 12", c.q, len(got), resp.Header.Get("X-Total-Blocks"), c.want)
+		}
+	}
+	// The limit keeps the busiest blocks, not an arbitrary subset
+	_, body = fetch(t, srv, "GET", "/api/blocks?limit=3")
+	var top3 []permits.BlockSummary
+	_ = json.Unmarshal([]byte(body), &top3)
+	if top3[0].Count != 12 || top3[2].Count != 10 {
+		t.Errorf("top3 = %+v", top3)
+	}
+}
+
+func TestEmptyResultsAreArraysNotNull(t *testing.T) {
+	srv, _ := newTestServer(t, nil, []permits.Record{rec("1", "Excavation", "CLOSED", "E A ST", 100, 2020)})
+	_, body := fetch(t, srv, "GET", "/api/blocks?from=2100")
+	if strings.TrimSpace(body) != "[]" {
+		t.Errorf("empty blocks = %q", body)
+	}
+	_, body = fetch(t, srv, "GET", "/api/block?key="+"E+A+ST%7C100"+"&from=2100")
+	if !strings.Contains(body, `"records":[]`) {
+		t.Errorf("empty records = %q", body)
+	}
+}
+
+func TestMetaNeverContainsNullCollections(t *testing.T) {
+	// No meta files, no overlays, no data: the UI calls .map on these
+	srv, _ := newTestServer(t, nil, nil)
+	_, body := fetch(t, srv, "GET", "/api/meta")
+	if strings.Contains(body, "null") {
+		t.Errorf("meta has null: %s", body)
+	}
+	var m struct {
+		Sources  []any    `json:"sources"`
+		Overlays []string `json:"overlays"`
+		Attrib   string   `json:"attribution"`
+	}
+	if err := json.Unmarshal([]byte(body), &m); err != nil || m.Sources == nil || m.Overlays == nil || !strings.Contains(m.Attrib, "Tucson") {
+		t.Errorf("%v %+v", err, m)
+	}
+}
+
+func TestMetaListsSourcesAndOverlaysAndSkipsJunk(t *testing.T) {
+	srv, _ := newTestServer(t, map[string]string{
+		"permits_inactive.jsonl":     "",
+		"permits_inactive.meta.json": `{"name":"permits_inactive","url":"https://x/75","fetched_at":"2026-08-21T10:00:00Z","count":92323}`,
+		"prop409_major.jsonl":        "",
+		"prop409_major.meta.json":    `{"name":"prop409_major","url":"https://x/13","fetched_at":"2026-08-21T10:01:00Z","count":300}`,
+		"broken.meta.json":           `{not json`,
+		"Bad-Name.jsonl":             "",
+		"notes.txt":                  "x",
+	}, nil)
+	_, body := fetch(t, srv, "GET", "/api/meta")
+	var m struct {
+		Sources []struct {
+			Name  string `json:"name"`
+			Count int    `json:"count"`
+		} `json:"sources"`
+		Overlays []string `json:"overlays"`
+	}
+	if err := json.Unmarshal([]byte(body), &m); err != nil {
+		t.Fatal(err)
+	}
+	if len(m.Sources) != 2 {
+		t.Errorf("sources = %+v (broken meta must be skipped)", m.Sources)
+	}
+	if len(m.Overlays) != 1 || m.Overlays[0] != "prop409_major" {
+		t.Errorf("overlays = %v (permit layers and badly named files must be excluded)", m.Overlays)
 	}
 }
