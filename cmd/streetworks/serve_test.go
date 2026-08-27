@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -152,5 +153,36 @@ func TestWatchForQuit(t *testing.T) {
 	watchForQuit(strings.NewReader("q\nq\nq\n"), func() { n++ })
 	if n != 1 {
 		t.Errorf("stop called %d times", n)
+	}
+}
+
+func TestServeStartsAndStopsInProcess(t *testing.T) {
+	buf := &lockedBuf{}
+	log.SetOutput(buf)
+	defer log.SetOutput(os.Stderr)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- serve(ctx, strings.NewReader(""), []string{"-data", writeTestData(t), "-addr", "127.0.0.1:0"})
+	}()
+	waitFor(t, "the server to listen", 5*time.Second, func() bool { return listenRE.MatchString(buf.String()) })
+	base := listenRE.FindStringSubmatch(buf.String())[1]
+	if code, body := get(t, base+"/api/config"); code != 200 || !strings.Contains(body, "tile.openstreetmap.org") || strings.Contains(body, "cartocdn") {
+		t.Errorf("default basemap must be keyless OpenStreetMap: %d %s", code, body)
+	}
+	if !strings.Contains(buf.String(), "basemap: OpenStreetMap") || !strings.Contains(buf.String(), "press Ctrl+C") {
+		t.Errorf("startup log should say what basemap is used and how to stop:\n%s", buf.String())
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Error(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("serve did not return after cancellation")
+	}
+	if !strings.Contains(buf.String(), "stopped") {
+		t.Errorf("log: %s", buf.String())
 	}
 }
