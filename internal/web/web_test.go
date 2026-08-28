@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -379,5 +380,191 @@ func TestUIUsesOnlyRoutesAndFieldsTheAPIProvides(t *testing.T) {
 		if !strings.Contains(js, "r."+f) {
 			t.Errorf("app.js no longer shows record field %q", f)
 		}
+	}
+}
+
+// Every value interpolated into an HTML template string must be escaped, be a
+// number, or be a reviewed constant. A new interpolation that is none of these
+// fails here so it gets a conscious look.
+func TestUIEscapesDataBeforeInsertingHTML(t *testing.T) {
+	js := readStatic(t, "app.js")
+	singleCall := regexp.MustCompile(`^(esc|fmt)\((?:[^()]|\([^()]*\))*\)$`)
+	reviewed := map[string]string{
+		// built only from esc()/fmt() output and constants
+		"sub": "built from fmt() and escaped dates", `span ? " · " + span : ""`: "escaped dates",
+		`d.count === 1 ? "" : "s"`: "constant", "cls": "constant class name",
+		`shown.map(recordHTML).join("")`: "recordHTML escapes every field", `notes.join(" · ")`: "every note is escaped when pushed",
+		`rows.join("")`:                        "popup rows escape key and value",
+		`st.cats.has(c.key) ? " checked" : ""`: "constant", `empty ? ' class="off"' : ""`: "constant", `empty ? " disabled" : ""`: "constant",
+		`c === null ? "" : empty ? "no rows downloaded" : fmt(c) + " segments"`: "fmt() and constants",
+		// numbers in the SVG chart (year bounds are numbers from <select>, the rest are computed)
+		"(i * bw + 0.5).toFixed(1)": "number", "(H - h).toFixed(1)": "number", "Math.max(1, bw - 1).toFixed(1)": "number", "h.toFixed(1)": "number",
+		"y0 + i": "number", "c": "count", "W": "number", "H": "number", "H + 12": "number", "H + 11": "number", "y0": "number", "y1": "number",
+		"bars": "built from numbers", "pct(m.no_block)": "number formatted as a percentage",
+		// search and the place panels (reviewed when they were added)
+		"i": "array index", `i === active ? ' aria-selected="true"' : ""`: "constant",
+		"p.lat": "number in a URL query, not HTML", "p.lng": "number in a URL query, not HTML", `+$("#radius").value`: "number in a URL query, not HTML",
+		"clearButton": "constant markup", "rows": "built from esc() and fmt() only",
+		`n.count === 1 ? "" : "s"`: "constant", `n.blocks === 1 ? "" : "s"`: "constant",
+		`shown.map(r => recordHTML(r, [esc(feet(r.distance_m) + " away"), blockLink(r)])).join("")`:                                                                                                                                     "recordHTML escapes its fields; extra notes are esc() or blockLink, which escapes",
+		"rows.map(r =>\n      `<li><span class=\"bl\">${esc(r.label)}</span><span class=\"bt\"><i style=\"width:${esc(Math.round(100 * r.n / Math.max(1, max)))}%\"></i></span><span class=\"bn\">${fmt(r.n)}</span></li>`).join(\"\")": "esc() and fmt() only",
+		// assigned with textContent, never parsed as HTML
+		"s.name": "textContent", "s.fetched_at.slice(0, 10)": "textContent",
+	}
+	n := 0
+	for _, m := range regexp.MustCompile("\\$\\{((?:[^{}]|\\{[^{}]*\\})*)\\}").FindAllStringSubmatch(js, -1) {
+		n++
+		expr := m[1]
+		if singleCall.MatchString(expr) {
+			continue
+		}
+		if _, ok := reviewed[expr]; ok {
+			continue
+		}
+		t.Errorf("template interpolation ${%s} is not escaped and not on the reviewed list", expr)
+	}
+	if n < 40 {
+		t.Fatalf("only found %d interpolations; pattern broken?", n)
+	}
+	if !strings.Contains(js, `$("#foot").textContent =`) {
+		t.Error("the footer must be assigned with textContent (its interpolations are unescaped)")
+	}
+	for _, bad := range []string{"document.write", "eval(", "insertAdjacentHTML", "outerHTML"} {
+		if strings.Contains(js, bad) {
+			t.Errorf("app.js uses %s", bad)
+		}
+	}
+}
+
+func TestUIContactsOnlyExpectedHosts(t *testing.T) {
+	// Tiles come from /api/config, so the static files only link to credit pages.
+	allowed := map[string]bool{"www.openstreetmap.org": true, "leafletjs.com": true,
+		"www.w3.org": true} // w3.org appears only as the xmlns of an inline SVG; it is a name, never fetched
+	for _, f := range []string{"index.html", "app.js", "app.css"} {
+		for _, m := range regexp.MustCompile(`https?://([a-zA-Z0-9.{}-]+)`).FindAllStringSubmatch(readStatic(t, f), -1) {
+			host := strings.ReplaceAll(m[1], "{s}.", "")
+			if !allowed[host] {
+				t.Errorf("%s references unexpected host %q (a new third party is a privacy decision)", f, host)
+			}
+		}
+	}
+}
+
+func TestUIScriptSyntax(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node not installed")
+	}
+	js := filepath.Join(t.TempDir(), "app.js")
+	if err := os.WriteFile(js, []byte(readStatic(t, "app.js")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command(node, "--check", js).CombinedOutput(); err != nil {
+		t.Errorf("app.js has a syntax error:\n%s", out)
+	}
+}
+
+func TestParseBounds(t *testing.T) {
+	ok := map[string]permits.Bounds{
+		"32.1,-111.2,32.3,-110.8":     {South: 32.1, West: -111.2, North: 32.3, East: -110.8},
+		" 32.1 , -111.2 ,32.3,-110.8": {South: 32.1, West: -111.2, North: 32.3, East: -110.8},
+		"32.2,-110.9,32.2,-110.9":     {South: 32.2, West: -110.9, North: 32.2, East: -110.9}, // a point
+		"-90,-180,90,180":             {South: -90, West: -180, North: 90, East: 180},
+	}
+	for q, want := range ok {
+		r := httptest.NewRequest("GET", "/api/blocks?bbox="+strings.ReplaceAll(q, " ", "%20"), nil)
+		got, err := parseBounds(r)
+		if err != nil || got == nil || *got != want {
+			t.Errorf("%q: got %+v err=%v, want %+v", q, got, err, want)
+		}
+	}
+	if b, err := parseBounds(httptest.NewRequest("GET", "/api/blocks", nil)); b != nil || err != nil {
+		t.Errorf("absent bbox: %v %v", b, err)
+	}
+	for _, q := range []string{"1,2,3", "1,2,3,4,5", "a,b,c,d", "32,-111,NaN,-110", "32,-111,Inf,-110", "32.3,-111,32.1,-110", "32,-110,33,-111", "91,0,92,1", "0,-181,1,0", ",,,", "32,-111,33,"} {
+		if _, err := parseBounds(httptest.NewRequest("GET", "/api/blocks?bbox="+q, nil)); err == nil {
+			t.Errorf("bbox %q should be rejected", q)
+		}
+	}
+}
+
+func TestBlocksEndpointBoundingBox(t *testing.T) {
+	mk := func(permit string, lat, lng float64, block int) permits.Record {
+		r := rec(permit, "Excavation", "CLOSED", "E A ST", block, 2020)
+		r.Lat, r.Lng = lat, lng
+		return r
+	}
+	srv, _ := newTestServer(t, nil, []permits.Record{mk("1", 32.20, -110.90, 100), mk("2", 32.25, -110.95, 200), mk("3", 33.0, -111.5, 300)})
+	count := func(q string) (int, string, int) {
+		resp, body := fetch(t, srv, "GET", "/api/blocks?"+q)
+		var bs []permits.BlockSummary
+		_ = json.Unmarshal([]byte(body), &bs)
+		return len(bs), resp.Header.Get("X-Total-Blocks"), resp.StatusCode
+	}
+	if n, total, code := count("bbox=32.1,-111.0,32.3,-110.8"); n != 2 || total != "2" || code != 200 {
+		t.Errorf("in view: n=%d total=%s code=%d", n, total, code)
+	}
+	if n, total, _ := count(""); n != 3 || total != "3" {
+		t.Errorf("everything: n=%d total=%s", n, total)
+	}
+	if n, total, _ := count("bbox=32.1,-111.0,32.3,-110.8&limit=1"); n != 1 || total != "2" {
+		t.Errorf("limit within view: n=%d total=%s", n, total)
+	}
+	if n, _, _ := count("bbox=10,10,11,11"); n != 0 {
+		t.Errorf("empty view: n=%d", n)
+	}
+	for _, q := range []string{"bbox=oops", "bbox=1,2,3", "bbox=33,-111,32,-110"} {
+		if _, _, code := count(q); code != http.StatusBadRequest {
+			t.Errorf("%s: code %d, want 400", q, code)
+		}
+	}
+}
+
+func TestUIStartsWithNonStreetWorkCategoriesOff(t *testing.T) {
+	js := readStatic(t, "app.js")
+	i := strings.Index(js, `st.cats.add(c.key)`)
+	if i < 0 {
+		t.Fatal("cannot find where the default categories are chosen")
+	}
+	line := js[strings.LastIndex(js[:i], "\n"):i]
+	for _, c := range []string{"Civic event", "Small wireless"} {
+		if !strings.Contains(line, `"`+c+`"`) {
+			t.Errorf("default selection should exclude %q: %s", c, line)
+		}
+	}
+}
+
+func TestUIDefaultsPastTheSparseEarlyYears(t *testing.T) {
+	js := readStatic(t, "app.js")
+	if !strings.Contains(js, "const SPARSE_BEFORE = 2005;") {
+		t.Error("the sparse-years cutoff constant is missing or changed; check it against the per-year table")
+	}
+	for _, want := range []string{"y0 < SPARSE_BEFORE && y1 >= SPARSE_BEFORE ? SPARSE_BEFORE : y0", "updateYearNote()", "are sparse", "st.from < SPARSE_BEFORE\n      ?"} {
+		if !strings.Contains(js, want) {
+			t.Errorf("app.js should contain %q", want)
+		}
+	}
+	if !strings.Contains(readStatic(t, "index.html"), `id="yearnote"`) {
+		t.Error("index.html needs the year note element")
+	}
+}
+
+func TestNoCategoriesSelectedShowsNothing(t *testing.T) {
+	srv, _ := newTestServer(t, nil, []permits.Record{rec("1", "Excavation", "CLOSED", "E A ST", 100, 2020)})
+	for q, want := range map[string]string{"": "1 block", "cats=Excavation": "1 block", "cats=": "nothing", "cats=,": "nothing", "cats=Barricade": "nothing"} {
+		_, body := fetch(t, srv, "GET", "/api/blocks?"+q)
+		var bs []permits.BlockSummary
+		_ = json.Unmarshal([]byte(body), &bs)
+		got := "nothing"
+		if len(bs) == 1 {
+			got = "1 block"
+		}
+		if got != want {
+			t.Errorf("%q: got %s, want %s", q, got, want)
+		}
+	}
+	_, body := fetch(t, srv, "GET", "/api/block?key=E+A+ST%7C100&cats=")
+	if !strings.Contains(body, `"count":0`) {
+		t.Errorf("block detail with no categories: %s", body)
 	}
 }
