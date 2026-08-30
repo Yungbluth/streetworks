@@ -246,6 +246,7 @@ func (c *Client) Fetch(ctx context.Context, layerURL string, pageSize int, fn fu
 		expected = n
 	}
 	total := 0
+	prevFirst := ""
 	for {
 		q := url.Values{
 			"where": {"1=1"}, "outFields": {"*"}, "outSR": {"4326"}, "f": {"geojson"},
@@ -266,6 +267,13 @@ func (c *Client) Fetch(ctx context.Context, layerURL string, pageSize int, fn fu
 		}
 		if len(p.Features) == 0 {
 			return total, nil
+		}
+		if v, ok := p.Features[0].Properties[oid]; oid != "" && ok {
+			first := fmt.Sprint(v)
+			if total > 0 && first == prevFirst {
+				return total, fmt.Errorf("server ignored resultOffset (page at offset %d repeats the previous page); this layer may not support paging", total)
+			}
+			prevFirst = first
 		}
 		if err := fn(p.Features); err != nil {
 			return total, err
