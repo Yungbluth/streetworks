@@ -51,11 +51,9 @@ type Block struct {
 }
 
 type Index struct {
-	blocks  map[string]*Block
-	loose   []*Record                 // permits with coordinates but no street block (often intersections)
-	streets map[string][]*streetEntry // by core street name, for Search
-	cores   []string                  // sorted keys of streets
-	Meta    Meta
+	blocks map[string]*Block
+	loose  []*Record // permits with coordinates but no street block (often intersections)
+	Meta   Meta
 }
 
 type Filter struct {
@@ -221,7 +219,6 @@ func Build(recs []Record) *Index {
 	}
 	m.Blocks = len(ix.blocks)
 	m.Bounds = ix.percentileBounds(0.01, 0.99)
-	ix.buildStreets()
 	if !lo.IsZero() {
 		m.DateMin, m.DateMax = lo.Format("2006-01-02"), hi.Format("2006-01-02")
 	}
