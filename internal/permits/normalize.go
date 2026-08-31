@@ -86,26 +86,25 @@ func BlockOf(streetNo string) int {
 	return n / 100 * 100
 }
 
-func Category(parts ...string) string {
-	s := strings.ToUpper(strings.Join(parts, " "))
-	switch {
-	case strings.Contains(s, "WIRELESS"), strings.Contains(s, "TR-SWF"): // equipment on poles, not street work
-		return "Small wireless"
-	case strings.Contains(s, "COMBO"):
-		return "Combo"
-	case strings.Contains(s, "EXCAV"):
-		return "Excavation"
-	case strings.Contains(s, "BARRICADE"):
-		return "Barricade"
-	case strings.Contains(s, "CIVIC"), strings.Contains(s, "EVENT"):
-		return "Civic event"
-	// the city's newer permit system (TR-... sub-types) has its own vocabulary
-	case strings.Contains(s, "TR-UTL"), strings.Contains(s, "- UTILITY"), strings.Contains(s, "TR-FBR"), strings.Contains(s, "FIBER"):
-		return "Utility"
-	case strings.Contains(s, "TR-ANN"), strings.Contains(s, "- ANNUAL"):
-		return "Annual"
-	case strings.Contains(s, "TR-ROW"), strings.Contains(s, "RIGHT-OF-WAY (ROW)"):
-		return "Right-of-way"
+// categories maps every PERMIT_TYPE the city's layers use to the category the map shows
+var categories = map[string]string{
+	"BARRICADE":                           "Barricade",
+	"EXCAVATION":                          "Excavation",
+	"COMBO":                               "Combo",
+	"RIGHT-OF-WAY (ROW) - UTILITY":        "Utility",
+	"FIBER PERMIT":                        "Utility",
+	"RIGHT-OF-WAY (ROW)":                  "Right-of-way",
+	"RIGHT-OF-WAY (ROW) - ANNUAL":         "Annual",
+	"RIGHT-OF-WAY SMALL WIRELESS":         "Small wireless",
+	"CIVIC EVENT":                         "Civic event",
+	"PRIVATE IMPROVEMENT AGREEMENT (PIA)": "Other",
+}
+
+// CategoryFor returns the category for a permit type, and whether the type is one we know
+func CategoryFor(permitType string) (category string, known bool) {
+	c, ok := categories[strings.ToUpper(strings.TrimSpace(permitType))]
+	if !ok {
+		return "Other", false
 	}
-	return "Other"
+	return c, true
 }

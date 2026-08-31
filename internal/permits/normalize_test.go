@@ -95,34 +95,28 @@ func TestBlockOfTable(t *testing.T) {
 }
 
 func TestCategories(t *testing.T) {
-	cases := []struct {
-		parts []string
-		want  string
-	}{
-		{[]string{"EXCAVATION", "STRT", "STREET EXCAVATION"}, "Excavation"},
-		{[]string{"Excavation Permit"}, "Excavation"},
-		{[]string{"BARRICADE"}, "Barricade"},
-		{[]string{"TRAFFIC OBSTRUCTION - BARRICADE"}, "Barricade"},
-		{[]string{"COMBO"}, "Combo"},
-		{[]string{"EXCAVATION/BARRICADE COMBO"}, "Combo"}, // combo beats its parts
-		{[]string{"CIVIC EVENT"}, "Civic event"},
-		{[]string{"Special Event"}, "Civic event"},
-		{[]string{"Right-of-Way Small Wireless", "TR-SWF"}, "Small wireless"},
-		{[]string{"TR-SWF"}, "Small wireless"},
-		{[]string{"Right-of-Way (ROW) - Utility", "TR-UTL"}, "Utility"},
-		{[]string{"Fiber Permit", "TR-FBR"}, "Utility"},
-		{[]string{"Right-of-Way (ROW) - Annual", "TR-ANN"}, "Annual"},
-		{[]string{"Right-of-Way (ROW)", "TR-ROW"}, "Right-of-way"},
-		{[]string{"Private Improvement Agreement (PIA)", "TR-PIA"}, "Other"},
-		{[]string{"EXCAVATION", "STRT", "STREET EXCAVATION FOR UTILITY"}, "Excavation"}, // legacy words win
-		{[]string{"Right-of-Way (ROW) - Utility", "TR-UTL", "excavation permit"}, "Excavation"},
-		{[]string{"VALET"}, "Other"},
-		{[]string{""}, "Other"},
-		{nil, "Other"},
+	for typ, want := range map[string]string{
+		"BARRICADE":                           "Barricade",
+		"EXCAVATION":                          "Excavation",
+		"COMBO":                               "Combo",
+		"Right-of-Way (ROW) - Utility":        "Utility",
+		"Fiber Permit":                        "Utility",
+		"Right-of-Way (ROW)":                  "Right-of-way",
+		"Right-of-Way (ROW) - Annual":         "Annual",
+		"Right-of-Way Small Wireless":         "Small wireless",
+		"CIVIC EVENT":                         "Civic event",
+		"Private Improvement Agreement (PIA)": "Other",
+		"  excavation ":                       "Excavation", // case and outer spaces don't matter
+		"right-of-way (row) - utility":        "Utility",
+	} {
+		got, known := CategoryFor(typ)
+		if got != want || !known {
+			t.Errorf("CategoryFor(%q) = %q, %v; want %q, true", typ, got, known, want)
+		}
 	}
-	for _, c := range cases {
-		if got := Category(c.parts...); got != c.want {
-			t.Errorf("Category(%q) = %q, want %q", c.parts, got, c.want)
+	for _, typ := range []string{"Valet", "", "EXCAVATION PERMIT", "Right-of-Way"} {
+		if got, known := CategoryFor(typ); got != "Other" || known {
+			t.Errorf("CategoryFor(%q) = %q, %v; want Other, false", typ, got, known)
 		}
 	}
 }

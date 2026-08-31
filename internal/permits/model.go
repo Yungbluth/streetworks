@@ -93,10 +93,7 @@ func FromFeature(f arcgis.Feature, layer string) Record {
 		Utility: str(p, "UTILITY"), Location: str(p, "LOCATION"), GeocodeNote: str(p, "GEOCODE_NOTE"),
 		RawStreet: strings.Join(strings.Fields(str(p, "STREET_NO")+" "+str(p, "STREET_DIR")+" "+str(p, "STREET_NAME")), " "),
 	}
-	r.Category = Category(r.Type, r.SubType, str(p, "SUBTYPE_DESC"))
-	if r.Category == "Other" {
-		r.Category = Category(r.Description)
-	}
+	r.Category, _ = CategoryFor(r.Type)
 	if u := str(p, "PRO_URL"); strings.HasPrefix(u, "https://") || strings.HasPrefix(u, "http://") {
 		r.ProURL = u
 	}
