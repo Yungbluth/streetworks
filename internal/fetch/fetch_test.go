@@ -204,3 +204,24 @@ func TestRunFails(t *testing.T) {
 		}
 	}
 }
+
+func TestRunWarns(t *testing.T) {
+	short := arcgistest.New(arcgistest.Layer{ID: 1, Name: "L", Fields: []arcgis.Field{arcgistest.OIDField()}, ReportedCount: 50,
+		Features: []arcgis.Feature{arcgistest.Feat(map[string]any{"OBJECTID": 1.0}, ""), arcgistest.Feat(map[string]any{"OBJECTID": 2.0}, "")}})
+	empty := arcgistest.New(arcgistest.Layer{ID: 1, Name: "E", Fields: []arcgis.Field{arcgistest.OIDField()}})
+	defer short.Close()
+	defer empty.Close()
+	var out bytes.Buffer
+	Run(context.Background(), &out, testClient(), []Layer{{Name: "short", URL: short.LayerURL(1)}, {Name: "empty", URL: empty.LayerURL(1)}}, t.TempDir(), 2000)
+	for _, want := range []string{"saved 2 rows but the server reports 50", "returned no rows"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("missing %q:\n%s", want, out.String())
+		}
+	}
+
+	out.Reset()
+	Run(context.Background(), &out, testClient(), []Layer{{Name: "fine", URL: overlayServer(t).LayerURL(13)}}, t.TempDir(), 2000)
+	if strings.Contains(out.String(), "WARNING") {
+		t.Errorf("unexpected warning:\n%s", out.String())
+	}
+}
