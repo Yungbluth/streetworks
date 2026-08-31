@@ -8,7 +8,7 @@ type DedupeStats struct {
 	PerLayer            []LayerStat
 }
 
-// Dedupe keeps one record per pemit number. If two layers have the same permit,
+// Dedupe keeps one record per permit number. If two layers have the same permit,
 // the layer with the higher priority wins
 func Dedupe(recs []Record, priority map[string]int) ([]Record, DedupeStats) {
 	var st DedupeStats
