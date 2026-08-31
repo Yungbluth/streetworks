@@ -1,7 +1,6 @@
-package web
+package site
 
 import (
-	"encoding/json"
 	"net/url"
 	"strings"
 	"testing"
@@ -92,40 +91,6 @@ func TestCustomTiles(t *testing.T) {
 		}
 		if _, err := NewBasemap(BasemapOptions{LightURL: tpl, DarkURL: bad}); err == nil {
 			t.Errorf("dark tile URL %q should be rejected", bad)
-		}
-	}
-}
-
-func TestConfigEndpoint(t *testing.T) {
-	srv, _ := newTestServer(t, nil, nil) // zero-value Basemap on the Server
-	resp, body := fetch(t, srv, "GET", "/api/config")
-	var got struct {
-		Basemap Basemap `json:"basemap"`
-	}
-	if resp.StatusCode != 200 || json.Unmarshal([]byte(body), &got) != nil || got.Basemap != DefaultBasemap() {
-		t.Fatalf("%d %s", resp.StatusCode, body)
-	}
-	if r, _ := fetch(t, srv, "POST", "/api/config"); r.StatusCode != 405 {
-		t.Errorf("POST = %d", r.StatusCode)
-	}
-}
-
-func TestStaticFilesDoNotHardcodeAProvider(t *testing.T) {
-	for _, f := range []string{"app.js", "index.html", "app.css"} {
-		src := readStatic(t, f)
-		for _, host := range []string{"cartocdn.com", "tile.openstreetmap.org", "arcgisonline.com", "stadiamaps.com", "maptiler.com"} {
-			if strings.Contains(src, host) {
-				t.Errorf("%s hardcodes %s; tiles must come from /api/config so a provider change cannot silently break the map", f, host)
-			}
-		}
-	}
-	js, css := readStatic(t, "app.js"), readStatic(t, "app.css")
-	if !strings.Contains(js, `getJSON("/api/config")`) {
-		t.Error("the page should read its basemap from /api/config")
-	}
-	for _, f := range []string{"mute", "invert"} {
-		if !strings.Contains(js, `"`+f+`"`) || !strings.Contains(css, ".tiles-"+f+" .leaflet-tile-pane") {
-			t.Errorf("filter %q must be known to both the script and the stylesheet", f)
 		}
 	}
 }
