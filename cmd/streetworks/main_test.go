@@ -14,6 +14,12 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	// The process-level tests re-run this test binary as the program itself
+	if os.Getenv("STREETWORKS_RUN_MAIN") == "1" {
+		os.Args = append([]string{"streetworks"}, strings.Split(os.Getenv("STREETWORKS_ARGS"), "\x1f")...)
+		main()
+		os.Exit(0)
+	}
 	newClient = func() *arcgis.Client {
 		c := arcgis.New()
 		c.Retries, c.Backoff = 1, time.Millisecond

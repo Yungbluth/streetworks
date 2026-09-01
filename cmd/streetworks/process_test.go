@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 
@@ -95,5 +96,88 @@ func TestPreviewStopsWhenQIsTyped(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("typing q didn't stop it")
+	}
+}
+
+func TestPreviewErrors(t *testing.T) {
+	ln := listener(t)
+	defer ln.Close()
+	err := preview(context.Background(), strings.NewReader(""), io.Discard, []string{"-dir", testSite(t), "-addr", ln.Addr().String()})
+	if err == nil || !strings.Contains(err.Error(), "another copy of streetworks") || !strings.Contains(err.Error(), "-addr") {
+		t.Errorf("busy port: %v", err)
+	}
+	err = preview(context.Background(), strings.NewReader(""), io.Discard, []string{"-dir", filepath.Join(t.TempDir(), "nope")})
+	if err == nil || !strings.Contains(err.Error(), "streetworks build") {
+		t.Errorf("missing site: %v", err)
+	}
+	if err := preview(context.Background(), strings.NewReader(""), io.Discard, []string{"-nope"}); err == nil {
+		t.Error("unknown flag accepted")
+	}
+}
+
+func TestPreviewNoBuild(t *testing.T) {
+	dir := testSite(t)
+	os.Remove(filepath.Join(dir, "index.html"))
+	ctx, cancel := context.WithCancel(context.Background())
+	out := &lockedBuf{}
+	done := make(chan error, 1)
+	go func() {
+		done <- preview(ctx, strings.NewReader(""), out, []string{"-dir", dir, "-addr", "127.0.0.1:0"})
+	}()
+	waitFor(t, "the preview to start", 5*time.Second, func() bool { return listenRE.MatchString(out.String()) })
+	cancel()
+	<-done
+	if !strings.Contains(out.String(), "npm run build") {
+		t.Errorf("output:\n%s", out.String())
+	}
+}
+
+// --- the real program, as a separate process ---------------------------------
+
+type proc struct {
+	cmd  *exec.Cmd
+	out  *lockedBuf
+	done chan error
+}
+
+// startProgram runs this test binary as the program itself (see TestMain).
+// With pipe set, the returned writer is its stdin.
+func startProgram(t *testing.T, pipe bool, args ...string) (*proc, io.WriteCloser) {
+	t.Helper()
+	cmd := exec.Command(os.Args[0])
+	cmd.Env = append(os.Environ(), "STREETWORKS_RUN_MAIN=1", "STREETWORKS_ARGS="+strings.Join(args, "\x1f"))
+	out := &lockedBuf{}
+	cmd.Stdout, cmd.Stderr = out, out
+	var w io.WriteCloser
+	if pipe {
+		var err error
+		if w, err = cmd.StdinPipe(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	p := &proc{cmd: cmd, out: out, done: make(chan error, 1)}
+	go func() { p.done <- cmd.Wait() }()
+	t.Cleanup(func() { _ = cmd.Process.Kill() })
+	return p, w
+}
+
+func (p *proc) baseURL(t *testing.T) string {
+	t.Helper()
+	waitFor(t, "the program to start listening", 15*time.Second, func() bool { return listenRE.MatchString(p.out.String()) })
+	return listenRE.FindStringSubmatch(p.out.String())[1]
+}
+
+func (p *proc) mustExitWithin(t *testing.T, d time.Duration) {
+	t.Helper()
+	select {
+	case err := <-p.done:
+		if err != nil {
+			t.Fatalf("exited with %v\n%s", err, p.out.String())
+		}
+	case <-time.After(d):
+		t.Fatalf("the program was still running %v after being asked to stop\n%s", d, p.out.String())
 	}
 }
