@@ -2,6 +2,7 @@ package permits
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -136,8 +137,9 @@ func PlaceBounds(places []Place) [4]float64 {
 	}
 	sort.Float64s(lats)
 	sort.Float64s(lngs)
-	at := func(xs []float64, q float64) float64 { return xs[int(q*float64(len(xs)-1))] }
-	return [4]float64{at(lats, 0.01), at(lngs, 0.01), at(lats, 0.99), at(lngs, 0.99)}
+	last := float64(len(places) - 1)
+	lo, hi := int(math.Floor(0.01*last)), int(math.Ceil(0.99*last))
+	return [4]float64{lats[lo], lngs[lo], lats[hi], lngs[hi]}
 }
 
 func (m Meta) Report() string {
