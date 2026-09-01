@@ -233,6 +233,66 @@ func TestWriteShape(t *testing.T) {
 	}
 }
 
+func TestDetailRecordFields(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "data")
+	if _, err := Write(dir, sampleInput(t)); err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	entries, _ := os.ReadDir(filepath.Join(dir, "details"))
+	for _, e := range entries {
+		var cell map[string]map[string]any
+		readJSON(t, filepath.Join(dir, "details", e.Name()), &cell)
+		for _, d := range cell {
+			if d["filed"] == "10602 E CERULEAN WAY" {
+				found = true
+				flags, _ := d["flags"].([]any)
+				if len(flags) != 1 || flags[0] != "street read from location text" {
+					t.Errorf("flags = %v", d["flags"])
+				}
+			}
+			for _, k := range []string{"permit", "type", "status", "noWork", "date", "dateBasis", "description", "filed"} {
+				if _, ok := d[k]; !ok {
+					t.Errorf("detail missing %q: %v", k, d)
+				}
+			}
+		}
+	}
+	if !found {
+		t.Error("the permit whose street came from LOCATION wasn't written")
+	}
+}
+
+func TestWrite(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "data")
+	if _, err := Write(dir, sampleInput(t)); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(filepath.Join(dir, "index.json"))
+
+	bad := sampleInput(t)
+	bad.Built = bad.Built.Add(time.Hour) // so a half-finished write would show up in index.json
+	bad.Overlays[0].Features[0].Geometry = json.RawMessage(`{not json`)
+	if _, err := Write(dir, bad); err == nil {
+		t.Fatal("a broken overlay should fail the write")
+	}
+	after, err := os.ReadFile(filepath.Join(dir, "index.json"))
+	if err != nil || !bytes.Equal(before, after) {
+		t.Errorf("previous data was touched (err %v)", err)
+	}
+	if _, err := os.Stat(dir + ".tmp"); !os.IsNotExist(err) {
+		t.Errorf("temporary directory left behind: %v", err)
+	}
+}
+
+func TestOverlayNamesMustBeSafeFileNames(t *testing.T) {
+	in := sampleInput(t)
+	in.Overlays[0].Name = "../escape"
+	if _, err := Write(filepath.Join(t.TempDir(), "data"), in); err == nil {
+		t.Error("an overlay name with a path in it was accepted")
+	}
+}
+
 func copyDir(t *testing.T, from, to string) {
 	t.Helper()
 	err := filepath.WalkDir(from, func(p string, d os.DirEntry, err error) error {
