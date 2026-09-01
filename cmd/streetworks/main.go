@@ -17,7 +17,7 @@ import (
 	"github.com/yungbluth/streetworks/internal/survey"
 )
 
-var errUsage = errors.New("usage: streetworks fetch|survey [flags]")
+var errUsage = errors.New("usage: streetworks fetch|build|preview|survey [flags]")
 
 var newClient = arcgis.New
 
@@ -59,6 +59,10 @@ func run(ctx context.Context, cmd string, args []string, w io.Writer) error {
 	switch cmd {
 	case "fetch":
 		return fetchCmd(ctx, w, args)
+	case "build":
+		return buildCmd(ctx, w, args)
+	case "preview":
+		return preview(ctx, os.Stdin, w, args)
 	case "survey":
 		return surveyCmd(ctx, w, args)
 	}
