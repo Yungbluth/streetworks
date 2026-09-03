@@ -1,0 +1,24 @@
+{
+  "name": "streetworks-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "fixtures": "sh scripts/fixtures.sh"
+  },
+  "dependencies": {
+    "leaflet": "1.9.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@types/leaflet": "1.9.22",
+    "@types/node": "22.20.1",
+    "happy-dom": "20.13.2",
+    "typescript": "5.9.3",
+    "vite": "7.3.6",
+    "vitest": "3.2.7"
+  }
+}

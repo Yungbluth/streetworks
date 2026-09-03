@@ -1,2 +1,4 @@
 /data/
-/site/data/
+/site/
+/web/node_modules/
+/web/dist/
