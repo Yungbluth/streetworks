@@ -173,3 +173,66 @@ select {
     order: 6;
   }
 }
+
+/* The basemap is turned into concrete in light mode and asphalt in dark */
+.tiles-mute .leaflet-tile-pane {
+  filter: grayscale(1) contrast(0.82) brightness(0.9);
+}
+
+.tiles-invert .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) grayscale(1) brightness(0.72) contrast(0.92);
+}
+
+.leaflet-container {
+  font: inherit;
+  background: var(--map);
+}
+
+.leaflet-control-attribution {
+  font-size: 11px;
+}
+
+.leaflet-bar a,
+.leaflet-control-attribution {
+  background: var(--panel) !important;
+  color: var(--ink) !important;
+  border-color: var(--line) !important;
+}
+
+.leaflet-control-attribution a {
+  color: inherit;
+}
+
+.over-dot .leaflet-grab {
+  cursor: pointer;
+}
+
+.dots {
+  position: absolute;
+  pointer-events: none;
+}
+
+.tip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 800;
+  pointer-events: none;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 13px;
+  max-width: 280px;
+}
+
+.load-error {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  padding: 24px;
+  max-width: 34em;
+  margin: auto;
+}
