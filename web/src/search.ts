@@ -52,7 +52,7 @@ const leadingNumber = /^\s*(\d{1,6})(?:\s*[-–]\s*\d{1,6})?\s+(.*)$/;
 const crossSplit = /\s*(?:&|@|\/|\band\b|\bat\b)\s*/i;
 const controlChars = /[\u0000-\u001f\u007f]/;
 
-// "e speedway blvd" -> peices we can compare, or nothing if there's no street name in it
+// "e speedway blvd" -> pieces we can compare, or nothing if there's no street name in it
 function parseQuery(s: string): Query | undefined {
   const parts = splitStreet(canonicalStreet("", s));
   return parts.core ? parts : undefined;
