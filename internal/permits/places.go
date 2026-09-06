@@ -50,7 +50,7 @@ func ParseIntersection(text string) (a, b string, ok bool) {
 	}
 	for i, part := range parts {
 		street := Street("", part)
-		if d, rest, found := strings.Cut(street, " "); found && directions[d] != "" {
+		if d, rest, found := strings.Cut(street, " "); found && directions[d] == d {
 			street = rest
 		}
 		first, _, _ := strings.Cut(street, " ")
