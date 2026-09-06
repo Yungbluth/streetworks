@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Permits } from "./data";
-import { countByPlace, permitsMatching, type Filter } from "./filters";
+import { ageOf, ageRanges, countByPlace, countByYear, permitsMatching, summarizePlaces, type Filter } from "./filters";
 
 const cats = { Excavation: 0, Barricade: 1, Combo: 2, "Civic event": 3 } as const;
 
@@ -68,5 +68,39 @@ describe("permitsMatching", () => {
     const near = { center: { lat: 32.22, lng: -110.97 }, radiusM: 500 };
     expect(permitsMatching(p, filter({ includeNoWork: true }), near)).toEqual([0, 1, 3, 4, 5]);
     expect(permitsMatching(p, filter({ includeNoWork: true }), { ...near, radiusM: 20_000 })).toHaveLength(6);
+  });
+});
+
+describe("summarizePlaces", () => {
+  it("gives each place its count, newest year in range and main category", () => {
+    const p = permits();
+    p.place = [0, 0, 1, 1, 1, 2];
+    const s = summarizePlaces(p, filter({ from: 2019, to: 2022, includeNoWork: true }), 3);
+    expect(Array.from(s.count)).toEqual([2, 2, 0]);
+    expect(Array.from(s.newest)).toEqual([2020, 2022, 0]);
+    expect(s.cat[0]).toBe(cats.Excavation);
+    expect(s.cat[1]).toBe(cats.Barricade); // a tie keeps the first category seen
+  });
+
+});
+
+describe("countByYear", () => {
+  it("counts every year regardless of the year range", () => {
+    const counts = countByYear(permits(), filter({ from: 2022, to: 2022 }));
+    expect(counts.get(2019)).toBe(1);
+    expect(counts.get(2020)).toBeUndefined(); // void, and no-work is hidden
+    expect(counts.get(0)).toBeUndefined(); // undated permits have no bar
+    expect([...counts.values()].reduce((a, b) => a + b)).toBe(4);
+  });
+});
+
+describe("ageOf", () => {
+  it("counts back from the end of the chosen years", () => {
+    expect([2026, 2024, 2023, 2016, 2015, 1999].map((y) => ageOf(y, 2026))).toEqual(["recent", "recent", "back", "back", "old", "old"]);
+    expect([2012, 2010, 2009, 2002, 2001].map((y) => ageOf(y, 2012))).toEqual(["recent", "recent", "back", "back", "old"]);
+  });
+
+  it("gives the year ranges the key shows", () => {
+    expect(ageRanges(2026)).toEqual({ recent: [2024, 2026], back: [2016, 2023], oldBefore: 2016 });
   });
 });
