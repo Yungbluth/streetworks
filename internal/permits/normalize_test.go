@@ -1,64 +1,28 @@
 package permits
 
 import (
+	"encoding/json"
+	"os"
+
 	"testing"
 )
 
+// testdata/street_cases.json holds [dir, name, want] triples
 func TestStreetTable(t *testing.T) {
-	cases := []struct{ dir, name, want string }{
-		{"E", "SPEEDWAY BL", "E SPEEDWAY BLVD"},
-		{"S", "PARK AV", "S PARK AVE"},
-		{"S", "EASTSIDE LP", "S EASTSIDE LOOP"},
-		{"S", "4TH AV", "S 4TH AVE"},
-		{"E", "2ND ST", "E 2ND ST"},
-		{"W", "NAVAJO RD", "W NAVAJO RD"},
-		{"E", "GAS RD", "E GAS RD"},
-		// the same street spelled differently must collapse to one key
-		{"E", "SPEEDWAY BLVD", "E SPEEDWAY BLVD"},
-		{"e", "speedway boulevard", "E SPEEDWAY BLVD"},
-		{"East", "Speedway Boulevard", "E SPEEDWAY BLVD"},
-		{"", "EAST SPEEDWAY BL", "E SPEEDWAY BLVD"},
-		{"E.", "SPEEDWAY BLVD.", "E SPEEDWAY BLVD"},
-		{" E ", "  SPEEDWAY   BL  ", "E SPEEDWAY BLVD"},
-		{"E", "E SPEEDWAY BL", "E SPEEDWAY BLVD"},
-		{"E", "E. Speedway Bl.", "E SPEEDWAY BLVD"},
-		{"W", "SPEEDWAY BL", "W SPEEDWAY BLVD"},
-		{"W", "E SPEEDWAY BL", "W E SPEEDWAY BLVD"},
-		// ordinals
-		{"S", "22 ND ST", "S 22ND ST"},
-		{"S", "22nd Street", "S 22ND ST"},
-		{"N", "1 ST AVE", "N 1ST AVE"},
-		{"N", "3 RD AVE", "N 3RD AVE"},
-		{"E", "5 TH ST", "E 5TH ST"},
-		// a street named like a direction or suffix is not mangled
-		{"", "WEST ST", "WEST ST"},
-		{"", "NORTH AVE", "NORTH AVE"},
-		{"", "NORTH ST", "NORTH ST"},
-		// two-letter directions
-		{"NE", "MAIN ST", "NE MAIN ST"},
-		{"", "SW MAIN ST", "SW MAIN ST"},
-		// suffix variants
-		{"", "CERULEAN WAY", "CERULEAN WAY"},
-		{"", "CERULEAN WY", "CERULEAN WAY"},
-		{"", "GOLF LINKS CI", "GOLF LINKS CIR"},
-		{"", "CAMINO REAL PKWY", "CAMINO REAL PKWY"},
-		{"", "OLD SPANISH TRAIL", "OLD SPANISH TRL"},
-		// punctuation and spacing noise
-		{"", "O'MALLEY RD", "O MALLEY RD"},
-		{"", "ST. MARY'S RD", "ST MARY S RD"},
-		{"", "VIA-ALBA  DR", "VIA ALBA DR"},
-		// empty and degenerate input
-		{"E", "", ""},
-		{"", "", ""},
-		{"", "   ", ""},
-		{"", "...", ""},
-		{"", "E", "E"},
-		{"E", "E", "E E"},
-		{"X", "MAIN ST", "MAIN ST"}, // unknown direction ignored
+	raw, err := os.ReadFile("testdata/street_cases.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cases [][3]string
+	if err := json.Unmarshal(raw, &cases); err != nil {
+		t.Fatal(err)
+	}
+	if len(cases) < 40 {
+		t.Fatalf("only %d cases loaded", len(cases))
 	}
 	for _, c := range cases {
-		if got := Street(c.dir, c.name); got != c.want {
-			t.Errorf("Street(%q, %q) = %q, want %q", c.dir, c.name, got, c.want)
+		if got := Street(c[0], c[1]); got != c[2] {
+			t.Errorf("Street(%q, %q) = %q, want %q", c[0], c[1], got, c[2])
 		}
 	}
 }

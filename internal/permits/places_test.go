@@ -20,6 +20,8 @@ func TestParseIntersection(t *testing.T) {
 		"GOLF LINKS &GOLF LINKS CI":     {"GOLF LINKS", "GOLF LINKS CIR"},
 		"6th St and 4th Ave":            {"4TH AVE", "6TH ST"},
 		"HEMISPHERE PL & HEMISPHERE LP": {"HEMISPHERE LOOP", "HEMISPHERE PL"},
+		"WEST ST & MAIN ST":             {"MAIN ST", "WEST ST"}, // a street named West keeps its name
+		"NORTH AVE & E 6TH ST":          {"6TH ST", "NORTH AVE"},
 	}
 	for in, want := range ok {
 		a, b, good := ParseIntersection(in)
