@@ -1,0 +1,76 @@
+:root {
+  --map: #c4c6c0;
+  --panel: #f2f2ee;
+  --field: #ffffff;
+  --ink: #23252a;
+  --muted: #5c6168;
+  --line: #d3d4ce;
+  --bar-off: #c9cbc5;
+  --overlay: #1f6dd0;
+  --error: #a3161c;
+  --focus-ring: #1f6dd0;
+
+  --paint-excavation: #ffffff;
+  --paint-barricade: #e8418c;
+  --paint-combo: #f2c12e;
+  --paint-utility: #d9252b;
+  --paint-right-of-way: #1f6dd0;
+  --paint-annual: #2c9a4b;
+  --paint-small-wireless: #f28a1c;
+  --paint-civic-event: #7b4fb5;
+  --paint-other: #8a8d92;
+  /* White paint needs an edge to show on concrete */
+  --paint-edge: #6d7077;
+
+  --panel-width: 408px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --map: #2b2d31;
+    --panel: #1f2124;
+    --field: #2a2c30;
+    --ink: #e9e7e2;
+    --muted: #a2a5aa;
+    --line: #34373c;
+    --bar-off: #3a3d42;
+    --overlay: #6aa6ff;
+    --error: #ff8a80;
+    --focus-ring: #6aa6ff;
+    --paint-edge: #e9e7e2;
+    /* Bright white would outshout every other color on asphalt */
+    --paint-excavation: #d6d2c8;
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--panel);
+  color: var(--ink);
+  font: 400 15px/1.5 "Public Sans", system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+h1,
+h2,
+h3,
+p,
+ol,
+ul {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
