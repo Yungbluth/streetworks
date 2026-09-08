@@ -284,3 +284,139 @@ h3 {
 .error {
   color: var(--error);
 }
+
+.linkish {
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.more {
+  margin-top: 10px;
+  background: var(--field);
+  border: 1px solid var(--muted);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.panel-head .linkish {
+  color: var(--muted);
+  font-size: 14px;
+  flex: none;
+}
+
+.focus {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.search {
+  position: relative;
+}
+
+.search input {
+  width: 100%;
+  font-size: 17px;
+  padding: 11px 14px;
+  border: 1px solid var(--muted);
+  border-radius: 6px;
+  background: var(--field);
+}
+
+.results {
+  position: absolute;
+  z-index: 1000;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  list-style: none;
+  padding: 4px;
+  background: var(--field);
+  border: 1px solid var(--muted);
+  border-radius: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.results li {
+  padding: 7px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+}
+
+.results li[aria-selected="true"],
+.results li:hover {
+  background: var(--panel);
+}
+
+.results .detail,
+.results-empty {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.results-empty {
+  margin-top: 6px;
+}
+
+/* ---- permit history ---------------------------------------------------- */
+
+.history {
+  list-style: none;
+  padding: 0;
+}
+
+.permit {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+}
+
+.permit .date {
+  color: var(--muted);
+  font-size: 13px;
+  padding-top: 2px;
+}
+
+.permit .meta,
+.permit .ids,
+.permit .where,
+.permit .flag {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.permit .meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.permit .ids {
+  display: flex;
+  gap: 12px;
+}
+
+.permit .where {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
