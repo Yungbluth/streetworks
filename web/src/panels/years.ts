@@ -1,0 +1,163 @@
+import type { Site } from "../data";
+import { fill, h } from "../dom";
+import { ageOf, ageRanges, countByYear, type Filter } from "../filters";
+import { num, yearsText } from "../format";
+
+export interface YearEvents {
+  setRange(from: number, to: number, live: boolean): void;
+}
+
+const svg = (shape: "solid" | "ring" | "speck") => {
+  const ns = "http://www.w3.org/2000/svg";
+  const s = document.createElementNS(ns, "svg");
+  s.setAttribute("width", "12");
+  s.setAttribute("height", "12");
+  s.setAttribute("aria-hidden", "true");
+  const c = document.createElementNS(ns, "circle");
+  c.setAttribute("cx", "6");
+  c.setAttribute("cy", "6");
+  c.setAttribute("r", shape === "solid" ? "5" : shape === "ring" ? "4.2" : "1.8");
+  c.setAttribute("fill", shape === "ring" ? "none" : "currentColor");
+  if (shape === "ring") {
+    c.setAttribute("stroke", "currentColor");
+    c.setAttribute("stroke-width", "1.6");
+  }
+  if (shape === "speck") c.setAttribute("opacity", "0.7");
+  s.append(c);
+  return s;
+};
+
+export function yearStrip(site: Site, ev: YearEvents) {
+  const first = Number(site.index.dateRange[0].slice(0, 4));
+  const last = Number(site.index.dateRange[1].slice(0, 4));
+  const span = last - first + 1;
+  const sparse = site.index.sparseBefore;
+  let from = first;
+  let to = last;
+  let timer = 0;
+
+  const bars = h("div", { class: "bars" });
+  const yearBars = Array.from({ length: span }, (_, i) => bars.appendChild(h("div", { title: String(first + i) })));
+  const handle = (which: "from" | "to") =>
+    h("button", {
+      type: "button", class: `handle ${which}`, role: "slider",
+      "aria-label": which === "from" ? "First year" : "Last year",
+      "aria-valuemin": first, "aria-valuemax": last,
+    });
+  const hFrom = handle("from");
+  const hTo = handle("to");
+  const chart = h("div", { class: "chart" }, bars, hFrom, hTo);
+  const total = h("h3", { "aria-live": "polite" });
+  const key = h("p", { class: "key" });
+  const play = h("button", { type: "button", class: "play" });
+  const sparseNote = h("p", { class: "sparse-note" });
+  const axis = h("div", { class: "axis", "aria-hidden": "true" });
+  for (let y = first; y <= last; y++) {
+    // every fifth year and the ends, unless an end would crowd its neighbour
+    if (y === first || y === last || (y % 5 === 0 && y - first > 2 && last - y > 2)) {
+      axis.append(h("span", { style: `left: ${((y - first + 0.5) / span) * 100}%` }, String(y)));
+    }
+  }
+  const el = h("section", { class: "years", "aria-label": "Years" }, h("div", { class: "head" }, play, total, key), chart, axis, sparseNote);
+
+  const yearAt = (clientX: number) => {
+    const r = bars.getBoundingClientRect();
+    return Math.min(last, Math.max(first, first + Math.floor(((clientX - r.left) / r.width) * span)));
+  };
+  const set = (f: number, t: number, live: boolean) => {
+    from = Math.min(f, t);
+    to = Math.max(f, t);
+    ev.setRange(from, to, live);
+  };
+
+  let dragging: "from" | "to" | null = null;
+  chart.addEventListener("pointerdown", (e) => {
+    const y = yearAt(e.clientX);
+    dragging = e.target === hFrom ? "from" : e.target === hTo ? "to" : Math.abs(y - from) <= Math.abs(y - to) ? "from" : "to";
+    chart.setPointerCapture(e.pointerId);
+    stop();
+    if (dragging === "from") set(Math.min(y, to), to, true);
+    else set(from, Math.max(y, from), true);
+  });
+  chart.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    const y = yearAt(e.clientX);
+    if (dragging === "from") set(Math.min(y, to), to, true);
+    else set(from, Math.max(y, from), true);
+  });
+  const release = () => {
+    if (!dragging) return;
+    dragging = null;
+    set(from, to, false);
+  };
+  chart.addEventListener("pointerup", release);
+  chart.addEventListener("pointercancel", release);
+
+  for (const [hd, which] of [[hFrom, "from"], [hTo, "to"]] as const) {
+    hd.addEventListener("keydown", (e) => {
+      const step = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1, PageDown: -5, PageUp: 5 }[e.key];
+      const cur = which === "from" ? from : to;
+      let y: number | undefined = step === undefined ? undefined : cur + step;
+      if (e.key === "Home") y = which === "from" ? first : from;
+      if (e.key === "End") y = which === "from" ? to : last;
+      if (y === undefined) return;
+      e.preventDefault();
+      stop();
+      if (which === "from") set(Math.max(first, Math.min(y, to)), to, false);
+      else set(from, Math.min(last, Math.max(y, from)), false);
+    });
+  }
+
+  function stop() {
+    if (!timer) return;
+    clearInterval(timer);
+    timer = 0;
+    play.textContent = "Replay";
+    set(from, to, false);
+  }
+  play.addEventListener("click", () => {
+    if (timer) return stop();
+    // start the timer first: setting the range redraws this strip
+    timer = window.setInterval(() => {
+      if (to >= last) return stop();
+      set(from, to + 1, true);
+    }, 650);
+    play.textContent = "Stop";
+    set(from, from, true);
+  });
+
+  function update(f: Filter, counts = countByYear(site.permits, f)) {
+    from = f.from;
+    to = f.to;
+    const max = Math.max(1, ...counts.values());
+    let inRange = 0;
+    yearBars.forEach((bar, i) => {
+      const y = first + i;
+      const n = counts.get(y) ?? 0;
+      if (y >= from && y <= to) inRange += n;
+      bar.style.height = `${(n / max) * 100}%`;
+      bar.className = y < from || y > to ? "out" : ageOf(y, to);
+      if (y < sparse) bar.classList.add("thin");
+      bar.title = `${y}: ${num(n)} permits`;
+    });
+    const pos = (y: number) => `${((y - first) / span) * 100}%`;
+    hFrom.style.left = pos(from);
+    hTo.style.left = pos(to + 1);
+    hFrom.setAttribute("aria-valuenow", String(from));
+    hTo.setAttribute("aria-valuenow", String(to));
+    total.textContent = `${num(inRange)} permits, ${yearsText(from, to)}`;
+    if (!timer) play.textContent = "Replay";
+
+    const r = ageRanges(to);
+    const clampText = (a: number, b: number) => yearsText(Math.max(a, from), b);
+    fill(
+      key,
+      h("span", {}, svg("solid"), clampText(r.recent[0], r.recent[1])),
+      r.back[1] >= from ? h("span", {}, svg("ring"), clampText(r.back[0], r.back[1])) : null,
+      r.oldBefore > from ? h("span", {}, svg("speck"), `${from} to ${r.oldBefore - 1}`) : null,
+    );
+    sparseNote.textContent = from < sparse ? `Before ${sparse} the city's records are thin, so those years look quieter than they were.` : "";
+  }
+
+  return { el, update };
+}
