@@ -40,7 +40,6 @@ function initialFilter(site: Site): Filter {
 }
 
 async function start() {
-  console.log("start");
   const base = new URL("data/", document.baseURI).href;
   let site: Site;
   try {
