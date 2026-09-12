@@ -1,24 +1,39 @@
 # Streetworks
 
-Why does the same road keep getting dug up? This maps every permit the City of Tucson has issued to dig up, close or work in a street, back to 1996.
+Why does the same road keep getting dug up? This maps every permit the City of Tucson has issued to dig up, close or work in a street, back to 1996. Look up one block and read its history, or rewind the whole city a year at a time.
 
 The data is the city's open right-of-way permit records, about 93,000 permits with dates since 2005 (older ones are thin). Permits get put on hundred-blocks and intersections, so there's no geocoder and no API key anywhere.
+
+Map colors are the APWA utility color code, the paint crews spray on the street before they dig.
 
 ## What's where
 
 - `cmd/streetworks` is the Go command. `fetch` pulls the city's ArcGIS layers, `build` turns them into the JSON files the page loads, `preview` serves the result, `survey` lists the city's permit layers.
 - `internal/` is the rest of the Go code: permit parsing, the ArcGIS client, the site writer.
+- `web/` is the page. TypeScript, Vite and Leaflet, no framework. It loads the JSON that `build` writes and the map, filters and address search all run in the browser.
 
 ## Running it
 
-Needs Go.
+Needs Go and Node 22.
 
 ```sh
 go run ./cmd/streetworks fetch      # downloads to data/raw, takes a while
 go run ./cmd/streetworks build      # writes site/data
-go run ./cmd/streetworks preview
+cd web && npm ci && npm run build   # builds the page into ../site
+cd .. && go run ./cmd/streetworks preview
 ```
 
-Preview serves `site/` on 127.0.0.1:8080.
+Preview serves the site on 127.0.0.1:8080. When working on the page, `npm run dev` in `web/` reads data from `site/data`.
 
-Tests: `go test ./...`
+Tests:
+
+```sh
+go test ./...
+cd web && npm test && npx playwright test
+```
+
+`web/scripts/fixtures.sh` rebuilds the test fixtures from the ten permit rows in `internal/permits/testdata`. Run it if you change the data format.
+
+## Deploys
+
+A GitHub Action rebuilds everything on Mondays and deploys the page to GitHub Pages. If the new build has more than 10% fewer permits than the live site it stops instead of publishing.
