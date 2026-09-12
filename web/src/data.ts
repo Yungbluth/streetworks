@@ -46,6 +46,10 @@ export interface Index {
   detailCell: number;
 }
 
+export function yearSpan(index: Index): [first: number, last: number] {
+  return [Number(index.dateRange[0].slice(0, 4)), Number(index.dateRange[1].slice(0, 4))];
+}
+
 export const enum PlaceKind {
   Block = 0,
   Intersection = 1,
@@ -101,12 +105,14 @@ export class DataError extends Error {
   override name = "DataError";
 }
 
+export const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
 async function getJSON<T>(base: string, file: string, fetchFn: typeof fetch): Promise<T> {
   let res: Response;
   try {
     res = await fetchFn(new URL(file, base));
   } catch (e) {
-    throw new DataError(`Couldn't load ${file}: ${e instanceof Error ? e.message : String(e)}`);
+    throw new DataError(`Couldn't load ${file}: ${errorMessage(e)}`);
   }
   if (!res.ok) {
     throw new DataError(`Couldn't load ${file}: the server said ${res.status} ${res.statusText}`.trimEnd());
@@ -136,7 +142,7 @@ export async function loadSite(base: string, fetchFn: typeof fetch = fetch): Pro
     if (!p) {
       p = fetchFn(new URL(`details/${cellKey}.json`, base))
         .catch((e: unknown) => {
-          throw new DataError(`Couldn't load the permits here: ${e instanceof Error ? e.message : String(e)}`);
+          throw new DataError(`Couldn't load the permits here: ${errorMessage(e)}`);
         })
         .then(async (res) => {
           // squares with no permits aren't written, so a 404 just means empty

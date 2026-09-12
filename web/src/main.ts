@@ -4,7 +4,7 @@ import "@fontsource/public-sans/800.css";
 import "leaflet/dist/leaflet.css";
 import "./styles.css";
 
-import { loadSite, type Site } from "./data";
+import { errorMessage, loadSite, yearSpan, type Site } from "./data";
 import { fill, h } from "./dom";
 import { summarizePlaces, type Filter } from "./filters";
 import { placeName, plural } from "./format";
@@ -18,7 +18,7 @@ import { describe, searchBox } from "./panels/search";
 import { streetBlocks, streetPanel } from "./panels/street";
 import { yearStrip } from "./panels/years";
 import { buildSearch } from "./search";
-import { DEFAULT_RADIUS, fromHash, toHash } from "./url";
+import { DEFAULT_RADIUS, fromHash, placeKey, placeLookup, toHash } from "./url";
 
 const $ = (id: string) => document.getElementById(id)!;
 const dark = window.matchMedia("(prefers-color-scheme: dark)");
@@ -28,8 +28,7 @@ const OFF_AT_START = new Set(["Civic event", "Small wireless"]);
 
 // skip the thin early years when there are later ones to show
 function initialFilter(site: Site): Filter {
-  const first = Number(site.index.dateRange[0].slice(0, 4));
-  const last = Number(site.index.dateRange[1].slice(0, 4));
+  const [first, last] = yearSpan(site.index);
   const sparse = site.index.sparseBefore;
   return {
     from: first < sparse && last >= sparse ? sparse : first,
@@ -52,7 +51,7 @@ async function start() {
         "div",
         { class: "load-error" },
         h("h2", {}, "The permit data didn't load"),
-        h("p", {}, e instanceof Error ? e.message : String(e)),
+        h("p", {}, errorMessage(e)),
         h("p", {}, "Reload the page to try again."),
       ),
     );
@@ -66,6 +65,7 @@ async function start() {
   let focus: Focus | null = null;
   const overlaysOn = new Set<string>();
   let summary = summarizePlaces(site.permits, filter, placeCount);
+  const findPlace = placeLookup(site.places);
 
   const tip = $("tip");
   const map = new PermitMap($("map"), site, {
@@ -174,21 +174,20 @@ async function start() {
   function saveHash() {
     const keepQuery = focus && focus.kind !== "place" ? focus.q : undefined;
     const hash = toHash({
-      place: focus?.kind === "place" ? focus.place : undefined,
+      place: focus?.kind === "place" ? placeKey(site.places, focus.place) : undefined,
       q: keepQuery,
       radiusM: radiusM === DEFAULT_RADIUS ? undefined : radiusM,
       from: filter.from,
       to: filter.to,
       cats: [...filter.cats].sort((a, b) => a - b),
       includeNoWork: filter.includeNoWork || undefined,
-    });
+    }, site.index);
     history.replaceState(null, "", hash || location.pathname + location.search);
   }
 
   function applyHash() {
     const s = fromHash(location.hash, site.index);
-    const first = Number(site.index.dateRange[0].slice(0, 4));
-    const last = Number(site.index.dateRange[1].slice(0, 4));
+    const [first, last] = yearSpan(site.index);
     const clamp = (y: number) => Math.min(last, Math.max(first, y));
     const start = initialFilter(site);
     filter = {
@@ -200,7 +199,8 @@ async function start() {
     if (filter.from > filter.to) [filter.from, filter.to] = [filter.to, filter.from];
     radiusM = s.radiusM ?? DEFAULT_RADIUS;
     focus = null;
-    if (s.place !== undefined && s.place < placeCount) focus = { kind: "place", place: s.place };
+    const linked = s.place === undefined ? undefined : findPlace(s.place);
+    if (linked !== undefined) focus = { kind: "place", place: linked };
     else if (s.q) {
       const hit = search(s.q, 1)[0];
       if (hit) focus = describe(site.places, hit, s.q).focus;
@@ -210,14 +210,13 @@ async function start() {
   $("lede").textContent = `Every permit to dig up, close or work in a Tucson street, back to ${site.index.dateRange[0].slice(0, 4)}.`;
   fill($("search"), searchBox(site.places, (q) => search(q), (f) => go(f)));
   fill($("about"), aboutPanel(site.index));
-  applyHash();
-  render({ filters: true });
-  renderFocus(true);
-  window.addEventListener("hashchange", () => {
+  const restore = () => {
     applyHash();
     render({ filters: true });
     renderFocus(true);
-  });
+  };
+  restore();
+  window.addEventListener("hashchange", restore);
 }
 
 void start();

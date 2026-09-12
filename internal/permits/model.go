@@ -134,6 +134,7 @@ func FromFeature(f arcgis.Feature, layer string) Record {
 	return r
 }
 
+// LoadFiles reads the JSONL files written by the fetch command
 func LoadFiles(paths ...string) ([]Record, error) {
 	var out []Record
 	for _, path := range paths {

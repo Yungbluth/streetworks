@@ -1,4 +1,4 @@
-import type { Site } from "../data";
+import { errorMessage, type Site } from "../data";
 import { h } from "../dom";
 import { num } from "../format";
 import { matcher, type Filter } from "../filters";
@@ -60,7 +60,7 @@ export function filtersPanel(site: Site, f: Filter, overlaysOn: Set<string>, ev:
                 onchange: (e) => {
                   status.textContent = "";
                   ev.setOverlay(o.name, (e.target as HTMLInputElement).checked).catch((err: unknown) => {
-                    status.textContent = ` Couldn't load it: ${err instanceof Error ? err.message : String(err)}`;
+                    status.textContent = ` Couldn't load it: ${errorMessage(err)}`;
                   });
                 },
               }),

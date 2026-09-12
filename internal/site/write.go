@@ -213,7 +213,7 @@ func categoryTable(recs []permits.Record) ([]string, map[string]int) {
 	for _, r := range recs {
 		seen[r.Category] = true
 	}
-	var cats []string
+	cats := []string{}
 	for c := range seen {
 		if c != "Other" {
 			cats = append(cats, c)
@@ -227,7 +227,7 @@ func categoryTable(recs []permits.Record) ([]string, map[string]int) {
 	for i, c := range cats {
 		ids[c] = i
 	}
-	return append([]string{}, cats...), ids
+	return cats, ids
 }
 
 type placesJSON struct {

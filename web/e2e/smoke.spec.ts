@@ -18,7 +18,12 @@ test("search an address", async ({ page }) => {
   const heading = page.getByRole("heading", { level: 2, name: "700 block of E Speedway Blvd" });
   await expect(heading).toBeVisible();
   await expect(page.locator(".history .permit").first()).toContainText("Excavation");
-  expect(page.url()).toContain("place=");
+  expect(page.url()).toContain("place=b%3AE+SPEEDWAY+BLVD%3A700");
+
+  const link = page.url();
+  await page.goto("about:blank");
+  await page.goto(link);
+  await expect(heading).toBeVisible();
 
   // the map is now centred on that block: clear the panel and click its dot
   await page.getByRole("button", { name: "Clear" }).click();

@@ -85,10 +85,8 @@ func buildCmd(ctx context.Context, w io.Writer, args []string) error {
 	in.Records, in.Places, in.Meta = kept, places, permits.Summarize(kept, stats, unplaced)
 	fmt.Fprint(w, in.Meta.Report())
 
-	if *guard != "" {
-		if err := site.CheckGuard(ctx, &http.Client{Timeout: 30 * time.Second}, *guard, in.Meta.UniquePermits); err != nil {
-			return err
-		}
+	if err := site.CheckGuard(ctx, &http.Client{Timeout: 30 * time.Second}, *guard, in.Meta.UniquePermits); err != nil {
+		return err
 	}
 	sum, err := site.Write(*out, in)
 	if err != nil {

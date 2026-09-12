@@ -1,4 +1,4 @@
-import type { Site } from "../data";
+import { yearSpan, type Site } from "../data";
 import { fill, h } from "../dom";
 import { ageOf, ageRanges, countByYear, type Filter } from "../filters";
 import { num, yearsText } from "../format";
@@ -6,6 +6,8 @@ import { num, yearsText } from "../format";
 export interface YearEvents {
   setRange(from: number, to: number, live: boolean): void;
 }
+
+const markRadius = { solid: "5", ring: "4.2", speck: "1.8" };
 
 const svg = (shape: "solid" | "ring" | "speck") => {
   const ns = "http://www.w3.org/2000/svg";
@@ -16,7 +18,7 @@ const svg = (shape: "solid" | "ring" | "speck") => {
   const c = document.createElementNS(ns, "circle");
   c.setAttribute("cx", "6");
   c.setAttribute("cy", "6");
-  c.setAttribute("r", shape === "solid" ? "5" : shape === "ring" ? "4.2" : "1.8");
+  c.setAttribute("r", markRadius[shape]);
   c.setAttribute("fill", shape === "ring" ? "none" : "currentColor");
   if (shape === "ring") {
     c.setAttribute("stroke", "currentColor");
@@ -28,8 +30,7 @@ const svg = (shape: "solid" | "ring" | "speck") => {
 };
 
 export function yearStrip(site: Site, ev: YearEvents) {
-  const first = Number(site.index.dateRange[0].slice(0, 4));
-  const last = Number(site.index.dateRange[1].slice(0, 4));
+  const [first, last] = yearSpan(site.index);
   const span = last - first + 1;
   const sparse = site.index.sparseBefore;
   let from = first;
@@ -71,19 +72,21 @@ export function yearStrip(site: Site, ev: YearEvents) {
   };
 
   let dragging: "from" | "to" | null = null;
+  const dragTo = (y: number) => {
+    if (dragging === "from") set(Math.min(y, to), to, true);
+    else set(from, Math.max(y, from), true);
+  };
   chart.addEventListener("pointerdown", (e) => {
     const y = yearAt(e.clientX);
-    dragging = e.target === hFrom ? "from" : e.target === hTo ? "to" : Math.abs(y - from) <= Math.abs(y - to) ? "from" : "to";
+    if (e.target === hFrom) dragging = "from";
+    else if (e.target === hTo) dragging = "to";
+    else dragging = Math.abs(y - from) <= Math.abs(y - to) ? "from" : "to";
     chart.setPointerCapture(e.pointerId);
     stop();
-    if (dragging === "from") set(Math.min(y, to), to, true);
-    else set(from, Math.max(y, from), true);
+    dragTo(y);
   });
   chart.addEventListener("pointermove", (e) => {
-    if (!dragging) return;
-    const y = yearAt(e.clientX);
-    if (dragging === "from") set(Math.min(y, to), to, true);
-    else set(from, Math.max(y, from), true);
+    if (dragging) dragTo(yearAt(e.clientX));
   });
   const release = () => {
     if (!dragging) return;

@@ -33,7 +33,7 @@ const (
 	cartoAttribution = osmAttribution + ` &copy; <a href="https://carto.com/attributions">CARTO</a>`
 )
 
-// CARTO stamps "API KEY REQUIRED" on keyless tile requests (since this summer)
+// CARTO stamps "API KEY REQUIRED" on keyless tile requests
 var cartoKeyRE = regexp.MustCompile(`^[A-Za-z0-9._~-]{1,200}$`)
 
 func DefaultBasemap() Basemap {
@@ -91,6 +91,7 @@ func NewBasemap(o BasemapOptions) (Basemap, error) {
 	return DefaultBasemap(), nil
 }
 
+// Describe is a one-line summary for the build output
 func (b Basemap) Describe() string {
 	switch {
 	case strings.Contains(b.Light.URL, "cartocdn.com"):

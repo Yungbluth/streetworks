@@ -90,8 +90,9 @@ class DotLayer extends L.Layer {
       const pt = map.latLngToContainerPoint([places.lat[p]! / 1e5, places.lng[p]! / 1e5]);
       const cat = summary.cat[p]!;
       const age = ageOf(summary.newest[p]!, this.end);
-      const full = this.radius(summary.count[p]!, metersPerPx);
-      const r = age === "old" ? Math.max(1.1, full * 0.42) : age === "back" ? full * 0.9 : full;
+      let r = this.radius(summary.count[p]!, metersPerPx);
+      if (age === "old") r = Math.max(1.1, r * 0.42);
+      else if (age === "back") r *= 0.9;
       d.place[i] = p;
       d.x[i] = pt.x;
       d.y[i] = pt.y;

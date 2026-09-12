@@ -1,3 +1,4 @@
+import { errorMessage } from "../data";
 import { h } from "../dom";
 import { num } from "../format";
 import { paint } from "../paint";
@@ -16,7 +17,7 @@ export const note = (text?: string) => (text ? h("p", { class: "note" }, text) :
 export const loading = () => h("p", { class: "quiet" }, "Loading permits…");
 
 export const failed = (what: string, e: unknown) =>
-  h("p", { class: "error" }, `Couldn't load ${what}. ${e instanceof Error ? e.message : String(e)}`);
+  h("p", { class: "error" }, `Couldn't load ${what}. ${errorMessage(e)}`);
 
 /** horizontal bars, such as permits per category */
 export function bars(rows: { label: string; n: number; color?: string }[]): HTMLElement {
