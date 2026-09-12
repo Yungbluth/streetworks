@@ -578,3 +578,102 @@ select {
   border-width: 0 0 2px 2px;
   transform: translate(0, -1px) rotate(-45deg);
 }
+
+.cat input:not(:checked) + .name {
+  color: var(--muted);
+}
+
+.cat .n {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.toggle {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.toggle .n {
+  color: var(--muted);
+}
+
+.overlays {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.about {
+  font-size: 14px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.about summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.about p,
+.about ul {
+  margin-top: 8px;
+}
+
+.about ul {
+  padding-left: 1.2em;
+  display: grid;
+  gap: 4px;
+}
+
+/* ---- years ------------------------------------------------------------- */
+
+.years .head {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.play {
+  font-weight: 600;
+  font-size: 14px;
+  background: var(--field);
+  border: 1px solid var(--muted);
+  border-radius: 6px;
+  padding: 3px 12px;
+  cursor: pointer;
+  min-width: 5.5em;
+}
+
+.years .key {
+  margin-left: auto;
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.years .key span {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.chart {
+  position: relative;
+  height: 72px;
+  margin-top: 12px;
+  touch-action: none;
+  cursor: ew-resize;
+}
+
+.chart .bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 100%;
+}
