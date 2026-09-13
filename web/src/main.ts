@@ -22,6 +22,8 @@ import { DEFAULT_RADIUS, fromHash, placeKey, placeLookup, toHash } from "./url";
 
 const $ = (id: string) => document.getElementById(id)!;
 const dark = window.matchMedia("(prefers-color-scheme: dark)");
+const narrow = window.matchMedia("(max-width: 820px)");
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
 // these start switched off
 const OFF_AT_START = new Set(["Civic event", "Small wireless"]);
@@ -93,6 +95,10 @@ async function start() {
     renderFocus(opts.move ?? true);
     saveHash();
     $("focus").querySelector<HTMLElement>("h2")?.focus({ preventScroll: true });
+    // The panel sits below the map on a phone, so bring the answer into view
+    if (f && narrow.matches) {
+      $("focus").scrollIntoView({ block: "start", behavior: reducedMotion.matches ? "auto" : "smooth" });
+    }
   }
 
   function setRadius(m: number) {
@@ -102,6 +108,9 @@ async function start() {
   }
 
   function renderFocus(move: boolean) {
+    // On a phone the map gives up room once something is chosen
+    $("layout").classList.toggle("has-focus", focus !== null);
+    map.map.invalidateSize();
     const c = ctx();
     const box = $("focus");
     if (!focus) {

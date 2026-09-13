@@ -61,3 +61,18 @@ test("replay starts at the first year and steps to the last", async ({ page }) =
   await expect(total).toHaveText(/permits, 2005 to 2006$/, { timeout: 3000 });
   await expect(play).toBeVisible({ timeout: 3000 });
 });
+
+test.describe("on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test("picking a place brings its summary into view", async ({ page }) => {
+    await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+    await page.goto("/");
+    await page.getByRole("combobox").fill("749 E Speedway");
+    await page.getByRole("combobox").press("Enter");
+    const heading = page.getByRole("heading", { level: 2, name: "700 block of E Speedway Blvd" });
+    await expect(heading).toBeInViewport();
+    await expect(page.locator(".lead")).toBeInViewport();
+  });
+
+});

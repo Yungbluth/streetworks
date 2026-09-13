@@ -156,7 +156,15 @@ select {
   }
   .map-area {
     order: 2;
-    height: 58vh;
+    height: 52vh;
+  }
+  /* once a place is chosen, the list answers the question; the map shrinks */
+  .has-focus .map-area {
+    height: 36vh;
+  }
+  .layout {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
   .years {
     order: 3;
@@ -817,5 +825,34 @@ select {
     margin-left: 0;
     width: 100%;
     flex-wrap: wrap;
+  }
+}
+
+/* Fingers need bigger targets than a mouse does. */
+@media (pointer: coarse) {
+  .leaflet-touch .leaflet-bar a {
+    width: 44px;
+    height: 44px;
+    line-height: 44px;
+  }
+  .play,
+  .more,
+  .panel-head .linkish {
+    min-height: 44px;
+  }
+  .cat,
+  .toggle {
+    min-height: 44px;
+  }
+  .handle {
+    width: 44px;
+    margin-left: -22px;
+  }
+  .handle::before {
+    left: 20px;
+  }
+  .permit summary {
+    min-height: 44px;
+    align-items: center;
   }
 }
