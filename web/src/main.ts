@@ -54,7 +54,7 @@ async function start() {
         { class: "load-error" },
         h("h2", {}, "The permit data didn't load"),
         h("p", {}, errorMessage(e)),
-        h("p", {}, "Reload the page to try again."),
+        h("button", { type: "button", class: "more", onclick: () => location.reload() }, "Try again"),
       ),
     );
     return;
@@ -88,12 +88,29 @@ async function start() {
     render({ filters: true });
   });
 
-  const ctx = (): Ctx => ({ site, filter, radiusM, summary, go, setRadius });
+  const ctx = (): Ctx => ({ site, filter, radiusM, summary, go, setRadius, showAllKinds, retry: () => renderFocus(false) });
+
+  function showAllKinds() {
+    filter = { ...filter, cats: new Set(site.index.categories.map((_, i) => i)) };
+    render({ focus: true, filters: true });
+  }
+
+  function resetFilters() {
+    filter = initialFilter(site);
+    render({ focus: true, filters: true });
+  }
+
+  const sameSet = (a: Set<number>, b: Set<number>) => a.size === b.size && [...a].every((x) => b.has(x));
+  function filtersChanged() {
+    const start = initialFilter(site);
+    return filter.from !== start.from || filter.to !== start.to || filter.includeNoWork !== start.includeNoWork || !sameSet(filter.cats, start.cats);
+  }
 
   function go(f: Focus | null, opts: { move?: boolean } = { move: true }) {
     focus = f;
     renderFocus(opts.move ?? true);
-    saveHash();
+    // a new place is a step people expect Back to undo
+    saveHash(true);
     $("focus").querySelector<HTMLElement>("h2")?.focus({ preventScroll: true });
     // The panel sits below the map on a phone, so bring the answer into view
     if (f && narrow.matches) {
@@ -175,12 +192,13 @@ async function start() {
     summary = summarizePlaces(site.permits, filter, placeCount);
     map.show(summary, filter.to);
     years.update(filter);
+    years.showReset(filtersChanged(), resetFilters);
     if (what.filters) renderFilters();
     if (what.focus) renderFocus(false);
     saveHash();
   }
 
-  function saveHash() {
+  function saveHash(push = false) {
     const keepQuery = focus && focus.kind !== "place" ? focus.q : undefined;
     const hash = toHash({
       place: focus?.kind === "place" ? placeKey(site.places, focus.place) : undefined,
@@ -191,7 +209,9 @@ async function start() {
       cats: [...filter.cats].sort((a, b) => a - b),
       includeNoWork: filter.includeNoWork || undefined,
     }, site.index);
-    history.replaceState(null, "", hash || location.pathname + location.search);
+    const url = hash || location.pathname + location.search;
+    if (push && hash !== location.hash) history.pushState(null, "", url);
+    else history.replaceState(null, "", url);
   }
 
   function applyHash() {
@@ -225,7 +245,7 @@ async function start() {
     renderFocus(true);
   };
   restore();
-  window.addEventListener("hashchange", restore);
+  window.addEventListener("popstate", restore);
 }
 
 void start();

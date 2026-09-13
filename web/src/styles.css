@@ -719,6 +719,11 @@ select {
   min-width: 5.5em;
 }
 
+.years .reset {
+  font-size: 14px;
+  color: var(--muted);
+}
+
 .years .key {
   margin-left: auto;
   display: flex;

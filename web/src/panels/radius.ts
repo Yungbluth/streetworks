@@ -60,7 +60,7 @@ export function nearby(ctx: Ctx, center: LatLng, opts: { listNow?: boolean; excl
         .sort((a, b) => byDateDesc(a.detail, b.detail) || a.distanceM - b.distanceM);
       list.replaceChildren(historyList(entries));
     } catch (e) {
-      list.replaceChildren(failed("the permits here", e));
+      list.replaceChildren(failed("the permits here", e, () => void show()));
     }
   };
   if (opts.listNow) void show();

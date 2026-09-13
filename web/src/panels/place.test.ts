@@ -36,7 +36,10 @@ function tinySite(): Site {
 describe("placePanel", () => {
   const site = tinySite();
   const filter = { from: 2005, to: 2026, cats: new Set([0]), includeNoWork: false };
-  const ctx: Ctx = { site, filter, radiusM: 152, summary: summarizePlaces(site.permits, filter, 2), go: () => {}, setRadius: () => {} };
+  const ctx: Ctx = {
+    site, filter, radiusM: 152, summary: summarizePlaces(site.permits, filter, 2),
+    go: () => {}, setRadius: () => {}, showAllKinds: () => {}, retry: () => {},
+  };
 
   it("leads with the summary, then what's nearby", async () => {
     const el = placePanel(ctx, 0);
@@ -55,5 +58,36 @@ describe("placePanel", () => {
     expect(first.querySelector("summary")!.textContent).toContain("Work P1");
     expect(first.querySelector("summary")!.textContent).toContain("May 6, 2024");
     expect(first.textContent).toContain("Filed as 100 E A ST");
+  });
+});
+
+describe("when something goes wrong", () => {
+  const filter = { from: 2005, to: 2026, cats: new Set([0]), includeNoWork: false };
+
+  it("offers every kind of work", () => {
+    const site = tinySite();
+    let shown = 0;
+    const none = { ...filter, cats: new Set<number>() };
+    const ctx: Ctx = {
+      site, filter: none, radiusM: 152, summary: summarizePlaces(site.permits, none, 2),
+      go: () => {}, setRadius: () => {}, showAllKinds: () => shown++, retry: () => {},
+    };
+    const button = [...placePanel(ctx, 0).querySelectorAll("button")].find((b) => b.textContent === "Show all kinds of work");
+    button!.click();
+    expect(shown).toBe(1);
+  });
+
+  it("offers to try again when the permits don't load", async () => {
+    const site = { ...tinySite(), detail: async () => { throw new Error("offline"); } };
+    let retried = 0;
+    const ctx: Ctx = {
+      site, filter, radiusM: 152, summary: summarizePlaces(site.permits, filter, 2),
+      go: () => {}, setRadius: () => {}, showAllKinds: () => {}, retry: () => retried++,
+    };
+    const el = placePanel(ctx, 0);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(el.textContent).toContain("offline");
+    [...el.querySelectorAll("button")].find((b) => b.textContent === "Try again")!.click();
+    expect(retried).toBe(1);
   });
 });

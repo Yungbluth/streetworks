@@ -14,6 +14,9 @@ export interface Ctx {
   summary: PlaceSummary;
   go(focus: Focus | null, opts?: { move?: boolean }): void;
   setRadius(m: number): void;
+  showAllKinds(): void;
+  // Draws the panel again, for a "Try again" after a failed load
+  retry(): void;
 }
 
 export const placeAt = (site: Site, p: number): LatLng => ({ lat: site.places.lat[p]! / 1e5, lng: site.places.lng[p]! / 1e5 });

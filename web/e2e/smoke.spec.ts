@@ -10,7 +10,7 @@ test("search an address", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Busiest places in view" })).toBeVisible();
 
-  const search = page.getByRole("combobox");
+  const search = page.getByRole("combobox", { name: /Search/ });
   await search.fill("749 E Speedway");
   await expect(page.getByRole("option").first()).toContainText("700 block of E Speedway Blvd");
   await search.press("Enter");
@@ -68,11 +68,46 @@ test.describe("on a phone", () => {
   test("picking a place brings its summary into view", async ({ page }) => {
     await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
     await page.goto("/");
-    await page.getByRole("combobox").fill("749 E Speedway");
-    await page.getByRole("combobox").press("Enter");
+    await page.getByRole("combobox", { name: /Search/ }).fill("749 E Speedway");
+    await page.getByRole("combobox", { name: /Search/ }).press("Enter");
     const heading = page.getByRole("heading", { level: 2, name: "700 block of E Speedway Blvd" });
     await expect(heading).toBeInViewport();
     await expect(page.locator(".lead")).toBeInViewport();
   });
 
+});
+
+test.describe("getting back", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  });
+
+  test("Back returns to the previous place", async ({ page }) => {
+    await page.goto("/");
+    const search = page.getByRole("combobox", { name: /Search/ });
+    await search.fill("749 E Speedway");
+    await search.press("Enter");
+    await expect(page.getByRole("heading", { level: 2, name: "700 block of E Speedway Blvd" })).toBeVisible();
+    await search.fill("250 S Williams");
+    await search.press("Enter");
+    await expect(page.getByRole("heading", { level: 2, name: "200 block of S Williams Blvd" })).toBeVisible();
+    await page.goBack();
+    await expect(page.getByRole("heading", { level: 2, name: "700 block of E Speedway Blvd" })).toBeVisible();
+    await page.goBack();
+    await expect(page.getByRole("heading", { level: 2, name: "Busiest places in view" })).toBeVisible();
+  });
+
+  test("Reset filters puts the years and kinds back", async ({ page }) => {
+    await page.goto("/#from=2006&to=2006&cats=Other");
+    const reset = page.getByRole("button", { name: "Reset filters" });
+    await reset.click();
+    await expect(page.locator(".years h3")).toHaveText(/permits, 2005 to 2006$/);
+    await expect(reset).toBeHidden();
+  });
+
+  test("an empty map offers to show every kind of work", async ({ page }) => {
+    await page.goto("/#cats=");
+    await page.getByRole("button", { name: "Show all kinds of work" }).click();
+    await expect(page.locator(".busiest button").first()).toBeVisible();
+  });
 });

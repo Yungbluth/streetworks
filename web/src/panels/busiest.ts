@@ -1,6 +1,7 @@
 import type L from "leaflet";
 import { h } from "../dom";
 import { num, placeName } from "../format";
+import { showAll } from "./common";
 import type { Ctx } from "../model";
 
 export function busiestPanel(ctx: Ctx, view: L.LatLngBounds): HTMLElement {
@@ -33,7 +34,12 @@ export function busiestPanel(ctx: Ctx, view: L.LatLngBounds): HTMLElement {
             ),
           ),
         )
-      : h("p", { class: "sub" }, "No permits match the filters in this part of the map."),
+      : h(
+          "div",
+          {},
+          h("p", { class: "sub" }, "No permits match the filters in this part of the map."),
+          ctx.filter.cats.size < ctx.site.index.categories.length ? showAll(ctx.showAllKinds) : null,
+        ),
     h("p", { class: "quiet" }, "Search above, or select a dot to see everything filed there."),
   );
 }

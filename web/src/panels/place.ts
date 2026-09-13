@@ -1,7 +1,7 @@
 import { h } from "../dom";
 import { placeName, plural } from "../format";
 import { byDateDesc, detailsFor, permitsOf, placeAt, type Ctx } from "../model";
-import { categoryBars, failed, loading, note, panelHead } from "./common";
+import { categoryBars, failed, loading, note, panelHead, showAll } from "./common";
 import { historyList } from "./history";
 import { nearby } from "./radius";
 
@@ -36,6 +36,7 @@ export function placePanel(ctx: Ctx, place: number, extraNote?: string): HTMLEle
     note(extraNote),
     h("p", { class: "lead" }, placeSummary(byCategory, mine.map((i) => site.permits.year[i]!), site.index.categories)),
     byCategory.size > 1 ? categoryBars(byCategory, site.index.categories) : null,
+    !mine.length && filter.cats.size < site.index.categories.length ? showAll(ctx.showAllKinds) : null,
     nearby(ctx, placeAt(site, place), { exclude: place }),
     mine.length ? h("h3", {}, "Permits here, newest first") : null,
     history,
@@ -48,7 +49,7 @@ export function placePanel(ctx: Ctx, place: number, extraNote?: string): HTMLEle
           .sort((a, b) => byDateDesc(a.detail, b.detail));
         history.replaceWith(historyList(entries));
       })
-      .catch((e: unknown) => history.replaceChildren(failed("this place's permits", e)));
+      .catch((e: unknown) => history.replaceChildren(failed("this place's permits", e, ctx.retry)));
   return out;
 }
 

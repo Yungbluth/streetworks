@@ -36,6 +36,7 @@ export function yearStrip(site: Site, ev: YearEvents) {
   let from = first;
   let to = last;
   let timer = 0;
+  let before: [number, number] | null = null;
 
   const bars = h("div", { class: "bars" });
   const yearBars = Array.from({ length: span }, (_, i) => bars.appendChild(h("div", { title: String(first + i) })));
@@ -51,6 +52,7 @@ export function yearStrip(site: Site, ev: YearEvents) {
   const total = h("h3", { "aria-live": "polite" });
   const key = h("p", { class: "key" });
   const play = h("button", { type: "button", class: "play" });
+  const reset = h("button", { type: "button", class: "linkish reset", hidden: true }, "Reset filters");
   const sparseNote = h("p", { class: "sparse-note" });
   const axis = h("div", { class: "axis", "aria-hidden": "true" });
   for (let y = first; y <= last; y++) {
@@ -59,7 +61,7 @@ export function yearStrip(site: Site, ev: YearEvents) {
       axis.append(h("span", { style: `left: ${((y - first + 0.5) / span) * 100}%` }, String(y)));
     }
   }
-  const el = h("section", { class: "years", "aria-label": "Years" }, h("div", { class: "head" }, play, total, key), chart, axis, sparseNote);
+  const el = h("section", { class: "years", "aria-label": "Years" }, h("div", { class: "head" }, play, total, reset, key), chart, axis, sparseNote);
 
   const yearAt = (clientX: number) => {
     const r = bars.getBoundingClientRect();
@@ -95,6 +97,8 @@ export function yearStrip(site: Site, ev: YearEvents) {
   };
   chart.addEventListener("pointerup", release);
   chart.addEventListener("pointercancel", release);
+  chart.addEventListener("lostpointercapture", release);
+  window.addEventListener("blur", release);
 
   for (const [hd, which] of [[hFrom, "from"], [hTo, "to"]] as const) {
     hd.addEventListener("keydown", (e) => {
@@ -116,13 +120,17 @@ export function yearStrip(site: Site, ev: YearEvents) {
     clearInterval(timer);
     timer = 0;
     play.textContent = "Replay";
-    set(from, to, false);
+    const [f, t] = before ?? [from, to];
+    before = null;
+    set(f, t, false);
   }
   play.addEventListener("click", () => {
     if (timer) return stop();
+    before = [from, to];
+    const end = to;
     // start the timer first: setting the range redraws this strip
     timer = window.setInterval(() => {
-      if (to >= last) return stop();
+      if (to >= end) return stop();
       set(from, to + 1, true);
     }, 650);
     play.textContent = "Stop";
@@ -162,5 +170,13 @@ export function yearStrip(site: Site, ev: YearEvents) {
     sparseNote.textContent = from < sparse ? `Before ${sparse} the city's records are thin, so those years look quieter than they were.` : "";
   }
 
-  return { el, update };
+  function showReset(visible: boolean, onReset: () => void) {
+    reset.hidden = !visible;
+    reset.onclick = () => {
+      stop();
+      onReset();
+    };
+  }
+
+  return { el, update, showReset };
 }

@@ -16,8 +16,16 @@ export const note = (text?: string) => (text ? h("p", { class: "note" }, text) :
 
 export const loading = () => h("p", { class: "quiet" }, "Loading permits…");
 
-export const failed = (what: string, e: unknown) =>
-  h("p", { class: "error" }, `Couldn't load ${what}. ${errorMessage(e)}`);
+export const failed = (what: string, e: unknown, retry?: () => void) =>
+  h(
+    "div",
+    { class: "error", role: "alert" },
+    h("p", {}, `Couldn't load ${what}. ${errorMessage(e)}`),
+    retry ? h("button", { type: "button", class: "more", onclick: retry }, "Try again") : null,
+  );
+
+export const showAll = (onClick: () => void) =>
+  h("button", { type: "button", class: "more", onclick: onClick }, "Show all kinds of work");
 
 /** horizontal bars, such as permits per category */
 export function bars(rows: { label: string; n: number; color?: string }[]): HTMLElement {
