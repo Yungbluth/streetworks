@@ -27,3 +27,5 @@ export function dotStyle(age: Age, full: number, color: string, edge?: string): 
 export const DETAIL_ZOOM = 14;
 
 export const visibleAt = (age: Age, zoom: number) => age === "recent" || zoom >= DETAIL_ZOOM;
+
+export const faded = (s: DotStyle): DotStyle => ({ ...s, alpha: s.alpha * 0.25 });

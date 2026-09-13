@@ -670,6 +670,28 @@ select {
   color: var(--muted);
 }
 
+.kinds summary {
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.kinds dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.kinds dt {
+  font-weight: 600;
+}
+
+.kinds dd {
+  margin: 0;
+  color: var(--muted);
+}
+
 .overlays {
   display: flex;
   flex-direction: column;

@@ -1,6 +1,6 @@
 import L from "leaflet";
 import type { Index, Places, TileSource } from "./data";
-import { dotStyle, visibleAt } from "./dots";
+import { dotStyle, faded, visibleAt } from "./dots";
 import { overlayPopup } from "./overlay";
 import { ageOf, type PlaceSummary } from "./filters";
 import type { LatLng } from "./geo";
@@ -69,7 +69,6 @@ class DotLayer extends L.Layer {
     const colors = this.categories.map(paint);
     const edges = this.categories.map(needsEdge);
     const edgeColor = cssVar("--paint-edge");
-    const ink = cssVar("--ink");
     const bounds = map.getBounds().pad(0.05);
 
     const order: number[] = [];
@@ -94,7 +93,9 @@ class DotLayer extends L.Layer {
       const pt = map.latLngToContainerPoint([places.lat[p]! / 1e5, places.lng[p]! / 1e5]);
       const cat = summary.cat[p]!;
       const age = ageOf(summary.newest[p]!, this.end);
-      const style = dotStyle(age, this.radius(summary.count[p]!, metersPerPx), colors[cat]!, edges[cat] ? edgeColor : undefined);
+      const own = dotStyle(age, this.radius(summary.count[p]!, metersPerPx), colors[cat]!, edges[cat] ? edgeColor : undefined);
+      // While a street is open, the rest of the map steps back
+      const style = this.highlighted.size && !this.highlighted.has(p) ? faded(own) : own;
       d.place[i] = p;
       d.x[i] = pt.x;
       d.y[i] = pt.y;
@@ -115,15 +116,6 @@ class DotLayer extends L.Layer {
       ctx.globalAlpha = 1;
     });
 
-    // outline the places being looked at, such as every block of one street
-    ctx.strokeStyle = ink;
-    ctx.lineWidth = 1.6;
-    for (let i = 0; i < d.n; i++) {
-      if (!this.highlighted.has(d.place[i]!)) continue;
-      ctx.beginPath();
-      ctx.arc(d.x[i]!, d.y[i]!, d.r[i]! + 3, 0, Math.PI * 2);
-      ctx.stroke();
-    }
     this.drawn = d;
   }
 

@@ -22,7 +22,7 @@ export function aboutPanel(idx: Index): HTMLElement {
       h("li", {}, `Before ${idx.sparseBefore} the city's records are thin, so those years look quieter than they were.`),
       h("li", {}, `${num(q.no_block)} permits (${pct(q.no_block)}) have no street number. They're placed at the intersection or spot the city recorded instead of on a block.`),
       h("li", {}, `${num(q.unplaced)} permits have no location at all, so they aren't on the map.`),
-      h("li", {}, `${num(q.no_date)} permits have no usable date. They don't show while a year range is set, which is always.`),
+      h("li", {}, `${num(q.no_date)} permits have no usable date, so they never appear on the map.`),
       h("li", {}, `${num(q.no_work)} permits were voided, withdrawn or denied, or are still in review. They're hidden unless you include them.`),
       h("li", {}, "A permit near a corner may be filed under either street. Work done without a permit never appears."),
     ),

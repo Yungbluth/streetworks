@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DETAIL_ZOOM, dotStyle, visibleAt } from "./dots";
+import { DETAIL_ZOOM, dotStyle, faded, visibleAt } from "./dots";
 
 describe("dotStyle", () => {
   it("draws recent work solid", () => {
@@ -27,5 +27,15 @@ describe("visibleAt", () => {
     expect(visibleAt("old", 13)).toBe(false);
     expect(visibleAt("back", DETAIL_ZOOM)).toBe(true);
     expect(visibleAt("old", 17)).toBe(true);
+  });
+});
+
+describe("faded", () => {
+  it("fades a dot that isn't part of the selection", () => {
+    const style = dotStyle("back", 6, "#e8418c");
+    const f = faded(style);
+    expect(f.alpha).toBeCloseTo(style.alpha * 0.25);
+    expect(f.stroke).toBe(style.stroke);
+    expect(f.r).toBe(style.r);
   });
 });

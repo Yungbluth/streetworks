@@ -23,7 +23,7 @@ export function streetPanel(ctx: Ctx, street: number): HTMLElement {
     "section",
     { class: "focus" },
     panelHead(prettyStreet(site.places.streets[street]!), () => ctx.go(null)),
-    h("p", { class: "sub" }, `${plural(total, "permit")} on ${num(busy)} of ${plural(blocks.length, "block")} with records, in address order.`),
+    h("p", { class: "sub" }, `${plural(total, "permit")} on ${plural(busy, "block")}, in address order.`),
     h(
       "ul",
       { class: "bars street" },
@@ -34,7 +34,7 @@ export function streetPanel(ctx: Ctx, street: number): HTMLElement {
           h(
             "button",
             { type: "button", onclick: () => ctx.go({ kind: "place", place: p }, { move: true }) },
-            h("span", { class: "label" }, `${site.places.block[p]}`),
+            h("span", { class: "label" }, `${site.places.block[p]} block`),
             h("span", { class: "track" }, h("i", { style: `width: ${Math.round((100 * summary.count[p]!) / max)}%` })),
             h("span", { class: "n" }, num(summary.count[p]!)),
           ),
