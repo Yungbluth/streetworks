@@ -7,9 +7,11 @@ import { RADII } from "../url";
 import { categoryBars, failed, loading } from "./common";
 import { historyList } from "./history";
 
-export function nearby(ctx: Ctx, center: LatLng, opts: { listNow?: boolean } = {}): HTMLElement {
+export function nearby(ctx: Ctx, center: LatLng, opts: { listNow?: boolean; exclude?: number } = {}): HTMLElement {
   const { site } = ctx;
-  const found = permitsMatching(site.permits, ctx.filter, { center, radiusM: ctx.radiusM });
+  const found = permitsMatching(site.permits, ctx.filter, { center, radiusM: ctx.radiusM }).filter(
+    (i) => site.permits.place[i] !== opts.exclude,
+  );
   const placesHit = new Set(found.map((i) => site.permits.place[i]!));
   const cats = new Map<number, number>();
   for (const i of found) cats.set(site.permits.cat[i]!, (cats.get(site.permits.cat[i]!) ?? 0) + 1);
@@ -23,10 +25,20 @@ export function nearby(ctx: Ctx, center: LatLng, opts: { listNow?: boolean } = {
     "section",
     { class: "nearby" },
     h("h3", {}, "Within ", select),
-    h("p", { class: "sub" }, found.length ? `${plural(found.length, "permit")} at ${plural(placesHit.size, "place")}` : "No permits match the filters inside this circle."),
+    h(
+      "p",
+      { class: "sub" },
+      !found.length
+        ? opts.exclude === undefined
+          ? "No permits match the filters inside this circle."
+          : "No other permits match the filters inside this circle."
+        : opts.exclude === undefined
+          ? `${plural(found.length, "permit")} at ${plural(placesHit.size, "place")}`
+          : `${plural(found.length, "more permit")} at ${plural(placesHit.size, "other place")}`,
+    ),
   );
   if (!found.length) return out;
-  out.append(categoryBars(cats, site.index.categories));
+  if (opts.exclude === undefined) out.append(categoryBars(cats, site.index.categories));
 
   const list = h("div", {});
   const show = async () => {
@@ -54,7 +66,7 @@ export function nearby(ctx: Ctx, center: LatLng, opts: { listNow?: boolean } = {
   if (opts.listNow) void show();
   else
     list.append(
-      h("button", { type: "button", class: "more", onclick: () => void show() }, `List all ${plural(found.length, "permit")}, newest first`),
+      h("button", { type: "button", class: "more", onclick: () => void show() }, `List them, newest first`),
     );
   out.append(list);
   return out;

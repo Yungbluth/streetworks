@@ -1,36 +1,52 @@
 import { h } from "../dom";
-import { placeName, plural, yearsText } from "../format";
+import { placeName, plural } from "../format";
 import { byDateDesc, detailsFor, permitsOf, placeAt, type Ctx } from "../model";
-import { failed, loading, note, panelHead } from "./common";
+import { categoryBars, failed, loading, note, panelHead } from "./common";
 import { historyList } from "./history";
 import { nearby } from "./radius";
+
+/** The answer to "what's been happening here?" in one sentence */
+export function placeSummary(byCategory: Map<number, number>, years: number[], categories: string[]): string {
+  const total = [...byCategory.values()].reduce((a, b) => a + b, 0);
+  if (!total) return "No permits here match the filters.";
+  const dated = years.filter(Boolean);
+  const lo = Math.min(...dated);
+  const hi = Math.max(...dated);
+  const when = !dated.length ? "" : lo === hi ? ` in ${lo}` : ` from ${lo} to ${hi}`;
+  const top = [...byCategory].sort((a, b) => b[1] - a[1]);
+  const name = (c: number) => categories[c] ?? "Other";
+  let kinds: string;
+  if (total === 1) kinds = name(top[0]![0]);
+  else if (top.length === 1) kinds = `all ${name(top[0]![0])}`;
+  else kinds = `mostly ${name(top[0]![0])} (${top[0]![1]}) and ${name(top[1]![0])} (${top[1]![1]})`;
+  return `${plural(total, "permit")}${when}, ${kinds}.`;
+}
 
 export function placePanel(ctx: Ctx, place: number, extraNote?: string): HTMLElement {
   const { site, filter } = ctx;
   const mine = permitsOf(site, place, filter);
-  const years = mine.map((i) => site.permits.year[i]!).filter(Boolean);
-  const sub = mine.length
-    ? `${plural(mine.length, "permit")} here${years.length ? `, ${yearsText(Math.min(...years), Math.max(...years))}` : ""}`
-    : "No permits here match the filters.";
+  const byCategory = new Map<number, number>();
+  for (const i of mine) byCategory.set(site.permits.cat[i]!, (byCategory.get(site.permits.cat[i]!) ?? 0) + 1);
 
-  const history = h("div", {}, loading());
+  const history = h("div", { class: "history" }, mine.length ? loading() : null);
   const out = h(
     "section",
     { class: "focus" },
     panelHead(placeName(site.places, place), () => ctx.go(null)),
     note(extraNote),
-    h("p", { class: "sub" }, sub),
+    h("p", { class: "lead" }, placeSummary(byCategory, mine.map((i) => site.permits.year[i]!), site.index.categories)),
+    byCategory.size > 1 ? categoryBars(byCategory, site.index.categories) : null,
+    nearby(ctx, placeAt(site, place), { exclude: place }),
+    mine.length ? h("h3", {}, "Permits here, newest first") : null,
     history,
-    nearby(ctx, placeAt(site, place)),
   );
-  if (!mine.length) history.replaceChildren();
-  else
+  if (mine.length)
     detailsFor(site, mine)
       .then((details) => {
         const entries = mine
           .map((i) => ({ index: i, category: site.index.categories[site.permits.cat[i]!]!, detail: details.get(i) }))
           .sort((a, b) => byDateDesc(a.detail, b.detail));
-        history.replaceChildren(historyList(entries));
+        history.replaceWith(historyList(entries));
       })
       .catch((e: unknown) => history.replaceChildren(failed("this place's permits", e)));
   return out;
