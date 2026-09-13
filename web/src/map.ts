@@ -187,6 +187,24 @@ export class PermitMap {
     // The map's box changes size after start-up (the year strip arrives, the window resizes)
     new ResizeObserver(() => this.map.invalidateSize()).observe(el);
 
+    if (matchMedia("(pointer: coarse)").matches) {
+      this.map.dragging.disable();
+      const hint = L.DomUtil.create("p", "map-hint", el);
+      hint.textContent = "Use two fingers to move the map";
+      hint.hidden = true;
+      let timer: number | undefined;
+      el.addEventListener(
+        "touchmove",
+        (e) => {
+          if (e.touches.length !== 1) return void (hint.hidden = true);
+          hint.hidden = false;
+          clearTimeout(timer);
+          timer = window.setTimeout(() => (hint.hidden = true), 1500);
+        },
+        { passive: true },
+      );
+    }
+
     this.dots = new DotLayer(site.places, site.index.categories).addTo(this.map) as DotLayer;
     this.focus.addTo(this.map);
 

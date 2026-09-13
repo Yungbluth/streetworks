@@ -97,6 +97,12 @@ async function start() {
     render({ focus: true, filters: true });
   }
 
+  function showKindsOfWork() {
+    const box = $("filters");
+    box.scrollIntoView({ block: "start", behavior: reducedMotion.matches ? "auto" : "smooth" });
+    box.querySelector<HTMLInputElement>(".cat input")?.focus({ preventScroll: true });
+  }
+
   function resetFilters() {
     filter = initialFilter(site);
     render({ focus: true, filters: true });
@@ -201,6 +207,7 @@ async function start() {
     map.show(summary, filter.to);
     years.update(filter);
     years.showReset(filtersChanged(), resetFilters);
+    years.showKinds(filter.cats.size, site.index.categories.length, showKindsOfWork);
     if (what.filters) renderFilters();
     if (what.focus) renderFocus(false);
     saveHash();

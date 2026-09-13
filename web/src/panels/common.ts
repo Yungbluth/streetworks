@@ -8,8 +8,14 @@ export function panelHead(title: string, onClear: () => void): HTMLElement {
     "div",
     { class: "panel-head" },
     h("h2", { tabindex: "-1" }, title),
+    h("button", { type: "button", class: "linkish map-jump", "aria-label": "Show the map", onclick: showMap }, "Map"),
     h("button", { type: "button", class: "linkish", onclick: onClear }, "Clear"),
   );
+}
+
+function showMap() {
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  document.getElementById("map")?.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
 }
 
 export const note = (text?: string) => (text ? h("p", { class: "note" }, text) : null);

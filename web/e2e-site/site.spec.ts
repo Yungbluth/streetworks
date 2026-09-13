@@ -44,3 +44,20 @@ test("search forgives the way people really type", async ({ page }) => {
   await search.fill("85719");
   await expect(page.locator(".results-empty")).toContainText("ZIP codes");
 });
+
+test("unchecking a kind doesn't resize the map", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await page.goto("/");
+  await expect(page.locator(".years h3")).toBeVisible();
+  const height = () => page.locator("#map").evaluate((el) => el.getBoundingClientRect().height);
+  const before = await height();
+  await page.locator(".cat input:checked").first().uncheck();
+  await expect(page.getByRole("button", { name: "Reset filters" })).toBeVisible();
+  expect(await height()).toBe(before);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await expect(page.locator(".years h3")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});

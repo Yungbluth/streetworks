@@ -105,6 +105,13 @@ test.describe("on a phone", () => {
     expect(onTop).toBe(true);
   });
 
+  test("the page never scrolls sideways", async ({ page }) => {
+    await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+    await page.goto("/");
+    await expect(page.locator(".years h3")).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  });
+
 });
 
 test.describe("getting back", () => {
@@ -154,4 +161,29 @@ test.describe("keyboard and screen reader", () => {
     await expect(page.getByRole("combobox", { name: /Search/ })).toBeFocused();
   });
 
+});
+
+test("the year strip says which kinds are shown and leads to them", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.goto("/");
+  const kinds = page.getByRole("button", { name: /^(All \d+ kinds|\d+ of \d+ kinds|1 kind|No kinds)$/ });
+  // The fixture has one kind of work; the real site has nine.
+  await expect(kinds).toHaveText("1 kind");
+  const before = await kinds.textContent();
+  await page.locator(".cat input:checked").first().uncheck();
+  await expect(kinds).not.toHaveText(before!);
+  await kinds.click();
+  await expect(page.getByRole("heading", { name: "Kinds of work" })).toBeInViewport();
+});
+
+test("changing the filters doesn't resize the map", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await page.goto("/");
+  await expect(page.locator(".years h3")).toBeVisible();
+  const height = () => page.locator("#map").evaluate((el) => el.getBoundingClientRect().height);
+  const before = await height();
+  await page.locator(".cat input:checked").first().uncheck();
+  await expect(page.getByRole("button", { name: "Reset filters" })).toBeVisible();
+  expect(await height()).toBe(before);
 });

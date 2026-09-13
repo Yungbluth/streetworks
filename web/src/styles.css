@@ -215,6 +215,20 @@ select {
   #focus {
     order: 4;
   }
+  /* The place's name, Map and Clear stay in reach while its history scrolls. */
+  .panel-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    margin: 0 -16px;
+    padding: 8px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+  }
+  .panel-head .map-jump {
+    display: inline;
+    margin-left: auto;
+  }
   #filters {
     order: 5;
   }
@@ -788,9 +802,33 @@ select {
   min-width: 5.5em;
 }
 
-.years .reset {
+.years .reset,
+.years .kinds-jump {
   font-size: 14px;
   color: var(--muted);
+}
+
+.years .reset.off {
+  visibility: hidden;
+}
+
+/* Only a phone needs a way back up to the map. */
+.map-jump {
+  display: none;
+}
+
+.map-hint {
+  position: absolute;
+  inset: auto 16px 40px;
+  z-index: 1000;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ink) 82%, transparent);
+  color: var(--panel);
+  font-size: 14px;
+  text-align: center;
+  pointer-events: none;
 }
 
 .years .key {
@@ -926,6 +964,9 @@ select {
   .handle {
     width: 44px;
     margin-left: -22px;
+  }
+  .years {
+    padding-inline: 24px;
   }
   .handle::before {
     left: 20px;
