@@ -11,16 +11,16 @@ describe("dotStyle", () => {
     expect(old.stroke).toBeUndefined();
   });
 
-  it("outlines white paint at every age", () => {
+  it("keeps white paint white at every age", () => {
     for (const age of ["recent", "back", "old"] as const) {
-      expect(dotStyle(age, 6, "#ffffff", "#6d7077").stroke).toBe("#6d7077");
+      const d = dotStyle(age, 6, "#ffffff", "#55585d");
+      // The paint itself stays white: a dark ring would read as the "ring" age mark
+      expect(d.fill ?? d.stroke).toBe("#ffffff");
+      expect(d.outline).toBe("#55585d");
+      expect(d.outlineWidth).toBeLessThanOrEqual(1);
     }
-    expect(dotStyle("old", 6, "#ffffff", "#6d7077").fill).toBe("#ffffff");
-  });
-
-  it("gives white paint an edge heavy enough to hold on bright map tiles", () => {
-    expect(dotStyle("recent", 6, "#ffffff", "#3f4247").lineWidth).toBeGreaterThanOrEqual(1.5);
-    expect(dotStyle("old", 6, "#ffffff", "#3f4247").lineWidth).toBeGreaterThanOrEqual(1);
+    expect(dotStyle("back", 6, "#ffffff", "#55585d")).toMatchObject({ stroke: "#ffffff", fill: undefined });
+    expect(dotStyle("recent", 6, "#ffffff", "#55585d").stroke).toBeUndefined();
   });
 
 });

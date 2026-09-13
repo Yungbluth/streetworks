@@ -6,19 +6,22 @@ export interface DotStyle {
   stroke?: string;
   lineWidth?: number;
   alpha: number;
+  outline?: string;
+  outlineWidth?: number;
 }
 
 export function dotStyle(age: Age, full: number, color: string, edge?: string): DotStyle {
+  const line = edge ? { outline: edge, outlineWidth: 1 } : {};
   switch (age) {
     case "recent":
-      return edge ? { r: full, fill: color, stroke: edge, lineWidth: 1.5, alpha: 1 } : { r: full, fill: color, alpha: 1 };
+      return { r: full, fill: color, alpha: 1, ...line };
     case "back": {
       const r = full * 0.9;
-      return { r, fill: undefined, stroke: edge ?? color, lineWidth: Math.max(1.4, r * 0.4), alpha: 1 };
+      return { r, fill: undefined, stroke: color, lineWidth: Math.max(1.4, r * 0.4), alpha: 1, ...line };
     }
     case "old": {
       const r = Math.max(1.1, full * 0.42);
-      return edge ? { r: r + 0.5, fill: color, stroke: edge, lineWidth: 1, alpha: 0.9 } : { r, fill: color, alpha: 0.7 };
+      return edge ? { r: r + 0.4, fill: color, alpha: 0.9, ...line } : { r, fill: color, alpha: 0.7 };
     }
   }
 }

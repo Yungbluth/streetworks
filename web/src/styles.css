@@ -20,7 +20,7 @@
   --paint-civic-event: #7b4fb5;
   --paint-other: #8a8d92;
   /* White paint needs an edge to show on concrete */
-  --paint-edge: #3f4247;
+  --paint-edge: #55585d;
 
   --panel-width: 408px;
   color-scheme: light;
@@ -542,10 +542,11 @@ h3 {
   padding: 0 5px;
 }
 
+/* Round, like the dots on the map, so a white swatch can't pass for an empty checkbox */
 .swatch {
   width: 10px;
   height: 10px;
-  border-radius: 2px;
+  border-radius: 50%;
   background: var(--swatch);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--paint-edge) 60%, transparent);
   flex: none;
@@ -584,7 +585,7 @@ h3 {
   height: 8px;
   border-radius: 2px;
   background: var(--bar, var(--ink));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--paint-edge) 40%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--paint-edge) 70%, transparent);
 }
 
 .bars .n {

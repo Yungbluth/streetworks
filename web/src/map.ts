@@ -104,6 +104,13 @@ class DotLayer extends L.Layer {
       ctx.globalAlpha = style.alpha;
       ctx.beginPath();
       ctx.arc(pt.x, pt.y, style.r, 0, Math.PI * 2);
+      if (style.outline) {
+        // Wider than the mark by the hairline on each side; the paint goes on top.
+        const w = style.outlineWidth ?? 1;
+        ctx.lineWidth = (style.stroke ? (style.lineWidth ?? 1) : 0) + 2 * w;
+        ctx.strokeStyle = style.outline;
+        ctx.stroke();
+      }
       if (style.fill) {
         ctx.fillStyle = style.fill;
         ctx.fill();
