@@ -50,6 +50,21 @@ test("a link restores the years", async ({ page }) => {
   expect(page.url()).toContain("from=2005");
 });
 
+test("the zoom note shows only", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.goto("/#place=b%3AE+SPEEDWAY+BLVD%3A700");
+  await expect(page.getByRole("heading", { level: 2 })).toBeVisible();
+  const note = page.getByText("Zoom in to see older work");
+  await expect(note).toBeHidden();
+
+  const out = page.locator(".leaflet-control-zoom-out");
+  // clicks during a zoom animation are dropped, so keep zooming out until it shows
+  await expect(async () => {
+    await out.click();
+    await expect(note).toBeVisible({ timeout: 500 });
+  }).toPass({ timeout: 10_000 });
+});
+
 test("replay starts at the first year and steps to the last", async ({ page }) => {
   await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
   await page.goto("/#from=2005&to=2006");
@@ -73,6 +88,21 @@ test.describe("on a phone", () => {
     const heading = page.getByRole("heading", { level: 2, name: "700 block of E Speedway Blvd" });
     await expect(heading).toBeInViewport();
     await expect(page.locator(".lead")).toBeInViewport();
+  });
+
+  test("search suggestions sit above the map's zoom buttons", async ({ page }) => {
+    await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+    await page.goto("/");
+    await page.getByRole("combobox", { name: /Search/ }).fill("749 E Speedway");
+    const option = page.getByRole("option").first();
+    await expect(option).toBeVisible();
+    // Probe the left edge of the suggestion, where the zoom buttons sit
+    const box = (await option.boundingBox())!;
+    const onTop = await page.evaluate(
+      ({ x, y }) => !!document.elementFromPoint(x, y)?.closest("[role=option]"),
+      { x: box.x + 30, y: box.y + box.height / 2 },
+    );
+    expect(onTop).toBe(true);
   });
 
 });

@@ -53,7 +53,7 @@ export function yearStrip(site: Site, ev: YearEvents) {
   const key = h("p", { class: "key" });
   const play = h("button", { type: "button", class: "play" });
   const reset = h("button", { type: "button", class: "linkish reset", hidden: true }, "Reset filters");
-  const sparseNote = h("p", { class: "sparse-note" });
+  const sparseNote = h("span", { class: "sparse-note" });
   const zoomNote = h("span", { class: "zoom-note", hidden: true }, "Zoom in to see older work");
   const axis = h("div", { class: "axis", "aria-hidden": "true" });
   for (let y = first; y <= last; y++) {
@@ -62,7 +62,7 @@ export function yearStrip(site: Site, ev: YearEvents) {
       axis.append(h("span", { style: `left: ${((y - first + 0.5) / span) * 100}%` }, String(y)));
     }
   }
-  const el = h("section", { class: "years", "aria-label": "Years" }, h("div", { class: "head" }, play, total, reset, key), chart, axis, sparseNote);
+  const el = h("section", { class: "years", "aria-label": "Years" }, h("div", { class: "head" }, play, total, reset, key, sparseNote), chart, axis);
 
   const yearAt = (clientX: number) => {
     const r = bars.getBoundingClientRect();
@@ -171,7 +171,10 @@ export function yearStrip(site: Site, ev: YearEvents) {
       r.oldBefore > from ? h("span", { class: "older" }, svg("speck"), `${from} to ${r.oldBefore - 1}`) : null,
       zoomNote,
     );
-    sparseNote.textContent = from < sparse ? `Before ${sparse} the city's records are thin, so those years look quieter than they were.` : "";
+    sparseNote.textContent =
+      from < sparse
+        ? `Before ${sparse} the city's records are thin, so those years look quieter than they were.`
+        : "Drag either end of the chart to choose the years.";
   }
 
   function showZoomNote(zoomedOut: boolean) {

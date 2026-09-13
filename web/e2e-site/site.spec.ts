@@ -18,3 +18,13 @@ test("the built site loads its data and opens a place", async ({ page }) => {
 
   expect(errors).toEqual([]);
 });
+
+test("zoomed out, the older entries in the key stay readable", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.goto("/");
+  await expect(page.getByText("Zoom in to see older work")).toBeVisible();
+  // Only the marks fade; the year labels keep their full contrast
+  const older = page.locator(".years .key .older").first();
+  await expect(older).toHaveCSS("opacity", "1");
+  await expect(older.locator("svg")).not.toHaveCSS("opacity", "1");
+});

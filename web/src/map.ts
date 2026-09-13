@@ -150,6 +150,8 @@ export interface MapEvents {
   pick(place: number): void;
   hover(place: number | undefined, at: L.Point): void;
   moved(): void;
+  /** The zoom the map is heading to, as soon as it's known */
+  zoomed(zoom: number): void;
 }
 
 export class PermitMap {
@@ -192,6 +194,8 @@ export class PermitMap {
     });
     this.map.on("mouseout", () => events.hover(undefined, L.point(0, 0)));
     this.map.on("moveend", () => events.moved());
+    this.map.on("zoomanim", (e: L.ZoomAnimEvent) => events.zoomed(e.zoom));
+    this.map.on("zoomend", () => events.zoomed(this.map.getZoom()));
     el.addEventListener("keydown", (e) => {
       if (e.key !== "Enter" || e.target !== el) return;
       const p = this.dots.nearest(this.map.getSize().divideBy(2), 48);

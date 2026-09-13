@@ -80,9 +80,9 @@ async function start() {
       tip.style.transform = `translate(${at.x + 14}px, ${at.y + 14}px)`;
     },
     moved: () => {
-      years.showZoomNote(map.map.getZoom() < DETAIL_ZOOM);
       if (!focus) renderFocus(false);
     },
+    zoomed: (zoom) => years.showZoomNote(zoom < DETAIL_ZOOM),
   });
   map.setBasemap(dark.matches);
   dark.addEventListener("change", () => {
