@@ -114,6 +114,11 @@ async function start() {
     // a new place is a step people expect Back to undo
     saveHash(true);
     $("focus").querySelector<HTMLElement>("h2")?.focus({ preventScroll: true });
+    // Say what was chosen for screen readers: the heading and its summary
+    const box = $("focus");
+    $("status").textContent = f
+      ? [box.querySelector("h2")?.textContent, box.querySelector(".lead, .sub")?.textContent].filter(Boolean).join(". ")
+      : "";
     // The panel sits below the map on a phone, so bring the answer into view
     if (f && narrow.matches) {
       $("focus").scrollIntoView({ block: "start", behavior: reducedMotion.matches ? "auto" : "smooth" });

@@ -157,6 +157,8 @@ export function yearStrip(site: Site, ev: YearEvents) {
     hTo.style.left = pos(to + 1);
     hFrom.setAttribute("aria-valuenow", String(from));
     hTo.setAttribute("aria-valuenow", String(to));
+    hFrom.setAttribute("aria-valuetext", String(from));
+    hTo.setAttribute("aria-valuetext", String(to));
     total.textContent = `${num(inRange)} permits, ${yearsText(from, to)}`;
     if (!timer) play.textContent = "Replay";
 

@@ -111,3 +111,17 @@ test.describe("getting back", () => {
     await expect(page.locator(".busiest button").first()).toBeVisible();
   });
 });
+
+test.describe("keyboard and screen reader", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  });
+
+  test("search is the first thing Tab reaches", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".years h3")).toHaveText(/permits/);
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("combobox", { name: /Search/ })).toBeFocused();
+  });
+
+});

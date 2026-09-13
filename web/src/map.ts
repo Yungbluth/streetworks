@@ -119,6 +119,21 @@ class DotLayer extends L.Layer {
     this.drawn = d;
   }
 
+  nearest(pt: L.Point, maxPx: number): number | undefined {
+    const d = this.drawn;
+    let best: number | undefined;
+    let bestD = maxPx * maxPx;
+    for (let i = 0; i < d.n; i++) {
+      const dx = d.x[i]! - pt.x;
+      const dy = d.y[i]! - pt.y;
+      if (dx * dx + dy * dy <= bestD) {
+        bestD = dx * dx + dy * dy;
+        best = d.place[i];
+      }
+    }
+    return best;
+  }
+
   hit(pt: L.Point): number | undefined {
     const d = this.drawn;
     for (let i = d.n - 1; i >= 0; i--) {
@@ -177,6 +192,11 @@ export class PermitMap {
     });
     this.map.on("mouseout", () => events.hover(undefined, L.point(0, 0)));
     this.map.on("moveend", () => events.moved());
+    el.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" || e.target !== el) return;
+      const p = this.dots.nearest(this.map.getSize().divideBy(2), 48);
+      if (p !== undefined) events.pick(p);
+    });
   }
 
   setBasemap(dark: boolean) {

@@ -94,6 +94,15 @@ select {
 
 /* ---- layout ------------------------------------------------------------ */
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .layout {
   display: grid;
   grid-template-columns: 1fr var(--panel-width);
@@ -352,6 +361,11 @@ h3 {
 
 .search {
   position: relative;
+}
+
+.search input::placeholder {
+  color: var(--muted);
+  opacity: 1;
 }
 
 .search input {

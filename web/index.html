@@ -8,11 +8,8 @@
     <title>Tucson street permits</title>
   </head>
   <body>
+    <p id="status" class="visually-hidden" role="status" aria-live="polite"></p>
     <div class="layout" id="layout">
-      <main class="map-area">
-        <div id="map" aria-label="Map of street permits"></div>
-        <div id="tip" class="tip" hidden></div>
-      </main>
       <aside class="panel">
         <header>
           <h1>Tucson street permits</h1>
@@ -23,6 +20,10 @@
         <div id="filters"></div>
         <div id="about"></div>
       </aside>
+      <main class="map-area">
+        <div id="map" aria-label="Map of street permits"></div>
+        <div id="tip" class="tip" hidden></div>
+      </main>
       <div id="years"></div>
     </div>
     <script type="module" src="/src/main.ts"></script>
