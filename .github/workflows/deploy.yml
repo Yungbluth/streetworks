@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "17 13 * * 1" # Mondays, early morning in Tucson
   workflow_dispatch:
+    inputs:
+      skip_guard:
+        description: Publish even if the permit count fell more than 10% (only after checking why)
+        type: boolean
+        default: false
   push:
     branches: [main]
 
@@ -38,7 +43,13 @@ jobs:
 
       # The guard compares with the live site and stops here if the permit count fell more than 10%.
       - name: Build the site data
-        run: go run ./cmd/streetworks build -guard "${{ steps.pages.outputs.base_url }}/data/index.json"
+        env:
+          SKIP_GUARD: ${{ inputs.skip_guard }} # empty on scheduled and push runs
+          PUBLISHED: ${{ steps.pages.outputs.base_url }}/data/index.json
+        run: |
+          guard="$PUBLISHED"
+          if [ "$SKIP_GUARD" = "true" ]; then guard=""; fi
+          go run ./cmd/streetworks build -guard "$guard"
 
       - uses: actions/setup-node@v4
         with:
@@ -63,6 +74,7 @@ jobs:
         run: |
           npx playwright install --with-deps chromium
           npx playwright test
+          npx playwright test -c playwright.site.config.ts
 
       - uses: actions/upload-pages-artifact@v3
         with:

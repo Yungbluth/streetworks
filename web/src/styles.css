@@ -203,6 +203,24 @@ select {
   color: inherit;
 }
 
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.popup {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.popup th {
+  text-align: left;
+  font-weight: 600;
+  padding-right: 10px;
+  color: var(--muted);
+}
+
 .over-dot .leaflet-grab {
   cursor: pointer;
 }
@@ -397,6 +415,8 @@ h3 {
 
 .permit .meta,
 .permit .ids,
+.permit .who,
+.permit .filed,
 .permit .where,
 .permit .flag {
   font-size: 13px;
@@ -410,9 +430,11 @@ h3 {
   flex-wrap: wrap;
 }
 
-.permit .ids {
+.permit .ids,
+.permit .filed {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 0 12px;
 }
 
 .permit .where {

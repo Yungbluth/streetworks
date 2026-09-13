@@ -1,6 +1,7 @@
 import L from "leaflet";
 import type { Index, Places, TileSource } from "./data";
 import { dotStyle } from "./dots";
+import { overlayPopup } from "./overlay";
 import { ageOf, type PlaceSummary } from "./filters";
 import type { LatLng } from "./geo";
 import { cssVar, needsEdge, paint } from "./paint";
@@ -241,6 +242,7 @@ export class PermitMap {
     const road = cssVar("--overlay");
     const layer = L.geoJSON(await load(file), {
       pane: "lines",
+      onEachFeature: (f, l) => l.bindPopup(() => overlayPopup(f.properties)),
       style: (f) =>
         /Polygon/.test(f?.geometry.type ?? "")
           ? { color: road, weight: 1.5, fillColor: road, fillOpacity: 0.12, renderer: this.lines }

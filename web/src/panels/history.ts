@@ -14,9 +14,17 @@ export interface Entry {
 
 const PAGE = 25;
 
+// which date field a permit is listed under, when it isn't the issue date
+const dateBases: Record<string, string> = {
+  DATE_APPROVE: "Dated by approval",
+  DATE_START: "Dated by the start of work",
+  DATE_ENTERED: "Dated by when it was entered",
+};
+
 function item(e: Entry): HTMLLIElement {
   const d = e.detail;
-  const what = d ? d.description || d.type : "Details for this permit didn't load.";
+  const what = d ? d.description || d.subType || d.type : "Details for this permit didn't load.";
+  const who = d ? [d.applicant, d.utility].filter(Boolean).join(", ") : "";
   return h(
     "li",
     { class: d?.noWork ? "permit no-work" : "permit" },
@@ -32,6 +40,16 @@ function item(e: Entry): HTMLLIElement {
         d ? `${e.category}, ${d.status.toLowerCase()}` : e.category,
         d?.noWork ? h("span", { class: "tag" }, "no work done") : null,
       ),
+      who ? h("p", { class: "who" }, who) : null,
+      d
+        ? h(
+            "p",
+            { class: "filed" },
+            d.filed ? `Filed as ${d.filed}` : null,
+            d.final ? h("span", {}, `Finished ${dateText(d.final)}`) : null,
+            dateBases[d.dateBasis] ? h("span", {}, dateBases[d.dateBasis]) : null,
+          )
+        : null,
       d
         ? h(
             "p",
