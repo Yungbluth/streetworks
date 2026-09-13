@@ -1,6 +1,6 @@
 import L from "leaflet";
 import type { Index, Places, TileSource } from "./data";
-import { dotStyle } from "./dots";
+import { dotStyle, visibleAt } from "./dots";
 import { overlayPopup } from "./overlay";
 import { ageOf, type PlaceSummary } from "./filters";
 import type { LatLng } from "./geo";
@@ -64,6 +64,7 @@ class DotLayer extends L.Layer {
     ctx.scale(dpr, dpr);
 
     const { places, summary } = this;
+    const zoom = map.getZoom();
     const metersPerPx = (156543.03 * Math.cos((map.getCenter().lat * Math.PI) / 180)) / 2 ** map.getZoom();
     const colors = this.categories.map(paint);
     const edges = this.categories.map(needsEdge);
@@ -74,6 +75,7 @@ class DotLayer extends L.Layer {
     const order: number[] = [];
     for (let p = 0; p < places.kind.length; p++) {
       if (!summary.count[p]) continue;
+      if (!visibleAt(ageOf(summary.newest[p]!, this.end), zoom) && !this.highlighted.has(p)) continue;
       const lat = places.lat[p]! / 1e5;
       const lng = places.lng[p]! / 1e5;
       if (lat < bounds.getSouth() || lat > bounds.getNorth() || lng < bounds.getWest() || lng > bounds.getEast()) continue;

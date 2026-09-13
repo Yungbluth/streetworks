@@ -732,6 +732,14 @@ select {
   color: var(--muted);
 }
 
+.years .key.zoomed-out .older {
+  opacity: 0.5;
+}
+
+.years .key .zoom-note {
+  font-style: italic;
+}
+
 .years .key span {
   display: flex;
   gap: 6px;

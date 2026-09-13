@@ -8,6 +8,7 @@ import { errorMessage, loadSite, yearSpan, type Site } from "./data";
 import { fill, h } from "./dom";
 import { summarizePlaces, type Filter } from "./filters";
 import { placeName, plural } from "./format";
+import { DETAIL_ZOOM } from "./dots";
 import { PermitMap } from "./map";
 import { placeAt, type Ctx, type Focus } from "./model";
 import { aboutPanel } from "./panels/about";
@@ -79,6 +80,7 @@ async function start() {
       tip.style.transform = `translate(${at.x + 14}px, ${at.y + 14}px)`;
     },
     moved: () => {
+      years.showZoomNote(map.map.getZoom() < DETAIL_ZOOM);
       if (!focus) renderFocus(false);
     },
   });
@@ -158,6 +160,7 @@ async function start() {
     },
   });
   $("years").replaceWith(years.el);
+  years.showZoomNote(map.map.getZoom() < DETAIL_ZOOM);
 
   function renderFilters() {
     fill(

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dotStyle } from "./dots";
+import { DETAIL_ZOOM, dotStyle, visibleAt } from "./dots";
 
 describe("dotStyle", () => {
   it("draws recent work solid", () => {
@@ -18,4 +18,14 @@ describe("dotStyle", () => {
     expect(dotStyle("old", 6, "#ffffff", "#6d7077").fill).toBe("#ffffff");
   });
 
+});
+
+describe("visibleAt", () => {
+  it("shows only recent work at city zoom", () => {
+    expect(visibleAt("recent", 11)).toBe(true);
+    expect(visibleAt("back", 11)).toBe(false);
+    expect(visibleAt("old", 13)).toBe(false);
+    expect(visibleAt("back", DETAIL_ZOOM)).toBe(true);
+    expect(visibleAt("old", 17)).toBe(true);
+  });
 });

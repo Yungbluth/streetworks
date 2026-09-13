@@ -54,6 +54,7 @@ export function yearStrip(site: Site, ev: YearEvents) {
   const play = h("button", { type: "button", class: "play" });
   const reset = h("button", { type: "button", class: "linkish reset", hidden: true }, "Reset filters");
   const sparseNote = h("p", { class: "sparse-note" });
+  const zoomNote = h("span", { class: "zoom-note", hidden: true }, "Zoom in to see older work");
   const axis = h("div", { class: "axis", "aria-hidden": "true" });
   for (let y = first; y <= last; y++) {
     // every fifth year and the ends, unless an end would crowd its neighbour
@@ -164,10 +165,16 @@ export function yearStrip(site: Site, ev: YearEvents) {
     fill(
       key,
       h("span", {}, svg("solid"), clampText(r.recent[0], r.recent[1])),
-      r.back[1] >= from ? h("span", {}, svg("ring"), clampText(r.back[0], r.back[1])) : null,
-      r.oldBefore > from ? h("span", {}, svg("speck"), `${from} to ${r.oldBefore - 1}`) : null,
+      r.back[1] >= from ? h("span", { class: "older" }, svg("ring"), clampText(r.back[0], r.back[1])) : null,
+      r.oldBefore > from ? h("span", { class: "older" }, svg("speck"), `${from} to ${r.oldBefore - 1}`) : null,
+      zoomNote,
     );
     sparseNote.textContent = from < sparse ? `Before ${sparse} the city's records are thin, so those years look quieter than they were.` : "";
+  }
+
+  function showZoomNote(zoomedOut: boolean) {
+    zoomNote.hidden = !zoomedOut;
+    key.classList.toggle("zoomed-out", zoomedOut);
   }
 
   function showReset(visible: boolean, onReset: () => void) {
@@ -178,5 +185,5 @@ export function yearStrip(site: Site, ev: YearEvents) {
     };
   }
 
-  return { el, update, showReset };
+  return { el, update, showReset, showZoomNote };
 }

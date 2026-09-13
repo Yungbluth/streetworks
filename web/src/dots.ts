@@ -22,3 +22,8 @@ export function dotStyle(age: Age, full: number, color: string, edge?: string): 
     }
   }
 }
+
+/** the zoom at which older work joins the map */
+export const DETAIL_ZOOM = 14;
+
+export const visibleAt = (age: Age, zoom: number) => age === "recent" || zoom >= DETAIL_ZOOM;
