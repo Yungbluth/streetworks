@@ -210,12 +210,15 @@ func TestWriteShape(t *testing.T) {
 	seen := map[string]string{}
 	entries, _ := os.ReadDir(filepath.Join(dir, "details"))
 	for _, e := range entries {
-		var cell map[string]struct {
-			Permit string
-			Flags  []string
+		var cell struct {
+			Built   string
+			Permits map[string]struct{ Permit string }
 		}
 		readJSON(t, filepath.Join(dir, "details", e.Name()), &cell)
-		for k := range cell {
+		if cell.Built != "2026-08-29T18:00:00Z" {
+			t.Errorf("%s: built = %q", e.Name(), cell.Built)
+		}
+		for k := range cell.Permits {
 			if prev, dup := seen[k]; dup {
 				t.Errorf("permit %s in %s and %s", k, prev, e.Name())
 			}
@@ -241,9 +244,9 @@ func TestDetailRecordFields(t *testing.T) {
 	var found bool
 	entries, _ := os.ReadDir(filepath.Join(dir, "details"))
 	for _, e := range entries {
-		var cell map[string]map[string]any
+		var cell struct{ Permits map[string]map[string]any }
 		readJSON(t, filepath.Join(dir, "details", e.Name()), &cell)
-		for _, d := range cell {
+		for _, d := range cell.Permits {
 			if d["filed"] == "10602 E CERULEAN WAY" {
 				found = true
 				flags, _ := d["flags"].([]any)

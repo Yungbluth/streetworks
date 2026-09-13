@@ -168,7 +168,7 @@ func writeAll(dir string, in Input) (Summary, error) {
 		}
 	}
 	for key, cell := range details {
-		if err := w.json("details/"+key+".json", cell, false); err != nil {
+		if err := w.json("details/"+key+".json", detailFile{Built: idx.Built, Permits: cell}, false); err != nil {
 			return Summary{}, err
 		}
 	}
@@ -284,6 +284,11 @@ func placesFile(places []permits.Place, recs []permits.Record) (placesJSON, []ma
 		}
 	}
 	return out, mapped
+}
+
+type detailFile struct {
+	Built   string            `json:"built"`
+	Permits map[string]detail `json:"permits"`
 }
 
 type detail struct {

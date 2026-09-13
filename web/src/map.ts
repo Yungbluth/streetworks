@@ -1,5 +1,6 @@
 import L from "leaflet";
 import type { Index, Places, TileSource } from "./data";
+import { dotStyle } from "./dots";
 import { ageOf, type PlaceSummary } from "./filters";
 import type { LatLng } from "./geo";
 import { cssVar, needsEdge, paint } from "./paint";
@@ -90,28 +91,22 @@ class DotLayer extends L.Layer {
       const pt = map.latLngToContainerPoint([places.lat[p]! / 1e5, places.lng[p]! / 1e5]);
       const cat = summary.cat[p]!;
       const age = ageOf(summary.newest[p]!, this.end);
-      let r = this.radius(summary.count[p]!, metersPerPx);
-      if (age === "old") r = Math.max(1.1, r * 0.42);
-      else if (age === "back") r *= 0.9;
+      const style = dotStyle(age, this.radius(summary.count[p]!, metersPerPx), colors[cat]!, edges[cat] ? edgeColor : undefined);
       d.place[i] = p;
       d.x[i] = pt.x;
       d.y[i] = pt.y;
-      d.r[i] = Math.max(r, 4); // a comfortable target to click, whatever is drawn
+      d.r[i] = Math.max(style.r, 4); // a comfortable target to click, whatever is drawn
 
+      ctx.globalAlpha = style.alpha;
       ctx.beginPath();
-      ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2);
-      if (age === "back") {
-        ctx.lineWidth = Math.max(1.4, r * 0.4);
-        ctx.strokeStyle = edges[cat] ? edgeColor : colors[cat]!;
-        ctx.stroke();
-        return;
+      ctx.arc(pt.x, pt.y, style.r, 0, Math.PI * 2);
+      if (style.fill) {
+        ctx.fillStyle = style.fill;
+        ctx.fill();
       }
-      ctx.globalAlpha = age === "old" ? 0.7 : 1;
-      ctx.fillStyle = colors[cat]!;
-      ctx.fill();
-      if (edges[cat] && age === "recent") {
-        ctx.lineWidth = 1;
-        ctx.strokeStyle = edgeColor;
+      if (style.stroke) {
+        ctx.lineWidth = style.lineWidth ?? 1;
+        ctx.strokeStyle = style.stroke;
         ctx.stroke();
       }
       ctx.globalAlpha = 1;

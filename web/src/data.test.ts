@@ -12,7 +12,7 @@ type Override = (file: string) => Response | undefined;
 function fakeFetch(override: Override = () => undefined) {
   const calls: string[] = [];
   const fn = async (input: RequestInfo | URL): Promise<Response> => {
-    const file = String(input).slice(base.length);
+    const file = String(input).slice(base.length).split("?")[0]!;
     calls.push(file);
     const o = override(file);
     if (o) return o;
@@ -82,6 +82,25 @@ describe("detail squares", () => {
     fail = false;
     await expect(site.detail(key)).resolves.toBeTypeOf("object");
     expect(calls.filter((c) => c === `details/${key}.json`).length).toBe(2);
+  });
+
+  it("refuses a square from a newer build than the page loaded", async () => {
+    const { fn } = fakeFetch((f) =>
+      f.startsWith("details/") ? new Response(JSON.stringify({ built: "2099-01-01T00:00:00Z", permits: {} }), { status: 200 }) : undefined,
+    );
+    const site = await loadSite(base, fn);
+    const err = await site.detail(key).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(DataError);
+    expect((err as Error).message).toContain("Reload the page");
+  });
+
+  it("asks for a square by build", async () => {
+    const urls: string[] = [];
+    const { fn } = fakeFetch();
+    const site = await loadSite(base, ((u: RequestInfo | URL) => (urls.push(String(u)), fn(u))) as typeof fetch);
+    await site.detail(key);
+    const asked = new URL(urls.find((u) => u.includes("details/"))!);
+    expect(asked.searchParams.get("v")).toBe(site.index.built);
   });
 
   it("treats a square with no file as empty", async () => {

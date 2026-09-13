@@ -140,7 +140,9 @@ export async function loadSite(base: string, fetchFn: typeof fetch = fetch): Pro
   const detail = (cellKey: string) => {
     let p = squares.get(cellKey);
     if (!p) {
-      p = fetchFn(new URL(`details/${cellKey}.json`, base))
+      const url = new URL(`details/${cellKey}.json`, base);
+      url.searchParams.set("v", index.built);
+      p = fetchFn(url)
         .catch((e: unknown) => {
           throw new DataError(`Couldn't load the permits here: ${errorMessage(e)}`);
         })
@@ -148,7 +150,11 @@ export async function loadSite(base: string, fetchFn: typeof fetch = fetch): Pro
           // squares with no permits aren't written, so a 404 just means empty
           if (res.status === 404) return {};
           if (!res.ok) throw new DataError(`Couldn't load the permits here: the server said ${res.status}`);
-          return (await res.json()) as Record<string, Detail>;
+          const square = (await res.json()) as { built: string; permits: Record<string, Detail> };
+          if (square.built !== index.built) {
+            throw new DataError("The permit data was updated while this page was open. Reload the page to see it.");
+          }
+          return square.permits;
         });
       p.catch(() => squares.delete(cellKey));
       squares.set(cellKey, p);
