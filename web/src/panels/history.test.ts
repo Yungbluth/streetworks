@@ -33,4 +33,9 @@ describe("a permit in the history", () => {
     expect(render({ description: "", subType: undefined })).toContain("EXCAVATION");
   });
 
+  it("names the kind of work in the closed row, not only as a color", () => {
+    const el = historyList([{ index: 0, category: "Excavation", detail: base }]);
+    expect(el.querySelector("summary")!.textContent).toContain("Excavation");
+  });
+
 });

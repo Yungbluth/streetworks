@@ -18,6 +18,11 @@ describe("dotStyle", () => {
     expect(dotStyle("old", 6, "#ffffff", "#6d7077").fill).toBe("#ffffff");
   });
 
+  it("gives white paint an edge heavy enough to hold on bright map tiles", () => {
+    expect(dotStyle("recent", 6, "#ffffff", "#3f4247").lineWidth).toBeGreaterThanOrEqual(1.5);
+    expect(dotStyle("old", 6, "#ffffff", "#3f4247").lineWidth).toBeGreaterThanOrEqual(1);
+  });
+
 });
 
 describe("visibleAt", () => {

@@ -8,7 +8,14 @@ export type Bounds = [number, number, number, number];
 
 export type Found =
   | { kind: "address"; place: number; wanted: number; exact: boolean }
-  | { kind: "street"; street: number; bounds: Bounds }
+  | {
+      kind: "street";
+      street: number;
+      bounds: Bounds;
+      permits: number;
+      /** set when this came from two cross streets that never meet: the other one */
+      apart?: number;
+    }
   | {
       kind: "intersection";
       place?: number;
@@ -49,6 +56,8 @@ const MAX_CROSSING_GAP_M = 350;
 const MAX_QUERY = 120;
 
 const leadingNumber = /^\s*(\d{1,6})(?:\s*[-–]\s*\d{1,6})?\s+(.*)$/;
+// "Speedway 1200", "E Speedway Blvd, 1234": the number typed after the street
+const trailingNumber = /^(.*\D)[\s,]+(\d{1,6})\s*$/;
 const crossSplit = /\s*(?:&|@|\/|\band\b|\bat\b)\s*/i;
 const controlChars = /[\u0000-\u001f\u007f]/;
 
@@ -106,6 +115,10 @@ export function buildSearch(places: Places, perPlace: Uint32Array) {
       if (exact.length + prefix.length === 0 && q.core.length >= 3) {
         for (const c of cores) if (c.includes(q.core)) contains.push(...byCore.get(c)!);
       }
+      if (exact.length + prefix.length + contains.length === 0 && q.core.length >= 4) {
+        const allowed = q.core.length >= 8 ? 2 : 1;
+        for (const c of cores) if (typoDistance(q.core, c, allowed) <= allowed) contains.push(...byCore.get(c)!);
+      }
     }
     let all = [...exact, ...busiestFirst(prefix), ...busiestFirst(contains)];
     const narrow = (keep: (s: Street) => boolean) => {
@@ -151,8 +164,14 @@ export function buildSearch(places: Places, perPlace: Uint32Array) {
     }
     pairs.sort((x, y) => x.d - y.d);
 
+    const best = pairs[0];
+    if (best && best.d > MAX_CROSSING_GAP_M) {
+      const [a, b] = best.found.streets.map((id) => streets.get(id)!);
+      return [streetFound(a!, b!.id), streetFound(b!, a!.id)].slice(0, limit);
+    }
+
     // When the streets really do cross somewhere, pairings that don't
-    let kept = pairs[0] && pairs[0].d <= MAX_CROSSING_GAP_M ? pairs.filter((p) => p.d <= MAX_CROSSING_GAP_M) : pairs;
+    let kept = pairs.filter((p) => p.d <= MAX_CROSSING_GAP_M);
     const seen = new Set<number>();
     kept = kept.filter((p) => {
       if (p.found.place === undefined) return true;
@@ -161,6 +180,10 @@ export function buildSearch(places: Places, perPlace: Uint32Array) {
       return true;
     });
     return kept.slice(0, limit).map((p) => p.found);
+  }
+
+  function streetFound(s: Street, apart?: number): Found {
+    return { kind: "street", street: s.id, bounds: s.bounds, permits: s.permits, ...(apart === undefined ? {} : { apart }) };
   }
 
   function atPlace(p: number): Extract<Found, { kind: "intersection" }> {
@@ -187,14 +210,19 @@ export function buildSearch(places: Places, perPlace: Uint32Array) {
     let want = -1;
     let rest = q;
     const m = leadingNumber.exec(q);
+    const t = m ? null : trailingNumber.exec(q);
     if (m && Number(m[1]) > 0) {
       want = Math.floor(Number(m[1]) / 100) * 100;
       rest = m[2]!;
+    } else if (t && Number(t[2]) > 0 && !byCore.has(parseQuery(q)?.core ?? "")) {
+      // Unless the number is part of a street's name, like Highway 77
+      want = Math.floor(Number(t[2]) / 100) * 100;
+      rest = t[1]!;
     }
     const sq = parseQuery(rest);
     if (!sq) return [];
     const matches = matchStreets(sq, limit);
-    if (want < 0) return matches.map((s) => ({ kind: "street", street: s.id, bounds: s.bounds }));
+    if (want < 0) return matches.map((s) => streetFound(s));
 
     const found = matches.map((s) => {
       const b = nearestBlock(s.blocks, want);
@@ -208,6 +236,27 @@ export function buildSearch(places: Places, perPlace: Uint32Array) {
 function crossingKey(a: string, b: string): string {
   const [x, y] = [withoutDirection(a), withoutDirection(b)].sort();
   return `${x}|${y}`;
+}
+
+export function typoDistance(a: string, b: string, max: number): number {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let prev2: number[] = [];
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    let rowMin = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      let d = Math.min(prev[j]! + 1, cur[j - 1]! + 1, prev[j - 1]! + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d = Math.min(d, prev2[j - 2]! + 1);
+      cur.push(d);
+      rowMin = Math.min(rowMin, d);
+    }
+    if (rowMin > max) return max + 1;
+    prev2 = prev;
+    prev = cur;
+  }
+  return prev[b.length]!;
 }
 
 function lowerBound(sorted: string[], s: string): number {

@@ -1,6 +1,6 @@
 import type { Places } from "../data";
 import { h } from "../dom";
-import { feet, placeName, prettyStreet } from "../format";
+import { feet, num, placeName, prettyStreet } from "../format";
 import type { Focus } from "../model";
 import type { Found } from "../search";
 
@@ -18,8 +18,11 @@ export function describe(places: Places, f: Found, q: string): { label: string; 
           note: f.exact ? undefined : `No permits are on record for the ${f.wanted} block, so this is the nearest block that has some.`,
         },
       };
-    case "street":
-      return { label: street(f.street), detail: "Whole street", focus: { kind: "street", street: f.street, q } };
+    case "street": {
+      let detail = `Whole street, ${num(f.permits)} ${f.permits === 1 ? "permit" : "permits"}`;
+      if (f.apart !== undefined) detail += `. It doesn't cross ${street(f.apart)}.`;
+      return { label: street(f.street), detail, focus: { kind: "street", street: f.street, q } };
+    }
     case "intersection": {
       const title = `${street(f.streets[0])} and ${street(f.streets[1])}`;
       const detail = f.exact ? "Where they cross" : `These streets don't cross. Their closest blocks are ${feet(f.gapM)} apart.`;
@@ -31,6 +34,14 @@ export function describe(places: Places, f: Found, q: string): { label: string; 
       };
     }
   }
+}
+
+const zip = /^\s*\d{5}(?:-\d{4})?\s*$/;
+
+export function emptyMessage(q: string): string {
+  const forms = "Try an address like 1200 E Speedway, a street name, or two cross streets like Speedway & Campbell.";
+  if (zip.test(q)) return `Search doesn't know ZIP codes. ${forms}`;
+  return `No street with permits matches that. Search knows street names, not places or businesses. ${forms}`;
 }
 
 export function searchBox(places: Places, run: (q: string) => Found[], choose: (focus: Focus) => void): HTMLElement {
@@ -81,7 +92,7 @@ export function searchBox(places: Places, run: (q: string) => Found[], choose: (
     );
     list.hidden = !results.length;
     empty.hidden = !!results.length;
-    empty.textContent = results.length ? "" : "No street by that name has permits on record. Try fewer words, or just the street name.";
+    empty.textContent = results.length ? "" : emptyMessage(q);
     input.setAttribute("aria-expanded", String(!!results.length));
     highlight(-1);
   };

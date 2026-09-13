@@ -11,14 +11,14 @@ export interface DotStyle {
 export function dotStyle(age: Age, full: number, color: string, edge?: string): DotStyle {
   switch (age) {
     case "recent":
-      return edge ? { r: full, fill: color, stroke: edge, lineWidth: 1, alpha: 1 } : { r: full, fill: color, alpha: 1 };
+      return edge ? { r: full, fill: color, stroke: edge, lineWidth: 1.5, alpha: 1 } : { r: full, fill: color, alpha: 1 };
     case "back": {
       const r = full * 0.9;
       return { r, fill: undefined, stroke: edge ?? color, lineWidth: Math.max(1.4, r * 0.4), alpha: 1 };
     }
     case "old": {
       const r = Math.max(1.1, full * 0.42);
-      return edge ? { r: r + 0.4, fill: color, stroke: edge, lineWidth: 0.8, alpha: 0.85 } : { r, fill: color, alpha: 0.7 };
+      return edge ? { r: r + 0.5, fill: color, stroke: edge, lineWidth: 1, alpha: 0.9 } : { r, fill: color, alpha: 0.7 };
     }
   }
 }

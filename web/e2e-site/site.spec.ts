@@ -28,3 +28,19 @@ test("zoomed out, the older entries in the key stay readable", async ({ page }) 
   await expect(older).toHaveCSS("opacity", "1");
   await expect(older.locator("svg")).not.toHaveCSS("opacity", "1");
 });
+
+test("search forgives the way people really type", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.goto("/");
+  const search = page.getByRole("combobox", { name: /Search/ });
+  const first = page.getByRole("option").first();
+
+  await search.fill("speedwy");
+  await expect(first).toContainText("Speedway");
+  await search.fill("e speedway blvd 1200");
+  await expect(first).toContainText("1200 block of E Speedway Blvd");
+  await search.fill("speedway & grant");
+  await expect(first).toContainText("doesn't cross");
+  await search.fill("85719");
+  await expect(page.locator(".results-empty")).toContainText("ZIP codes");
+});

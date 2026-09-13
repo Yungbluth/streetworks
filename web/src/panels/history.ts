@@ -38,7 +38,9 @@ function item(e: Entry): HTMLLIElement {
         h(
           "span",
           { class: "what" },
-          h("span", { class: "swatch", style: `--swatch: ${paint(e.category)}`, "aria-hidden": "true" }),
+          h("span", { class: "swatch", style: `--swatch: ${paint(e.category)}`, title: e.category, "aria-hidden": "true" }),
+          // the swatch is color alone; say the kind for screen readers
+          h("span", { class: "visually-hidden" }, `${e.category}: `),
           what,
         ),
         d?.noWork ? h("span", { class: "tag" }, "no work done") : null,

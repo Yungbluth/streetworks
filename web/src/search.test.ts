@@ -173,10 +173,13 @@ describe("cross streets", () => {
     },
   );
 
-  it("still answers for streets that never meet", () => {
-    const f = testCity().search()("4th Ave & West St")[0];
-    expect(f).toMatchObject({ kind: "intersection", exact: false });
-    expect((f as Extract<Found, { kind: "intersection" }>).gapM).toBeGreaterThan(500);
+  it("offers each street on its own", () => {
+    const city = testCity();
+    const got = city.search()("4th Ave & West St");
+    expect(labels(city, got)).toBe("street:N 4TH AVE | street:WEST ST");
+    const [a, b] = got as Extract<Found, { kind: "street" }>[];
+    expect(city.places.streets[a!.apart!]).toBe("WEST ST");
+    expect(city.places.streets[b!.apart!]).toBe("N 4TH AVE");
   });
 
   it("finds nothing for a half-typed or unknown pair", () => {
@@ -209,6 +212,32 @@ describe("cross streets", () => {
     for (const q of ["hemisphere pl & hemisphere lp", "Hemisphere Loop and Hemisphere Place"]) {
       expect(city.search()(q)[0]).toMatchObject({ kind: "intersection", place: at, exact: true });
     }
+  });
+});
+
+describe("forgiving search", () => {
+  const city = testCity();
+  const search = city.search();
+
+  it.each([
+    ["speedwy", "E SPEEDWAY BLVD"], // a letter missing
+    ["speedwya blvd", "E SPEEDWAY BLVD"], // two letters swapped
+    ["cambpell", "N CAMPBELL AVE"],
+  ])("%s finds %s despite the typo", (q, want) => {
+    expect(labels(city, search(q))).toContain(`street:${want}`);
+  });
+
+  it("puts a typed address on its block despite a typo", () => {
+    expect(labels(city, search("1234 e speedwya")).split(" | ")[0]).toBe("address:1200 E SPEEDWAY BLVD exact=true");
+  });
+
+  it.each(["e speedway blvd 1234", "Speedway 1200", "E Speedway, 1250"])("takes the number after the street: %s", (q) => {
+    expect(labels(city, search(q)).split(" | ")[0]).toBe("address:1200 E SPEEDWAY BLVD exact=true");
+  });
+
+  it("says how many permits each street has", () => {
+    const f = search("E Speedway Blvd", 1)[0] as Extract<Found, { kind: "street" }>;
+    expect(f.permits).toBe(21);
   });
 });
 
