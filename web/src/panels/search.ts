@@ -3,6 +3,7 @@ import { h } from "../dom";
 import { feet, num, placeName, prettyStreet } from "../format";
 import type { Focus } from "../model";
 import type { Found } from "../search";
+import { withoutDirection } from "../street";
 
 export function describe(places: Places, f: Found, q: string): { label: string; detail: string; focus: Focus } {
   const street = (i: number) => prettyStreet(places.streets[i] ?? "");
@@ -19,8 +20,7 @@ export function describe(places: Places, f: Found, q: string): { label: string; 
         },
       };
     case "street": {
-      let detail = `Whole street, ${num(f.permits)} ${f.permits === 1 ? "permit" : "permits"}`;
-      if (f.apart !== undefined) detail += `. It doesn't cross ${street(f.apart)}.`;
+      const detail = `Whole street, ${num(f.permits)} ${f.permits === 1 ? "permit" : "permits"}`;
       return { label: street(f.street), detail, focus: { kind: "street", street: f.street, q } };
     }
     case "intersection": {
@@ -34,6 +34,12 @@ export function describe(places: Places, f: Found, q: string): { label: string; 
       };
     }
   }
+}
+
+/** The line above the list when two cross streets never meet. */
+export function apartMessage(places: Places, apart: { sides: [number, number]; gapM: number }): string {
+  const [a, b] = apart.sides.map((i) => prettyStreet(withoutDirection(places.streets[i] ?? "")));
+  return `${a} and ${b} don't meet. At their closest they're ${feet(apart.gapM)} apart.`;
 }
 
 const zip = /^\s*\d{5}(?:-\d{4})?\s*$/;
@@ -54,12 +60,15 @@ export function searchBox(places: Places, run: (q: string) => Found[], choose: (
   });
   const list = h("ul", { id: listId, role: "listbox", class: "results", hidden: true });
   const empty = h("p", { class: "results-empty", hidden: true, role: "status" });
+  // said once above the list, rather than under every result
+  const apart = h("p", { class: "results-note", hidden: true, role: "status" });
   let results: ReturnType<typeof describe>[] = [];
   let active = -1;
 
   const close = () => {
     list.hidden = true;
     empty.hidden = true;
+    apart.hidden = true;
     input.setAttribute("aria-expanded", "false");
     input.removeAttribute("aria-activedescendant");
     active = -1;
@@ -79,7 +88,12 @@ export function searchBox(places: Places, run: (q: string) => Found[], choose: (
   const update = () => {
     const q = input.value.trim();
     if (!q) return close();
-    results = run(q).map((f) => describe(places, f, q));
+    const found = run(q);
+    results = found.map((f) => describe(places, f, q));
+    const first = found[0];
+    const gap = first?.kind === "street" ? first.apart : undefined;
+    apart.hidden = !gap;
+    apart.textContent = gap ? apartMessage(places, gap) : "";
     list.replaceChildren(
       ...results.map((r, i) =>
         h(
@@ -116,5 +130,5 @@ export function searchBox(places: Places, run: (q: string) => Found[], choose: (
     }
   });
 
-  return h("div", { class: "search", role: "search" }, input, list, empty);
+  return h("div", { class: "search", role: "search" }, input, apart, list, empty);
 }

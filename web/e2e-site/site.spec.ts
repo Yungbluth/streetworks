@@ -40,7 +40,8 @@ test("search forgives the way people really type", async ({ page }) => {
   await search.fill("e speedway blvd 1200");
   await expect(first).toContainText("1200 block of E Speedway Blvd");
   await search.fill("speedway & grant");
-  await expect(first).toContainText("doesn't cross");
+  await expect(page.locator(".results-note")).toHaveText(/^Speedway Blvd and Grant Rd don't meet/);
+  await expect(first).toContainText("E ");
   await search.fill("85719");
   await expect(page.locator(".results-empty")).toContainText("ZIP codes");
 });

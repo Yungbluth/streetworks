@@ -177,9 +177,22 @@ describe("cross streets", () => {
     const city = testCity();
     const got = city.search()("4th Ave & West St");
     expect(labels(city, got)).toBe("street:N 4TH AVE | street:WEST ST");
-    const [a, b] = got as Extract<Found, { kind: "street" }>[];
-    expect(city.places.streets[a!.apart!]).toBe("WEST ST");
-    expect(city.places.streets[b!.apart!]).toBe("N 4TH AVE");
+    for (const f of got as Extract<Found, { kind: "street" }>[]) {
+      expect(f.apart!.gapM).toBeGreaterThan(500);
+      expect(f.apart!.sides.map((i) => city.places.streets[i])).toEqual(["N 4TH AVE", "WEST ST"]);
+    }
+  });
+
+  it("puts the busier streets first", () => {
+    const grantLat = speedwayLat + 30 * step;
+    const city = new City()
+      .eastWest("E SPEEDWAY BLVD", speedwayLat, [100, 200, 300], 9)
+      .eastWest("W SPEEDWAY BLVD", speedwayLat, [100])
+      .eastWest("E GRANT RD", grantLat, [100, 200, 300], 8)
+      .eastWest("W GRANT RD", grantLat - 2 * step, [100]);
+    const got = labels(city, city.search()("speedway & grant")).split(" | ");
+    expect(got.slice(0, 2)).toEqual(["street:E SPEEDWAY BLVD", "street:E GRANT RD"]);
+    expect(got).toContain("street:W SPEEDWAY BLVD");
   });
 
   it("finds nothing for a half-typed or unknown pair", () => {

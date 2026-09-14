@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
 import { PlaceKind, type Places } from "../data";
-import { describe as describeFound } from "./search";
+import { apartMessage, describe as describeFound } from "./search";
 
 const places: Places = {
   streets: ["E SPEEDWAY BLVD", "E GRANT RD"],
@@ -21,8 +21,10 @@ describe("search results", () => {
     expect(r.detail).toBe("Whole street, 1,234 permits");
   });
 
-  it("say when two cross streets never meet", () => {
-    const r = describeFound(places, { kind: "street", street: 0, bounds, permits: 1, apart: 1 }, "speedway & grant");
-    expect(r.detail).toBe("Whole street, 1 permit. It doesn't cross E Grant Rd.");
+  it("say once, above the list", () => {
+    const apart = { sides: [0, 1] as [number, number], gapM: 1700 };
+    const r = describeFound(places, { kind: "street", street: 0, bounds, permits: 1, apart }, "speedway & grant");
+    expect(r.detail).toBe("Whole street, 1 permit");
+    expect(apartMessage(places, apart)).toBe("Speedway Blvd and Grant Rd don't meet. At their closest they're 1.1 mi apart.");
   });
 });

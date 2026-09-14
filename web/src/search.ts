@@ -13,8 +13,8 @@ export type Found =
       street: number;
       bounds: Bounds;
       permits: number;
-      /** set when this came from two cross streets that never meet: the other one */
-      apart?: number;
+      /** set when this came from two cross streets that never meet */
+      apart?: { sides: [number, number]; gapM: number };
     }
   | {
       kind: "intersection";
@@ -140,8 +140,10 @@ export function buildSearch(places: Places, perPlace: Uint32Array) {
     const direct = crossings.get(crossingKey(canonicalStreet("", a), canonicalStreet("", b)));
     if (direct !== undefined) pairs.push({ found: atPlace(direct), d: 0 });
 
-    for (const sa of matchStreets(qa, 4)) {
-      for (const sb of matchStreets(qb, 4)) {
+    const sidesA = matchStreets(qa, 4);
+    const sidesB = matchStreets(qb, 4);
+    for (const sa of sidesA) {
+      for (const sb of sidesB) {
         if (sa === sb) continue;
         const place = crossings.get(crossingKey(sa.name, sb.name));
         if (place !== undefined) {
@@ -166,8 +168,10 @@ export function buildSearch(places: Places, perPlace: Uint32Array) {
 
     const best = pairs[0];
     if (best && best.d > MAX_CROSSING_GAP_M) {
-      const [a, b] = best.found.streets.map((id) => streets.get(id)!);
-      return [streetFound(a!, b!.id), streetFound(b!, a!.id)].slice(0, limit);
+      const busiest = (l: Street[]) => [...l].sort((x, y) => y.permits - x.permits)[0]!;
+      const apart = { sides: [busiest(sidesA).id, busiest(sidesB).id] as [number, number], gapM: Math.round(best.d) };
+      const all = [...new Set([...sidesA, ...sidesB])].sort((x, y) => y.permits - x.permits);
+      return all.slice(0, limit).map((st) => streetFound(st, apart));
     }
 
     // When the streets really do cross somewhere, pairings that don't
@@ -182,7 +186,7 @@ export function buildSearch(places: Places, perPlace: Uint32Array) {
     return kept.slice(0, limit).map((p) => p.found);
   }
 
-  function streetFound(s: Street, apart?: number): Found {
+  function streetFound(s: Street, apart?: { sides: [number, number]; gapM: number }): Found {
     return { kind: "street", street: s.id, bounds: s.bounds, permits: s.permits, ...(apart === undefined ? {} : { apart }) };
   }
 
