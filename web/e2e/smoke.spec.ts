@@ -161,6 +161,14 @@ test.describe("keyboard and screen reader", () => {
     await expect(page.getByRole("combobox", { name: /Search/ })).toBeFocused();
   });
 
+  test("Esc closes the open place", async ({ page }) => {
+    await page.goto("/#place=b%3AE+SPEEDWAY+BLVD%3A700");
+    await expect(page.getByRole("heading", { level: 2 })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("heading", { name: "Busiest places in view" })).toBeVisible();
+    expect(page.url()).not.toContain("place=");
+  });
+
 });
 
 test("the year strip says which kinds are shown and leads to them", async ({ page }) => {

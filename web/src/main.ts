@@ -71,6 +71,15 @@ async function start() {
   const findPlace = placeLookup(site.places);
 
   const tip = $("tip");
+  const aim = $("aim");
+  const aimLine = aim.querySelector<HTMLElement>(".aim-line")!;
+
+  // esc closes an open place, unless a field or the search list wants it
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || e.defaultPrevented || !focus) return;
+    if ((e.target as HTMLElement).closest("input, select, textarea")) return;
+    go(null);
+  });
   const map = new PermitMap($("map"), site, {
     pick: (place) => go({ kind: "place", place }),
     hover: (place, at) => {
@@ -83,6 +92,14 @@ async function start() {
       if (!focus) renderFocus(false);
     },
     zoomed: (zoom) => years.showZoomNote(zoom < DETAIL_ZOOM),
+    aimed: (place, active) => {
+      aim.hidden = !active;
+      aimLine.textContent = !active
+        ? ""
+        : place === undefined
+          ? "Nothing at the centre. Arrow keys move the map."
+          : `Enter opens ${placeName(site.places, place)} (${plural(summary.count[place]!, "permit")})`;
+    },
   });
   map.setBasemap(dark.matches);
   dark.addEventListener("change", () => {

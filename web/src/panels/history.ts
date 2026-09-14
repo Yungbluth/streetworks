@@ -81,7 +81,8 @@ export function historyList(entries: Entry[]): HTMLElement {
   const page = () => {
     list.append(...entries.slice(shown, shown + PAGE).map(item));
     shown = Math.min(entries.length, shown + PAGE);
-    more.textContent = `Show ${num(Math.min(PAGE, entries.length - shown))} more of ${num(entries.length - shown)}`;
+    const left = entries.length - shown;
+    more.textContent = left === 1 ? "Show the last one" : left <= PAGE ? `Show the last ${num(left)}` : `Show ${PAGE} more of ${num(left)}`;
     if (shown >= entries.length) more.remove();
   };
   more.addEventListener("click", page);

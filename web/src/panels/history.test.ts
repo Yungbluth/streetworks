@@ -39,3 +39,17 @@ describe("a permit in the history", () => {
   });
 
 });
+
+describe("paging a long history", () => {
+  const many = (n: number) => Array.from({ length: n }, (_, i) => ({ index: i, category: "Excavation", detail: base }));
+  const button = (n: number) => historyList(many(n)).querySelector("button")?.textContent;
+
+  it("says how many are left", () => {
+    expect(button(60)).toBe("Show 25 more of 35");
+  });
+
+  it("says 'the last' when the rest fit on one page", () => {
+    expect(button(43)).toBe("Show the last 18");
+    expect(button(26)).toBe("Show the last one");
+  });
+});

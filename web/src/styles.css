@@ -225,6 +225,9 @@ select {
     background: var(--panel);
     border-bottom: 1px solid var(--line);
   }
+  .panel-head h2 {
+    font-size: 18px;
+  }
   .panel-head .map-jump {
     display: inline;
     margin-left: auto;
@@ -820,6 +823,43 @@ select {
 /* Only a phone needs a way back up to the map. */
 .map-jump {
   display: none;
+}
+
+#map {
+  outline-offset: -3px;
+}
+
+.aim {
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.aim .crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--panel);
+}
+
+.aim-line {
+  position: absolute;
+  left: 50%;
+  bottom: 40px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--panel);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--ink) 25%, transparent);
+  font-size: 14px;
 }
 
 .map-hint {

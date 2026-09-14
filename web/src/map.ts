@@ -159,6 +159,8 @@ export interface MapEvents {
   moved(): void;
   /** The zoom the map is heading to, as soon as it's known */
   zoomed(zoom: number): void;
+  // While the map has keyboard focus: the place Enter would open (undefined if none)
+  aimed(place: number | undefined, active: boolean): void;
 }
 
 export class PermitMap {
@@ -221,11 +223,24 @@ export class PermitMap {
     this.map.on("moveend", () => events.moved());
     this.map.on("zoomanim", (e: L.ZoomAnimEvent) => events.zoomed(e.zoom));
     this.map.on("zoomend", () => events.zoomed(this.map.getZoom()));
+    const aimed = () => this.dots.nearest(this.map.getSize().divideBy(2), 48);
     el.addEventListener("keydown", (e) => {
       if (e.key !== "Enter" || e.target !== el) return;
-      const p = this.dots.nearest(this.map.getSize().divideBy(2), 48);
+      const p = aimed();
       if (p !== undefined) events.pick(p);
     });
+    let byPointer = false;
+    el.addEventListener("pointerdown", () => (byPointer = true), true);
+    el.addEventListener("keydown", () => (byPointer = false), true);
+    const tellAim = () => {
+      if (document.activeElement === el && !byPointer) events.aimed(aimed(), true);
+    };
+    el.addEventListener("focus", tellAim);
+    el.addEventListener("blur", () => {
+      byPointer = false;
+      events.aimed(undefined, false);
+    });
+    this.map.on("moveend", tellAim);
   }
 
   setBasemap(dark: boolean) {
