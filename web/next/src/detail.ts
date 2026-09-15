@@ -1,3 +1,4 @@
+import type L from "leaflet";
 import { errorMessage, type Detail } from "../../src/data";
 import { h } from "../../src/dom";
 import { dateText, feet, num, placeName } from "../../src/format";
@@ -165,4 +166,46 @@ export function revisionTable(entries: Entry[], firstColumn: "Δ" | "Away"): HTM
   wrap.append(more);
   page();
   return wrap;
+}
+
+/** Busiest places in view, as a schedule. */
+export function busiestDetail(ctx: SheetCtx, view: L.LatLngBounds): HTMLElement {
+  const { places } = ctx.site;
+  const { count } = ctx.summary;
+  const top: number[] = [];
+  for (let p = 0; p < places.kind.length; p++) {
+    if (!count[p] || !view.contains([places.lat[p]! / 1e5, places.lng[p]! / 1e5])) continue;
+    top.push(p);
+    if (top.length > 64) {
+      top.sort((a, b) => count[b]! - count[a]!);
+      top.length = 10;
+    }
+  }
+  top.sort((a, b) => count[b]! - count[a]!);
+  return h(
+    "section",
+    { class: "detail-body" },
+    head("Busiest places in view"),
+    h("p", { class: "lead" }, "Open one to read its record, or search for an address above."),
+    top.length
+      ? h(
+          "table",
+          { class: "schedule" },
+          h("thead", {}, h("tr", {}, h("th", { scope: "col" }, "No."), h("th", { scope: "col" }, "Place"), h("th", { scope: "col", class: "num" }, "Permits"))),
+          h(
+            "tbody",
+            {},
+            ...top.slice(0, 10).map((p, i) =>
+              h(
+                "tr",
+                {},
+                h("td", { class: "no" }, String(i + 1)),
+                h("td", {}, h("button", { type: "button", class: "link", onclick: () => ctx.go({ kind: "place", place: p }, { move: true }) }, placeName(places, p))),
+                h("td", { class: "num" }, num(count[p]!)),
+              ),
+            ),
+          ),
+        )
+      : h("div", { class: "empty" }, h("p", {}, "No permits match the filters in this part of the map."), showAll(ctx)),
+  );
 }
