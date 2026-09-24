@@ -1,11 +1,13 @@
 import type L from "leaflet";
-import { errorMessage, type Detail } from "../../src/data";
+import { errorMessage, type Detail, type Index } from "../../src/data";
 import { h } from "../../src/dom";
 import { permitsMatching } from "../../src/filters";
-import { dateText, feet, num, placeName, plural } from "../../src/format";
+import { dateText, feet, num, placeName, plural, prettyStreet } from "../../src/format";
 import { distanceMeters, type LatLng } from "../../src/geo";
 import { byDateDesc, detailsFor, permitAt, permitsOf, placeAt, type Ctx } from "../../src/model";
+import { kindMeanings } from "../../src/panels/filters";
 import { placeSummary } from "../../src/panels/place";
+import { streetBlocks } from "../../src/panels/street";
 import { RADII } from "../../src/url";
 import { swatch } from "./marks";
 
@@ -312,5 +314,119 @@ export function spotDetail(ctx: SheetCtx, title: string, at: LatLng, extraNote?:
     head(title, () => ctx.go(null)),
     extraNote ? h("p", { class: "note" }, extraNote) : null,
     nearby(ctx, at, { listNow: true }),
+  );
+}
+
+export function streetDetail(ctx: SheetCtx, street: number): HTMLElement {
+  const { site, summary } = ctx;
+  const blocks = streetBlocks(ctx, street);
+  const busy = blocks.filter((p) => summary.count[p]! > 0);
+  const total = busy.reduce((a, p) => a + summary.count[p]!, 0);
+  const max = Math.max(1, ...blocks.map((p) => summary.count[p]!));
+  const name = prettyStreet(site.places.streets[street]!);
+  const open = (p: number) => () => ctx.go({ kind: "place", place: p }, { move: true });
+  const tick = Math.max(1, Math.ceil(blocks.length / 6));
+  const top = [...busy].sort((a, b) => summary.count[b]! - summary.count[a]!).slice(0, 8);
+  return h(
+    "section",
+    { class: "detail-body" },
+    head(name, () => ctx.go(null)),
+    h("p", { class: "lead" }, total ? `${plural(total, "permit")} on ${plural(busy.length, "block")} of ${name}.` : `No permits on ${name} match the filters.`),
+    total ? null : showAll(ctx),
+    h("h3", {}, "Profile, in address order"),
+    h(
+      "div",
+      { class: "profile" },
+      h(
+        "div",
+        { class: "profile-bars" },
+        ...blocks.map((p) =>
+          h(
+            "button",
+            {
+              type: "button", class: "station", onclick: open(p),
+              style: `--h: ${(summary.count[p]! / max) * 100}%`,
+              "aria-label": `${site.places.block[p]} block, ${plural(summary.count[p]!, "permit")}`,
+              title: `${site.places.block[p]} block: ${plural(summary.count[p]!, "permit")}`,
+            },
+            h("span", { class: "station-bar", "aria-hidden": "true" }),
+          ),
+        ),
+      ),
+      h(
+        "div",
+        { class: "profile-axis", "aria-hidden": "true" },
+        ...blocks.map((p, i) => h("span", {}, i % tick === 0 || i === blocks.length - 1 ? String(site.places.block[p]) : "")),
+      ),
+    ),
+    ...(top.length
+      ? [
+          h("h3", {}, "Busiest blocks"),
+          h(
+            "table",
+            { class: "schedule" },
+            h("thead", {}, h("tr", {}, h("th", { scope: "col" }, "Block"), h("th", { scope: "col", class: "num" }, "Permits"))),
+            h(
+              "tbody",
+              {},
+              ...top.map((p) =>
+                h(
+                  "tr",
+                  {},
+                  h("td", {}, h("button", { type: "button", class: "link", onclick: open(p) }, `${site.places.block[p]} block`)),
+                  h("td", { class: "num" }, num(summary.count[p]!)),
+                ),
+              ),
+            ),
+          ),
+        ]
+      : []),
+  );
+}
+
+export function notesDetail(ctx: SheetCtx, idx: Index): HTMLElement {
+  const q = idx.quality;
+  const pct = (n: number) => (q.unique_permits ? `${((100 * n) / q.unique_permits).toFixed(1)}%` : "0%");
+  const fetched = idx.sources.map((s) => s.fetched.slice(0, 10)).sort().at(-1);
+  return h(
+    "section",
+    { class: "detail-body notes" },
+    head("General notes", () => ctx.go(null)),
+    h(
+      "p",
+      { class: "lead" },
+      `${num(q.unique_permits)} permits from the City of Tucson's right-of-way records, ${q.date_min.slice(0, 4)} to ${q.date_max.slice(0, 4)}.`,
+      fetched ? ` Downloaded ${dateText(fetched)}.` : "",
+    ),
+    h(
+      "ol",
+      { class: "general-notes" },
+      h("li", {}, `Before ${idx.sparseBefore} the city's records are thin, so those years look quieter than they were.`),
+      h("li", {}, `${num(q.no_block)} permits (${pct(q.no_block)}) have no street number. They're placed at the intersection or spot the city recorded.`),
+      q.unplaced ? h("li", {}, `${plural(q.unplaced, "permit has", "permits have")} no location at all, so they aren't on the map.`) : null,
+      q.no_date ? h("li", {}, `${plural(q.no_date, "permit has", "permits have")} no usable date, so they never appear.`) : null,
+      h("li", {}, `${num(q.no_work)} permits were voided, withdrawn or denied, or are still in review. They're hidden unless you include them.`),
+      h("li", {}, "A permit near a corner may be filed under either street. Work done without a permit never appears."),
+      h("li", {}, "Colours follow the paint utility crews spray before digging. Civic event and Small wireless start hidden: they're mostly closures and equipment on poles, not digging."),
+    ),
+    h("h3", {}, "What the kinds mean"),
+    h(
+      "dl",
+      { class: "kind-meanings" },
+      ...kindMeanings
+        .filter(([name]) => idx.categories.includes(name))
+        .flatMap(([name, meaning]) => [h("dt", {}, swatch(name, 10), name), h("dd", {}, meaning)]),
+    ),
+    h(
+      "p",
+      { class: "quiet" },
+      "Data: City of Tucson. Map: ",
+      h("a", { href: "https://www.openstreetmap.org/copyright" }, "OpenStreetMap"),
+      " contributors, drawn with ",
+      h("a", { href: "https://leafletjs.com" }, "Leaflet"),
+      ". ",
+      h("a", { href: "../" }, "The first version of this page"),
+      " is still up for comparison.",
+    ),
   );
 }
