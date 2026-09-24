@@ -316,3 +316,5 @@ async function start() {
   restore();
   window.addEventListener("popstate", restore);
 }
+
+void start();
