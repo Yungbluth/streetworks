@@ -107,3 +107,76 @@ a {
   text-underline-offset: 3px;
   text-decoration-thickness: 1px;
 }
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---- the sheet ------------------------------------------------------- */
+
+.sheet {
+  position: fixed;
+  inset: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 420px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "head head"
+    "plan detail"
+    "block detail";
+  border: 1.5px solid var(--rule-strong);
+  outline: 1px solid var(--rule);
+  outline-offset: 4px;
+  background: var(--paper);
+}
+
+.sheet-head {
+  grid-area: head;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 10px 16px;
+  border-bottom: 1.5px solid var(--rule-strong);
+}
+
+.mark {
+  font-weight: 400;
+  font-size: inherit;
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  min-width: 0;
+}
+
+.wordmark {
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.sheet-title {
+  color: var(--ink-2);
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-cell {
+  margin-left: auto;
+  width: min(440px, 36vw);
+  flex: none;
+}
