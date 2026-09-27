@@ -260,3 +260,40 @@ p {
 .results-note {
   margin-top: 6px;
 }
+
+.results-note {
+  color: var(--ink);
+}
+
+.plan {
+  grid-area: plan;
+  position: relative;
+  min-height: 0;
+  isolation: isolate;
+  border-right: 1.5px solid var(--rule-strong);
+}
+
+#map {
+  position: absolute;
+  inset: 0;
+  background: var(--map-ground);
+  outline-offset: -3px;
+  font: inherit;
+}
+
+/* Tiles print as linework on the sheet: grey, multiplied into the paper. */
+.tiles-mute .leaflet-tile-pane {
+  filter: grayscale(1) contrast(0.9) brightness(1.06);
+  mix-blend-mode: multiply;
+  opacity: 0.7;
+}
+
+.tiles-invert .leaflet-tile-pane {
+  filter: invert(1) grayscale(1) contrast(0.9);
+  mix-blend-mode: screen;
+  opacity: 0.32;
+}
+
+.leaflet-container a {
+  color: var(--ink);
+}
