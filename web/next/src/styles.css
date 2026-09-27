@@ -1,0 +1,109 @@
+:root {
+  --paper: #f4f6f8;
+  --paper-2: #e9edf2;
+  --map-ground: #e3e8ef;
+  --field: #fcfdfe;
+  --ink: #23317f;
+  --ink-2: #4a548c;
+  --rule: #23317f40;
+  --rule-strong: #23317f;
+  --red: #c4122f;
+  --red-tint: #c4122f14;
+  --hover: #23317f0f;
+  --shadow: 0 6px 18px #23317f2e, 0 1px 3px #23317f24;
+  --panel: var(--paper);
+  --overlay: #4a548c;
+
+  --paint-excavation: #c5cbe3;
+  --paint-excavation-edge: none;
+  --paint-barricade: #e8418c;
+  --paint-combo: #e3a600;
+  --paint-combo-edge: #23317f99;
+  --paint-utility: #d9252b;
+  --paint-right-of-way: #1f6dd0;
+  --paint-annual: #2c9a4b;
+  --paint-small-wireless: #f28a1c;
+  --paint-small-wireless-edge: #23317f80;
+  --paint-civic-event: #7b4fb5;
+  --paint-other: #8a8d92;
+  --paint-other-edge: #23317f80;
+  --paint-edge: #23317f;
+
+  --thin-hatch: #23317f2b;
+  --bar-out: #23317f1f;
+
+  --font: "Sofia Sans Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #102a5c;
+    --paper-2: #0c234f;
+    --map-ground: #0e2654;
+    --field: #0b2049;
+    --ink: #eef2fb;
+    --ink-2: #b4c2e0;
+    --rule: #eef2fb38;
+    --rule-strong: #eef2fbcc;
+    --red: #ff7a7a;
+    --red-tint: #ff7a7a1f;
+    --hover: #eef2fb14;
+    --shadow: 0 8px 22px #00000066, 0 1px 3px #00000059;
+    --overlay: #b4c2e0;
+
+    --paint-excavation: #3d5891;
+    --paint-combo: #f2c12e;
+    --paint-combo-edge: none;
+    --paint-small-wireless-edge: none;
+    --paint-other: #9aa3b5;
+    --paint-other-edge: none;
+    --paint-edge: #eef2fb;
+
+    --thin-hatch: #eef2fb30;
+    --bar-out: #eef2fb24;
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 15px/1.45 var(--font);
+  font-variant-numeric: tabular-nums;
+  -webkit-text-size-adjust: 100%;
+}
+
+::selection {
+  background: var(--red);
+  color: var(--paper);
+}
+
+:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 2px;
+}
+
+input,
+select,
+button {
+  font: inherit;
+  color: inherit;
+  caret-color: var(--red);
+}
+
+a {
+  color: var(--ink);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
