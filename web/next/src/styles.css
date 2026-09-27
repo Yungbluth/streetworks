@@ -220,18 +220,21 @@ p {
   outline-offset: 0;
 }
 
-.results {
+.dropdown {
   position: absolute;
   z-index: 1100;
   left: 0;
   right: 0;
   top: calc(100% + 4px);
+  box-shadow: var(--shadow);
+}
+
+.results {
   margin: 0;
   padding: 4px;
   list-style: none;
   background: var(--field);
   border: 1px solid var(--rule-strong);
-  box-shadow: var(--shadow);
   max-height: min(360px, 60vh);
   overflow-y: auto;
 }
@@ -258,10 +261,14 @@ p {
 
 .results-empty,
 .results-note {
-  margin-top: 6px;
+  padding: 8px 12px;
+  background: var(--field);
+  border: 1px solid var(--rule-strong);
 }
 
 .results-note {
+  border-bottom: 0;
+  border-left: 3px solid var(--red);
   color: var(--ink);
 }
 
@@ -571,15 +578,4 @@ p {
   bottom: 0;
   width: 2px;
   background: var(--red);
-}
-
-.rev-handle::after {
-  content: "";
-  position: absolute;
-  left: 5px;
-  top: 0;
-  width: 14px;
-  height: 10px;
-  background: var(--red);
-  clip-path: polygon(0 0, 100% 0, 50% 100%);
 }
