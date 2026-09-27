@@ -4,7 +4,7 @@ import { dotStyle, faded, visibleAt } from "./dots";
 import { overlayPopup } from "./overlay";
 import { ageOf, type PlaceSummary } from "./filters";
 import type { LatLng } from "./geo";
-import { cssVar, needsEdge, paint } from "./paint";
+import { cssVar, edgeFor, paint } from "./paint";
 
 interface Drawn {
   place: Int32Array;
@@ -67,8 +67,7 @@ class DotLayer extends L.Layer {
     const zoom = map.getZoom();
     const metersPerPx = (156543.03 * Math.cos((map.getCenter().lat * Math.PI) / 180)) / 2 ** map.getZoom();
     const colors = this.categories.map(paint);
-    const edges = this.categories.map(needsEdge);
-    const edgeColor = cssVar("--paint-edge");
+    const edges = this.categories.map(edgeFor);
     const bounds = map.getBounds().pad(0.05);
 
     const order: number[] = [];
@@ -93,7 +92,7 @@ class DotLayer extends L.Layer {
       const pt = map.latLngToContainerPoint([places.lat[p]! / 1e5, places.lng[p]! / 1e5]);
       const cat = summary.cat[p]!;
       const age = ageOf(summary.newest[p]!, this.end);
-      const own = dotStyle(age, this.radius(summary.count[p]!, metersPerPx), colors[cat]!, edges[cat] ? edgeColor : undefined);
+      const own = dotStyle(age, this.radius(summary.count[p]!, metersPerPx), colors[cat]!, edges[cat]);
       // While a street is open, the rest of the map steps back
       const style = this.highlighted.size && !this.highlighted.has(p) ? faded(own) : own;
       d.place[i] = p;

@@ -26,8 +26,12 @@ export default defineConfig({
   build: {
     outDir: site,
     emptyOutDir: false,
+    rollupOptions: {
+      // The current page, and the ground-up rebuild beside it at next/
+      input: { main: resolve(__dirname, "index.html"), next: resolve(__dirname, "next/index.html") },
+    },
   },
   test: {
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "next/**/*.test.ts"],
   },
 });

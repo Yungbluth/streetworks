@@ -14,5 +14,5 @@
     "resolveJsonModule": true,
     "types": ["vite/client", "node"]
   },
-  "include": ["src", "e2e", "vite.config.ts", "playwright.config.ts"]
+  "include": ["src", "next", "e2e", "vite.config.ts", "playwright.config.ts"]
 }

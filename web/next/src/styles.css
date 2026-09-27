@@ -297,3 +297,105 @@ p {
 .leaflet-container a {
   color: var(--ink);
 }
+
+.leaflet-control-attribution {
+  background: color-mix(in srgb, var(--paper) 88%, transparent) !important;
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+.leaflet-bar {
+  border: 1px solid var(--rule-strong) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.leaflet-bar a {
+  background: var(--paper) !important;
+  color: var(--ink) !important;
+  border-radius: 0 !important;
+  border-bottom-color: var(--rule) !important;
+}
+
+.leaflet-bar a:hover {
+  background: var(--paper-2) !important;
+}
+
+.over-dot {
+  cursor: pointer;
+}
+
+.tip {
+  position: absolute;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  padding: 4px 8px;
+  background: var(--paper);
+  border: 1px solid var(--rule-strong);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.redline-mark .cloud path {
+  fill: var(--red-tint);
+  stroke: var(--red);
+  stroke-width: 1.6;
+}
+
+.redline-mark .delta {
+  position: absolute;
+  left: calc(50% + 24px);
+  top: -2px;
+  padding: 0 5px;
+  background: var(--paper);
+  border: 1.5px solid var(--red);
+  color: var(--red);
+  font: 700 13px/18px var(--font);
+  white-space: nowrap;
+}
+
+.dimension span {
+  display: inline-block;
+  transform: translate(6px, -50%);
+  padding: 0 4px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 700 12px/16px var(--font);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.aim {
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.aim .crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  background:
+    linear-gradient(var(--red), var(--red)) center / 1.5px 100% no-repeat,
+    linear-gradient(var(--red), var(--red)) center / 100% 1.5px no-repeat;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--red) inset;
+}
+
+.aim-line {
+  position: absolute;
+  left: 50%;
+  bottom: 36px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 6px 10px;
+  background: var(--paper);
+  border: 1px solid var(--rule-strong);
+  font-size: 15px;
+}

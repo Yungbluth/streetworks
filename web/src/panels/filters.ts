@@ -12,7 +12,7 @@ function countByCategory(site: Site, f: Filter): number[] {
 }
 
 // plain descriptions of the city's permit types, as the map groups them
-const kindMeanings: [string, string][] = [
+export const kindMeanings: [string, string][] = [
   ["Excavation", "Digging into the street or sidewalk, such as a trench for a pipe or cable."],
   ["Barricade", "Closing part of a street or sidewalk with barricades, without digging."],
   ["Combo", "Digging and a closure under one permit."],
