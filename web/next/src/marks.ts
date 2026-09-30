@@ -51,3 +51,40 @@ export function cloudPath(cx: number, cy: number, radius: number, scallops = 11)
   }
   return `${d} Z`;
 }
+
+export const station = (block: number) => `${Math.floor(block / 100)}+00`;
+
+/** Which of n stations get a label */
+export function stationTicks(n: number): boolean[] {
+  const step = Math.max(1, Math.ceil(n / 6));
+  return Array.from({ length: n }, (_, i) => i === n - 1 || (i % step === 0 && n - 1 - i >= step));
+}
+
+/** a north arrow for the map's corner, drawn in ink */
+export function northArrow(): SVGSVGElement {
+  const s = svg(28);
+  s.setAttribute("viewBox", "0 0 28 28");
+  const path = (d: string, fill: string) => {
+    const p = document.createElementNS(NS, "path");
+    p.setAttribute("d", d);
+    p.setAttribute("fill", fill);
+    p.setAttribute("stroke", "currentColor");
+    p.setAttribute("stroke-width", "1.2");
+    p.setAttribute("stroke-linejoin", "round");
+    return p;
+  };
+  s.append(path("M14 3 L20 23 L14 19 Z", "currentColor"), path("M14 3 L8 23 L14 19 Z", "none"));
+  return s;
+}
+
+/** Plus, minus and clear, drawn as strokes at the sheet's line weight. */
+export function strokeIcon(kind: "plus" | "minus" | "clear"): SVGSVGElement {
+  const s = svg(14);
+  const p = document.createElementNS(NS, "path");
+  p.setAttribute("d", { plus: "M7 2v10M2 7h10", minus: "M2 7h10", clear: "M3 3l8 8M11 3l-8 8" }[kind]);
+  p.setAttribute("stroke", "currentColor");
+  p.setAttribute("stroke-width", "1.6");
+  p.setAttribute("fill", "none");
+  s.append(p);
+  return s;
+}

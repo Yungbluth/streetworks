@@ -9,7 +9,7 @@ import { kindMeanings } from "../../src/panels/filters";
 import { placeSummary } from "../../src/panels/place";
 import { streetBlocks } from "../../src/panels/street";
 import { RADII } from "../../src/url";
-import { swatch } from "./marks";
+import { station, stationTicks, swatch } from "./marks";
 
 export interface SheetCtx extends Ctx {
   showNotes(): void;
@@ -113,17 +113,20 @@ function revisionRows(e: Entry): HTMLTableRowElement[] {
         ...(d?.filed ? [h("dt", {}, "Filed as"), h("dd", {}, d.filed)] : []),
         ...(d?.final ? [h("dt", {}, "Finished"), h("dd", {}, dateText(d.final))] : []),
         ...(e.onPlace && e.placeName ? [h("dt", {}, "At"), h("dd", {}, h("button", { type: "button", class: "link", onclick: e.onPlace }, e.placeName))] : []),
+        ...(d
+          ? [
+              h("dt", {}, "Permit"),
+              h(
+                "dd",
+                { class: "ids" },
+                h("span", { class: "permit-no" }, d.permit),
+                d.link ? h("a", { href: d.link, target: "_blank", rel: "noopener", "aria-label": `City record for ${d.permit}` }, "City record") : null,
+              ),
+            ]
+          : []),
       ),
       d && dateBases[d.dateBasis] ? h("p", { class: "quiet" }, dateBases[d.dateBasis]) : null,
       ...(d?.flags ?? []).map((f) => h("p", { class: "flag" }, f)),
-      d
-        ? h(
-            "p",
-            { class: "ids" },
-            h("span", { class: "permit-no" }, d.permit),
-            d.link ? h("a", { href: d.link, target: "_blank", rel: "noopener", "aria-label": `City record for ${d.permit}` }, "City record") : null,
-          )
-        : null,
     ),
   );
   const toggle = h(
@@ -134,6 +137,7 @@ function revisionRows(e: Entry): HTMLTableRowElement[] {
         const open = toggle.getAttribute("aria-expanded") !== "true";
         toggle.setAttribute("aria-expanded", String(open));
         more.hidden = !open;
+        row.classList.toggle("open", open);
       },
     },
     swatch(e.category, 10),
@@ -325,7 +329,7 @@ export function streetDetail(ctx: SheetCtx, street: number): HTMLElement {
   const max = Math.max(1, ...blocks.map((p) => summary.count[p]!));
   const name = prettyStreet(site.places.streets[street]!);
   const open = (p: number) => () => ctx.go({ kind: "place", place: p }, { move: true });
-  const tick = Math.max(1, Math.ceil(blocks.length / 6));
+  const ticks = stationTicks(blocks.length);
   const top = [...busy].sort((a, b) => summary.count[b]! - summary.count[a]!).slice(0, 8);
   return h(
     "section",
@@ -333,7 +337,8 @@ export function streetDetail(ctx: SheetCtx, street: number): HTMLElement {
     head(name, () => ctx.go(null)),
     h("p", { class: "lead" }, total ? `${plural(total, "permit")} on ${plural(busy.length, "block")} of ${name}.` : `No permits on ${name} match the filters.`),
     total ? null : showAll(ctx),
-    h("h3", {}, "Profile, in address order"),
+    h("h3", {}, "Profile, by station"),
+    h("p", { class: "quiet" }, "Each station is a hundred-block: 19+00 is the 1900 block. Select one to open it."),
     h(
       "div",
       { class: "profile" },
@@ -356,7 +361,7 @@ export function streetDetail(ctx: SheetCtx, street: number): HTMLElement {
       h(
         "div",
         { class: "profile-axis", "aria-hidden": "true" },
-        ...blocks.map((p, i) => h("span", {}, i % tick === 0 || i === blocks.length - 1 ? String(site.places.block[p]) : "")),
+        ...blocks.map((p, i) => h("span", {}, ticks[i] ? station(site.places.block[p]!) : "")),
       ),
     ),
     ...(top.length

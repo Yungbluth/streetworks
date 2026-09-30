@@ -1,6 +1,7 @@
 import "@fontsource/sofia-sans-semi-condensed/400.css";
 import "@fontsource/sofia-sans-semi-condensed/600.css";
 import "@fontsource/sofia-sans-semi-condensed/700.css";
+import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./styles.css";
 
@@ -18,6 +19,7 @@ import { DEFAULT_RADIUS, fromHash, placeKey, placeLookup, toHash } from "../../s
 import { busiestDetail, notesDetail, placeDetail, spotDetail, streetDetail, type SheetCtx } from "./detail";
 import { legend } from "./legend";
 import { Redline } from "./redline";
+import { northArrow, strokeIcon } from "./marks";
 import { revisions } from "./revisions";
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -111,6 +113,7 @@ async function start() {
     },
   });
   const redline = new Redline(map.map);
+  drawSheetDevices(map.map);
   map.setBasemap(dark.matches);
   dark.addEventListener("change", () => {
     map.setBasemap(dark.matches);
@@ -225,10 +228,17 @@ async function start() {
   fill(
     $("sheet-info"),
     h("span", {}, `${num(site.index.quality.unique_permits)} permits on record`),
-    fetched ? h("span", {}, `updated ${dateText(fetched)}`) : null,
     h("button", { type: "button", class: "link", onclick: showNotes }, "General notes"),
   );
-  fill($("title-block"), rev.el, legendSlot);
+  // The title block's bottom strip, as on a drawn sheet.
+  const sheetNo = h(
+    "p",
+    { class: "sheet-strip" },
+    h("span", {}, "Sheet 1 of 1"),
+    h("span", {}, "Drawn from City of Tucson records"),
+    fetched ? h("span", {}, `Updated ${dateText(fetched)}`) : null,
+  );
+  fill($("title-block"), rev.el, legendSlot, sheetNo);
 
   function renderLegend() {
     fill(
@@ -310,6 +320,16 @@ async function start() {
   // the search box is shared with the first page
   const box = searchBox(site.places, (q) => search(q), (f) => go(f));
   box.append(h("div", { class: "dropdown" }, ...box.querySelectorAll(".results-note, .results, .results-empty")));
+  const field = box.querySelector("input")!;
+  const clear = h("button", { type: "button", class: "search-clear", "aria-label": "Clear search", hidden: true }, strokeIcon("clear"));
+  clear.addEventListener("click", () => {
+    field.value = "";
+    field.dispatchEvent(new Event("input"));
+    clear.hidden = true;
+    field.focus();
+  });
+  field.addEventListener("input", () => (clear.hidden = !field.value));
+  field.after(clear);
   fill($("search"), box);
   const restore = () => {
     applyHash();
@@ -318,6 +338,20 @@ async function start() {
   };
   restore();
   window.addEventListener("popstate", restore);
+}
+
+/** What a plan sheet always carries */
+function drawSheetDevices(map: L.Map) {
+  L.control.scale({ position: "bottomleft", imperial: true, metric: false, maxWidth: 140 }).addTo(map);
+  const North = L.Control.extend({
+    onAdd: () => h("div", { class: "north", "aria-hidden": "true" }, northArrow(), h("span", {}, "N")),
+  });
+  new North({ position: "topright" }).addTo(map);
+  const zoom = map.getContainer();
+  for (const [sel, icon] of [[".leaflet-control-zoom-in", "plus"], [".leaflet-control-zoom-out", "minus"]] as const) {
+    const a = zoom.querySelector(sel);
+    a?.replaceChildren(strokeIcon(icon));
+  }
 }
 
 void start();
