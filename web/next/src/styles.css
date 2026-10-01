@@ -959,3 +959,80 @@ p {
   border-bottom: 1px solid var(--rule);
   vertical-align: baseline;
 }
+
+.schedule .no {
+  width: 3em;
+  color: var(--ink-2);
+}
+
+.schedule th:first-child {
+  width: 3em;
+}
+
+.schedule .num {
+  width: 5.5em;
+  text-align: right;
+}
+
+.permit-table th:nth-child(1) {
+  width: 4.4em;
+}
+
+.permit-table th:nth-child(2) {
+  width: 7.6em;
+}
+
+.permit-row.open td,
+.permit-row.open + .permit-more td {
+  background: var(--paper-2);
+}
+
+.permit-row.open .permit-open:hover {
+  background: none;
+}
+
+.permit-row td {
+  padding: 0;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+
+.permit-first,
+.permit-date {
+  padding: 9px 6px !important;
+  font-size: 14px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.permit-first {
+  color: var(--red) !important;
+  font-weight: 600;
+}
+
+.permit-open {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  column-gap: 8px;
+  align-items: baseline;
+  width: 100%;
+  padding: 7px 6px;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.permit-open:hover {
+  background: var(--hover);
+}
+
+.permit-open svg {
+  align-self: center;
+}
+
+.permit-what {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

@@ -1,6 +1,7 @@
 import { PlaceKind } from "../data";
 import { h } from "../dom";
 import { num, plural, prettyStreet } from "../format";
+import { stationTicks } from "../marks";
 import type { Ctx } from "../model";
 import { panelHead } from "./common";
 
@@ -41,5 +42,47 @@ export function streetPanel(ctx: Ctx, street: number): HTMLElement {
         ),
       ),
     ),
+  );
+}
+
+export interface Station {
+  block: number;
+  n: number;
+  open: () => void;
+}
+
+// a street as a profile: its blocks in address order, each a bar as tall as its permit count
+export function streetProfile(stations: Station[], label: (block: number) => string): HTMLElement {
+  const max = Math.max(1, ...stations.map((s) => s.n));
+  const busiest = stations.reduce((best, s, i) => (s.n > stations[best]!.n ? i : best), 0);
+  const ticks = stationTicks(stations.length);
+  const buttons = stations.map((s, i) =>
+    h(
+      "button",
+      {
+        type: "button", class: "station", tabindex: i === busiest ? 0 : -1, onclick: s.open,
+        style: `--h: ${(s.n / max) * 100}%`,
+        "aria-label": `${s.block} block, ${plural(s.n, "permit")}`,
+        title: `${s.block} block: ${plural(s.n, "permit")}`,
+      },
+      h("span", { class: "station-bar", "aria-hidden": "true" }),
+    ),
+  );
+  const bars = h("div", { class: "profile-bars", role: "group", "aria-label": "Blocks in address order" }, ...buttons);
+  bars.addEventListener("keydown", (e) => {
+    const at = buttons.indexOf(e.target as HTMLButtonElement);
+    if (at < 0) return;
+    const to = { ArrowLeft: at - 1, ArrowRight: at + 1, Home: 0, End: buttons.length - 1 }[e.key];
+    if (to === undefined || to < 0 || to >= buttons.length) return;
+    e.preventDefault();
+    buttons[at]!.tabIndex = -1;
+    buttons[to]!.tabIndex = 0;
+    buttons[to]!.focus();
+  });
+  return h(
+    "div",
+    { class: "profile" },
+    bars,
+    h("div", { class: "profile-axis", "aria-hidden": "true" }, ...stations.map((s, i) => h("span", {}, ticks[i] ? label(s.block) : ""))),
   );
 }
