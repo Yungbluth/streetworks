@@ -1,6 +1,7 @@
 import { errorMessage } from "../data";
 import { h } from "../dom";
 import { num } from "../format";
+import { swatch } from "../marks";
 import { paint } from "../paint";
 
 export function panelHead(title: string, onClear: () => void): HTMLElement {
@@ -56,5 +57,26 @@ export function categoryBars(counts: Map<number, number>, categories: string[]):
     [...counts]
       .sort((a, b) => b[1] - a[1])
       .map(([c, n]) => ({ label: categories[c]!, n, color: paint(categories[c]!) })),
+  );
+}
+
+const slug = (name: string) => name.toLowerCase().replace(/[^a-z]+/g, "-").replace(/^-|-$/g, "");
+
+export function kindSplit(counts: Map<number, number>, categories: string[]): HTMLElement {
+  const rows = [...counts].sort((a, b) => b[1] - a[1]);
+  const total = rows.reduce((a, [, n]) => a + n, 0) || 1;
+  return h(
+    "div",
+    { class: "split" },
+    h(
+      "div",
+      { class: "split-bar", "aria-hidden": "true" },
+      ...rows.map(([c, n]) => h("span", { class: "seg", style: `flex-grow: ${n / total}; --seg: var(--paint-${slug(categories[c]!)})` })),
+    ),
+    h(
+      "ul",
+      { class: "split-key" },
+      ...rows.map(([c, n]) => h("li", {}, swatch(categories[c]!, 10), `${categories[c]} `, h("span", { class: "n" }, num(n)))),
+    ),
   );
 }

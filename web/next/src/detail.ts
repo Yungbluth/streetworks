@@ -1,27 +1,21 @@
 import type L from "leaflet";
-import { errorMessage, type Detail, type Index } from "../../src/data";
+import { errorMessage, type Index } from "../../src/data";
 import { h } from "../../src/dom";
 import { permitsMatching } from "../../src/filters";
-import { dateText, feet, num, placeName, plural, prettyStreet } from "../../src/format";
+import { dateText, num, placeName, plural, prettyStreet } from "../../src/format";
 import { distanceMeters, type LatLng } from "../../src/geo";
 import { byDateDesc, detailsFor, permitAt, permitsOf, placeAt, type Ctx } from "../../src/model";
 import { kindMeanings } from "../../src/panels/filters";
 import { placeSummary } from "../../src/panels/place";
-import { streetBlocks } from "../../src/panels/street";
+import { streetBlocks, streetProfile } from "../../src/panels/street";
 import { RADII } from "../../src/url";
-import { station, stationTicks, swatch } from "./marks";
+import { station, swatch } from "../../src/marks";
+import { kindSplit } from "../../src/panels/common";
+import { permitTable, type TableStyle } from "../../src/panels/table";
 
 export interface SheetCtx extends Ctx {
   showNotes(): void;
 }
-
-const PAGE = 25;
-
-const dateBases: Record<string, string> = {
-  DATE_APPROVE: "Dated by approval",
-  DATE_START: "Dated by the start of work",
-  DATE_ENTERED: "Dated by when it was entered",
-};
 
 function head(title: string, onClear?: () => void): HTMLElement {
   return h(
@@ -58,125 +52,7 @@ const showAll = (ctx: SheetCtx) =>
     ? h("button", { type: "button", class: "btn", onclick: ctx.showAllKinds }, "Show all kinds of work")
     : null;
 
-function kindSplit(counts: Map<number, number>, categories: string[]): HTMLElement {
-  const rows = [...counts].sort((a, b) => b[1] - a[1]);
-  const total = rows.reduce((a, [, n]) => a + n, 0) || 1;
-  return h(
-    "div",
-    { class: "split" },
-    h(
-      "div",
-      { class: "split-bar", "aria-hidden": "true" },
-      ...rows.map(([c, n]) =>
-        h("span", { class: `seg seg-${slug(categories[c]!)}`, style: `flex-grow: ${n / total}; --seg: var(--paint-${slug(categories[c]!)})` }),
-      ),
-    ),
-    h(
-      "ul",
-      { class: "split-key" },
-      ...rows.map(([c, n]) => h("li", {}, swatch(categories[c]!, 10), `${categories[c]} `, h("span", { class: "n" }, num(n)))),
-    ),
-  );
-}
-
-const slug = (name: string) => name.toLowerCase().replace(/[^a-z]+/g, "-").replace(/^-|-$/g, "");
-
-export interface Entry {
-  index: number;
-  category: string;
-  detail?: Detail;
-  // its revision number at its place, oldest first
-  delta?: number;
-  distanceM?: number;
-  placeName?: string;
-  onPlace?: () => void;
-}
-
-let rowId = 0;
-
-function revisionRows(e: Entry): HTMLTableRowElement[] {
-  const d = e.detail;
-  const what = d ? d.description || d.subType || d.type : "Details for this permit didn't load.";
-  const who = d ? [d.applicant, d.utility].filter(Boolean).join(", ") : "";
-  const id = `rev-${++rowId}`;
-  const more = h(
-    "tr",
-    { class: "rev-more", id, hidden: true },
-    h(
-      "td",
-      { colspan: 3 },
-      h(
-        "dl",
-        {},
-        h("dt", {}, "Kind"), h("dd", {}, d ? `${e.category}, ${d.status.toLowerCase()}` : e.category),
-        ...(who ? [h("dt", {}, "Applicant"), h("dd", {}, who)] : []),
-        ...(d?.filed ? [h("dt", {}, "Filed as"), h("dd", {}, d.filed)] : []),
-        ...(d?.final ? [h("dt", {}, "Finished"), h("dd", {}, dateText(d.final))] : []),
-        ...(e.onPlace && e.placeName ? [h("dt", {}, "At"), h("dd", {}, h("button", { type: "button", class: "link", onclick: e.onPlace }, e.placeName))] : []),
-        ...(d
-          ? [
-              h("dt", {}, "Permit"),
-              h(
-                "dd",
-                { class: "ids" },
-                h("span", { class: "permit-no" }, d.permit),
-                d.link ? h("a", { href: d.link, target: "_blank", rel: "noopener", "aria-label": `City record for ${d.permit}` }, "City record") : null,
-              ),
-            ]
-          : []),
-      ),
-      d && dateBases[d.dateBasis] ? h("p", { class: "quiet" }, dateBases[d.dateBasis]) : null,
-      ...(d?.flags ?? []).map((f) => h("p", { class: "flag" }, f)),
-    ),
-  );
-  const toggle = h(
-    "button",
-    {
-      type: "button", class: "rev-open", "aria-expanded": "false", "aria-controls": id,
-      onclick: () => {
-        const open = toggle.getAttribute("aria-expanded") !== "true";
-        toggle.setAttribute("aria-expanded", String(open));
-        more.hidden = !open;
-        row.classList.toggle("open", open);
-      },
-    },
-    swatch(e.category, 10),
-    h("span", { class: "rev-what" }, what),
-    h("span", { class: "rev-kind" }, e.category, d?.noWork ? ", no work done" : ""),
-  );
-  const row = h(
-    "tr",
-    { class: d?.noWork ? "rev-row no-work" : "rev-row" },
-    h("td", { class: "rev-delta" }, e.distanceM !== undefined ? feet(e.distanceM) : e.delta ? `Δ${e.delta}` : ""),
-    h("td", { class: "rev-date" }, d ? dateText(d.date) : ""),
-    h("td", { class: "rev-work" }, toggle),
-  );
-  return [row, more];
-}
-
-export function revisionTable(entries: Entry[], firstColumn: "Δ" | "Away"): HTMLElement {
-  const body = h("tbody", {});
-  const table = h(
-    "table",
-    { class: "rev-table" },
-    h("thead", {}, h("tr", {}, h("th", { scope: "col" }, firstColumn), h("th", { scope: "col" }, "Date"), h("th", { scope: "col" }, "Work"))),
-    body,
-  );
-  const wrap = h("div", { class: "rev-wrap" }, table);
-  let shown = 0;
-  const more = h("button", { type: "button", class: "btn" });
-  const page = () => {
-    for (const e of entries.slice(shown, shown + PAGE)) body.append(...revisionRows(e));
-    shown = Math.min(entries.length, shown + PAGE);
-    const left = entries.length - shown;
-    more.textContent = left === 1 ? "Show the last one" : left <= PAGE ? `Show the last ${num(left)}` : `Show ${PAGE} more of ${num(left)}`;
-    if (shown >= entries.length) more.remove();
-  };
-  more.addEventListener("click", page);
-  wrap.append(more);
-  page();
-  return wrap;
-}
+const tableStyle = (first: "Δ" | "Away"): TableStyle => ({ first, button: "btn", link: "link" });
 
 /** Busiest places in view, as a schedule. */
 export function busiestDetail(ctx: SheetCtx, view: L.LatLngBounds): HTMLElement {
@@ -266,7 +142,7 @@ function nearby(ctx: SheetCtx, center: LatLng, opts: { listNow?: boolean; exclud
           };
         })
         .sort((a, b) => byDateDesc(a.detail, b.detail) || a.distanceM - b.distanceM);
-      list.replaceChildren(revisionTable(entries, "Away"));
+      list.replaceChildren(permitTable(entries, tableStyle("Away")));
     } catch (e) {
       list.replaceChildren(failed("the permits here", e, () => void show()));
     }
@@ -304,7 +180,7 @@ export function placeDetail(ctx: SheetCtx, place: number, extraNote?: string): H
           .map((i) => ({ index: i, category: site.index.categories[site.permits.cat[i]!]!, detail: details.get(i) }))
           .sort((a, b) => byDateDesc(b.detail, a.detail));
         const entries = oldestFirst.map((e, n) => ({ ...e, delta: n + 1 })).reverse();
-        history.replaceWith(revisionTable(entries, "Δ"));
+        history.replaceWith(permitTable(entries, tableStyle("Δ")));
       })
       .catch((e: unknown) => history.replaceChildren(failed("this place's permits", e, ctx.retry)));
   return out;
@@ -326,10 +202,8 @@ export function streetDetail(ctx: SheetCtx, street: number): HTMLElement {
   const blocks = streetBlocks(ctx, street);
   const busy = blocks.filter((p) => summary.count[p]! > 0);
   const total = busy.reduce((a, p) => a + summary.count[p]!, 0);
-  const max = Math.max(1, ...blocks.map((p) => summary.count[p]!));
   const name = prettyStreet(site.places.streets[street]!);
   const open = (p: number) => () => ctx.go({ kind: "place", place: p }, { move: true });
-  const ticks = stationTicks(blocks.length);
   const top = [...busy].sort((a, b) => summary.count[b]! - summary.count[a]!).slice(0, 8);
   return h(
     "section",
@@ -339,31 +213,7 @@ export function streetDetail(ctx: SheetCtx, street: number): HTMLElement {
     total ? null : showAll(ctx),
     h("h3", {}, "Profile, by station"),
     h("p", { class: "quiet" }, "Each station is a hundred-block: 19+00 is the 1900 block. Select one to open it."),
-    h(
-      "div",
-      { class: "profile" },
-      h(
-        "div",
-        { class: "profile-bars" },
-        ...blocks.map((p) =>
-          h(
-            "button",
-            {
-              type: "button", class: "station", onclick: open(p),
-              style: `--h: ${(summary.count[p]! / max) * 100}%`,
-              "aria-label": `${site.places.block[p]} block, ${plural(summary.count[p]!, "permit")}`,
-              title: `${site.places.block[p]} block: ${plural(summary.count[p]!, "permit")}`,
-            },
-            h("span", { class: "station-bar", "aria-hidden": "true" }),
-          ),
-        ),
-      ),
-      h(
-        "div",
-        { class: "profile-axis", "aria-hidden": "true" },
-        ...blocks.map((p, i) => h("span", {}, ticks[i] ? station(site.places.block[p]!) : "")),
-      ),
-    ),
+    streetProfile(blocks.map((p) => ({ block: site.places.block[p]!, n: summary.count[p]!, open: open(p) })), station),
     ...(top.length
       ? [
           h("h3", {}, "Busiest blocks"),

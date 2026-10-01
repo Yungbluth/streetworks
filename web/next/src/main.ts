@@ -1,7 +1,6 @@
 import "@fontsource/sofia-sans-semi-condensed/400.css";
 import "@fontsource/sofia-sans-semi-condensed/600.css";
 import "@fontsource/sofia-sans-semi-condensed/700.css";
-import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./styles.css";
 
@@ -17,9 +16,9 @@ import { streetBlocks } from "../../src/panels/street";
 import { buildSearch } from "../../src/search";
 import { DEFAULT_RADIUS, fromHash, placeKey, placeLookup, toHash } from "../../src/url";
 import { busiestDetail, notesDetail, placeDetail, spotDetail, streetDetail, type SheetCtx } from "./detail";
-import { legend } from "./legend";
-import { Redline } from "./redline";
-import { northArrow, strokeIcon } from "./marks";
+import { legend } from "../../src/panels/legend";
+import { Annotations, mapDevices } from "../../src/annotations";
+import { strokeIcon } from "../../src/marks";
 import { revisions } from "./revisions";
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -112,8 +111,8 @@ async function start() {
           : `Enter opens ${placeName(site.places, place)} (${plural(summary.count[place]!, "permit")})`;
     },
   });
-  const redline = new Redline(map.map);
-  drawSheetDevices(map.map);
+  const redline = new Annotations(map.map, "cloud");
+  mapDevices(map.map);
   map.setBasemap(dark.matches);
   dark.addEventListener("change", () => {
     map.setBasemap(dark.matches);
@@ -196,7 +195,7 @@ async function start() {
         const at = placeAt(site, focus.place);
         map.circle(at, radiusM, move);
         const n = summary.count[focus.place]!;
-        redline.cloud(at, n ? `Δ${n}` : undefined);
+        redline.mark(at, n ? `Δ${n}` : undefined);
         redline.dimension(at, radiusM);
         fill(box, placeDetail(c, focus.place, focus.note));
         break;
@@ -207,7 +206,7 @@ async function start() {
         break;
       case "spot":
         map.circle(focus.at, radiusM, move);
-        redline.cloud(focus.at, undefined);
+        redline.mark(focus.at, undefined);
         redline.dimension(focus.at, radiusM);
         fill(box, spotDetail(c, focus.title, focus.at, focus.note));
         break;
@@ -258,7 +257,7 @@ async function start() {
           render({ detail: true, legend: true });
           legendSlot.querySelector<HTMLInputElement>(".check input")?.focus();
         },
-        showNotes,
+        showMeanings: showNotes,
       }),
     );
   }
@@ -338,20 +337,6 @@ async function start() {
   };
   restore();
   window.addEventListener("popstate", restore);
-}
-
-/** What a plan sheet always carries */
-function drawSheetDevices(map: L.Map) {
-  L.control.scale({ position: "bottomleft", imperial: true, metric: false, maxWidth: 140 }).addTo(map);
-  const North = L.Control.extend({
-    onAdd: () => h("div", { class: "north", "aria-hidden": "true" }, northArrow(), h("span", {}, "N")),
-  });
-  new North({ position: "topright" }).addTo(map);
-  const zoom = map.getContainer();
-  for (const [sel, icon] of [[".leaflet-control-zoom-in", "plus"], [".leaflet-control-zoom-out", "minus"]] as const) {
-    const a = zoom.querySelector(sel);
-    a?.replaceChildren(strokeIcon(icon));
-  }
 }
 
 void start();

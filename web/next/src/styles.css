@@ -405,13 +405,13 @@ p {
   white-space: nowrap;
 }
 
-.redline-mark .cloud path {
+.place-mark .mark-shape path {
   fill: var(--red-tint);
   stroke: var(--red);
   stroke-width: 1.6;
 }
 
-.redline-mark .delta {
+.place-mark .tag {
   position: absolute;
   left: calc(50% + 24px);
   top: -2px;
@@ -424,6 +424,7 @@ p {
 }
 
 .dimension span {
+  text-transform: uppercase;
   display: inline-block;
   transform: translate(6px, -50%);
   padding: 0 4px;
@@ -936,14 +937,14 @@ p {
 /* Tables: a schedule of places, and the revision table of permits */
 
 .schedule,
-.rev-table {
+.permit-table {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
 }
 
 .schedule th,
-.rev-table th {
+.permit-table th {
   padding: 4px 6px;
   border-bottom: 1.5px solid var(--rule-strong);
   font-size: 12px;

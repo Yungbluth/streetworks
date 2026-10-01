@@ -1,5 +1,5 @@
-import type { Age } from "../../src/filters";
-import { edgeFor, paint } from "../../src/paint";
+import type { Age } from "./filters";
+import { edgeFor, paint } from "./paint";
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -19,6 +19,7 @@ function circle(attrs: Record<string, string | number>): SVGCircleElement {
   return c;
 }
 
+/** The three age marks, drawn in ink, as the key and chart use them */
 export function ageMark(age: Age): SVGSVGElement {
   switch (age) {
     case "recent":
@@ -30,13 +31,13 @@ export function ageMark(age: Age): SVGSVGElement {
   }
 }
 
-/** a kind of work's paint, drawn the way its dots are: a solid with its own outline, if any */
 export function swatch(category: string, size = 12): SVGSVGElement {
   const edge = edgeFor(category);
   const r = size / 2 - (edge ? 1 : 0.5);
   return svg(size, circle({ cx: size / 2, cy: size / 2, r, fill: paint(category), ...(edge ? { stroke: edge, "stroke-width": 1 } : {}) }));
 }
 
+/** A revision cloud: the scalloped loop a drafter draws around a change, here around the open place */
 export function cloudPath(cx: number, cy: number, radius: number, scallops = 11): string {
   const step = (Math.PI * 2) / scallops;
   const point = (a: number) => [cx + radius * Math.cos(a), cy + radius * Math.sin(a)] as const;
@@ -54,13 +55,11 @@ export function cloudPath(cx: number, cy: number, radius: number, scallops = 11)
 
 export const station = (block: number) => `${Math.floor(block / 100)}+00`;
 
-/** Which of n stations get a label */
 export function stationTicks(n: number): boolean[] {
   const step = Math.max(1, Math.ceil(n / 6));
   return Array.from({ length: n }, (_, i) => i === n - 1 || (i % step === 0 && n - 1 - i >= step));
 }
 
-/** a north arrow for the map's corner, drawn in ink */
 export function northArrow(): SVGSVGElement {
   const s = svg(28);
   s.setAttribute("viewBox", "0 0 28 28");
@@ -77,7 +76,7 @@ export function northArrow(): SVGSVGElement {
   return s;
 }
 
-/** Plus, minus and clear, drawn as strokes at the sheet's line weight. */
+/** Plus, minus and clear, drawn as strokes at the sheet's line weight */
 export function strokeIcon(kind: "plus" | "minus" | "clear"): SVGSVGElement {
   const s = svg(14);
   const p = document.createElementNS(NS, "path");

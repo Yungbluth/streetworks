@@ -2,7 +2,7 @@ import { yearSpan, type Site } from "../../src/data";
 import { fill, h } from "../../src/dom";
 import { ageOf, ageRanges, countByYear, type Filter } from "../../src/filters";
 import { num, yearsText } from "../../src/format";
-import { ageMark } from "./marks";
+import { ageMark } from "../../src/marks";
 
 export interface RevisionEvents {
   setRange(from: number, to: number, live: boolean): void;
