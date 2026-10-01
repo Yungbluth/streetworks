@@ -1036,3 +1036,83 @@ p {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+.permit-open[aria-expanded="true"] .permit-what {
+  white-space: normal;
+}
+
+.permit-kind {
+  grid-column: 2;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.permit-row.no-work .permit-what {
+  color: var(--ink-2);
+}
+
+.permit-more td {
+  padding: 4px 6px 12px calc(4.4em + 7.6em + 18px);
+  border-bottom: 1px solid var(--rule);
+  font-size: 14px;
+}
+
+.permit-more dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  margin: 0;
+}
+
+.permit-more dt {
+  color: var(--ink-2);
+}
+
+.permit-more dd {
+  margin: 0;
+}
+
+.permit-more .ids {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+
+.flag {
+  margin-top: 4px;
+  color: var(--red);
+}
+
+.permit-wrap {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+
+.nearby {
+  display: grid;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1.5px solid var(--rule-strong);
+}
+
+.nearby h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.nearby select {
+  min-height: 32px;
+  padding: 2px 6px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 0;
+  background: var(--field);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.profile {
+  border-bottom: 1.5px solid var(--rule-strong);
+}
