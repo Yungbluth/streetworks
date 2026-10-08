@@ -20,12 +20,12 @@ test("search an address and read its revision table down to the city record", as
   const heading = page.getByRole("heading", { level: 2, name: "700 block of E Speedway Blvd" });
   await expect(heading).toBeFocused();
   await expect(page.locator(".lead")).toContainText(/permits? (in|from)/);
-  const first = page.locator(".rev-open").first();
+  const first = page.locator(".permit-open").first();
   await expect(first).toContainText("Excavation");
   await first.click();
   await expect(first).toHaveAttribute("aria-expanded", "true");
-  await expect(page.locator(".rev-more").first()).toContainText("Filed as");
-  await expect(page.locator(".redline-mark .delta")).toHaveText(/^Δ\d+$/);
+  await expect(page.locator(".permit-more").first()).toContainText("Filed as");
+  await expect(page.locator(".place-mark .tag")).toHaveText(/^Δ\d+$/);
   expect(page.url()).toContain("place=b%3AE+SPEEDWAY+BLVD%3A700");
   expect(errors).toEqual([]);
 });
