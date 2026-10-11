@@ -1311,3 +1311,58 @@ p {
     padding-left: 6px;
   }
 }
+
+@media (pointer: coarse) {
+  .btn,
+  .kind,
+  .nearby select,
+  .search input {
+    min-height: 44px;
+  }
+
+  .permit-open {
+    min-height: 44px;
+  }
+
+  .link,
+  .check {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .rev-handle {
+    width: 44px;
+    margin-left: -22px;
+  }
+
+  .rev-handle::before {
+    left: 21px;
+  }
+
+  .rev-handle::after {
+    left: 15px;
+  }
+
+  .leaflet-touch .leaflet-bar a {
+    width: 44px !important;
+    height: 44px !important;
+    line-height: 44px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.place-mark > div {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
