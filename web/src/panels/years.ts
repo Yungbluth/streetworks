@@ -6,11 +6,14 @@ import { controlGlyph } from "../marks";
 
 export interface YearEvents {
   setRange(from: number, to: number, live: boolean): void;
+  replaying?(on: boolean): void;
 }
 
 const markRadius = { solid: "5", ring: "4.2", speck: "1.8" };
 
 const hidden = (text: string) => h("span", { class: "visually-hidden" }, text);
+
+const STEP_MS = 400;
 
 // A finger has to travel this far before it counts as a drag rather than a tap
 const SLOP_PX = 8;
@@ -159,6 +162,7 @@ export function yearStrip(site: Site, ev: YearEvents) {
     if (!timer) return;
     clearInterval(timer);
     timer = 0;
+    ev.replaying?.(false);
     label(false);
     const [f, t] = before ?? [from, to];
     before = null;
@@ -168,11 +172,12 @@ export function yearStrip(site: Site, ev: YearEvents) {
     if (timer) return stop();
     before = [from, to];
     const end = to;
+    ev.replaying?.(true);
     // start the timer first: setting the range redraws this strip
     timer = window.setInterval(() => {
       if (to >= end) return stop();
       set(from, to + 1, true);
-    }, 650);
+    }, STEP_MS);
     label(true);
     set(from, from, true);
   });

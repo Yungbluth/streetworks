@@ -1,6 +1,6 @@
 import L from "leaflet";
 import type { Index, Places, TileSource } from "./data";
-import { dotStyle, faded, visibleAt } from "./dots";
+import { dotStyle, drawnAge, faded } from "./dots";
 import { overlayPopup } from "./overlay";
 import { ageOf, type PlaceSummary } from "./filters";
 import type { LatLng } from "./geo";
@@ -20,6 +20,8 @@ class DotLayer extends L.Layer {
   summary?: PlaceSummary;
   end = 0;
   highlighted = new Set<number>();
+  /** True while a replay runs: older work stays on as specks at any zoom */
+  filling = false;
 
   constructor(
     private places: Places,
@@ -73,7 +75,7 @@ class DotLayer extends L.Layer {
     const order: number[] = [];
     for (let p = 0; p < places.kind.length; p++) {
       if (!summary.count[p]) continue;
-      if (!visibleAt(ageOf(summary.newest[p]!, this.end), zoom) && !this.highlighted.has(p)) continue;
+      if (!drawnAge(ageOf(summary.newest[p]!, this.end), zoom, this.filling) && !this.highlighted.has(p)) continue;
       const lat = places.lat[p]! / 1e5;
       const lng = places.lng[p]! / 1e5;
       if (lat < bounds.getSouth() || lat > bounds.getNorth() || lng < bounds.getWest() || lng > bounds.getEast()) continue;
@@ -91,7 +93,8 @@ class DotLayer extends L.Layer {
     order.forEach((p, i) => {
       const pt = map.latLngToContainerPoint([places.lat[p]! / 1e5, places.lng[p]! / 1e5]);
       const cat = summary.cat[p]!;
-      const age = ageOf(summary.newest[p]!, this.end);
+      const real = ageOf(summary.newest[p]!, this.end);
+      const age = drawnAge(real, zoom, this.filling) ?? real;
       const own = dotStyle(age, this.radius(summary.count[p]!, metersPerPx), colors[cat]!, edges[cat]);
       // While a street is open, the rest of the map steps back
       const style = this.highlighted.size && !this.highlighted.has(p) ? faded(own) : own;
@@ -246,6 +249,12 @@ export class PermitMap {
     const box = this.map.getContainer();
     box.classList.remove("tiles-mute", "tiles-invert");
     if (src.filter) box.classList.add(`tiles-${src.filter}`);
+    this.dots.redraw();
+  }
+
+  /** Keeps older work on the map while a replay fills the city in */
+  setFilling(on: boolean) {
+    this.dots.filling = on;
     this.dots.redraw();
   }
 

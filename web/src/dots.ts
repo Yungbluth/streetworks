@@ -31,4 +31,9 @@ export const DETAIL_ZOOM = 14;
 
 export const visibleAt = (age: Age, zoom: number) => age === "recent" || zoom >= DETAIL_ZOOM;
 
+export function drawnAge(age: Age, zoom: number, filling: boolean): Age | null {
+  if (visibleAt(age, zoom)) return age;
+  return filling ? "old" : null;
+}
+
 export const faded = (s: DotStyle): DotStyle => ({ ...s, alpha: s.alpha * 0.25 });

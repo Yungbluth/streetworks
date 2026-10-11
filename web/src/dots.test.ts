@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DETAIL_ZOOM, dotStyle, faded, visibleAt } from "./dots";
+import { DETAIL_ZOOM, dotStyle, drawnAge, faded, visibleAt } from "./dots";
 
 describe("dotStyle", () => {
   it("draws recent work solid", () => {
@@ -42,5 +42,15 @@ describe("faded", () => {
     expect(f.alpha).toBeCloseTo(style.alpha * 0.25);
     expect(f.stroke).toBe(style.stroke);
     expect(f.r).toBe(style.r);
+  });
+});
+
+describe("drawnAge", () => {
+  it("leaves older work off at city zoom", () => {
+    expect(drawnAge("back", 11, false)).toBeNull();
+    expect(drawnAge("back", 11, true)).toBe("old");
+    expect(drawnAge("old", 11, true)).toBe("old");
+    expect(drawnAge("recent", 11, false)).toBe("recent");
+    expect(drawnAge("back", DETAIL_ZOOM, false)).toBe("back");
   });
 });

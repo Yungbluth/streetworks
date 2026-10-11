@@ -241,6 +241,7 @@ async function start() {
       render({ filters: !live, focus: !live });
       if (!live) $("status").textContent = years.el.querySelector("h3")?.textContent ?? "";
     },
+    replaying: (on) => map.setFilling(on),
   });
   // The year chart and the legend share the strip under the map
   const legendSlot = h("div", { class: "legend-slot" });
