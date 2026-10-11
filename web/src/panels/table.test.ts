@@ -76,3 +76,13 @@ describe("the permit table", () => {
     expect(el.querySelector(".permit-more")!.textContent).toContain("Filed as");
   });
 });
+
+describe("nearby permits", () => {
+  it("say where each one is, beside its kind", () => {
+    const el = permitTable(
+      [{ index: 0, category: "Excavation", detail: base, distanceM: 50, placeName: "1300 block of E Speedway Blvd", onPlace: () => {} }],
+      { ...style, first: "Away" },
+    );
+    expect(el.querySelector(".permit-kind")!.textContent).toBe("Excavation · 1300 block of E Speedway Blvd");
+  });
+});

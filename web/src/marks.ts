@@ -78,10 +78,11 @@ export function northArrow(): SVGSVGElement {
 }
 
 /** Plus, minus and clear, drawn as strokes at the sheet's line weight */
-export function strokeIcon(kind: "plus" | "minus" | "clear"): SVGSVGElement {
+export function strokeIcon(kind: "plus" | "minus" | "clear" | "check"): SVGSVGElement {
   const s = svg(14);
+  s.setAttribute("class", kind);
   const p = document.createElementNS(NS, "path");
-  p.setAttribute("d", { plus: "M7 2v10M2 7h10", minus: "M2 7h10", clear: "M3 3l8 8M11 3l-8 8" }[kind]);
+  p.setAttribute("d", { plus: "M7 2v10M2 7h10", minus: "M2 7h10", clear: "M3 3l8 8M11 3l-8 8", check: "M2.5 7.5l3 3 6-7" }[kind]);
   p.setAttribute("stroke", "currentColor");
   p.setAttribute("stroke-width", "1.6");
   p.setAttribute("fill", "none");

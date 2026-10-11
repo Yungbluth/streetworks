@@ -7,7 +7,7 @@ import "./styles.css";
 import { errorMessage, loadSite, PlaceKind, yearSpan, type Site } from "./data";
 import { fill, h } from "./dom";
 import { summarizePlaces, type Filter } from "./filters";
-import { placeName, plural } from "./format";
+import { placeName, plural, prettyStreet } from "./format";
 import { DETAIL_ZOOM } from "./dots";
 import { Annotations, mapDevices } from "./annotations";
 import { PermitMap } from "./map";
@@ -82,7 +82,7 @@ async function start() {
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape" || e.defaultPrevented || !focus) return;
     if ((e.target as HTMLElement).closest("input, select, textarea")) return;
-    go(null);
+    go(focus.kind === "place" && focus.from ? focus.from : null);
   });
   const map = new PermitMap($("map"), site, {
     pick: (place) => go({ kind: "place", place }),
@@ -147,6 +147,7 @@ async function start() {
   let opener: { el: HTMLElement; text: string } | null = null;
 
   function go(f: Focus | null, opts: { move?: boolean } = { move: true }) {
+    if (f?.kind === "place" && !f.from && focus?.kind === "street") f = { ...f, from: focus };
     if (f && !focus && document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
       opener = { el: document.activeElement, text: document.activeElement.textContent ?? "" };
     }
@@ -220,7 +221,9 @@ async function start() {
         const at = placeAt(site, focus.place);
         map.circle(at, radiusM, move);
         markFocus(at);
-        fill(box, placePanel(c, focus.place, focus.note));
+        const from = focus.from;
+        const back = from?.kind === "street" ? { label: prettyStreet(site.places.streets[from.street]!), go: () => go(from) } : undefined;
+        fill(box, placePanel(c, focus.place, focus.note, back));
         break;
       }
       case "street":

@@ -22,7 +22,7 @@ export function placeSummary(byCategory: Map<number, number>, years: number[], c
   return `${plural(total, "permit")}${when}, ${kinds}.`;
 }
 
-export function placePanel(ctx: Ctx, place: number, extraNote?: string): HTMLElement {
+export function placePanel(ctx: Ctx, place: number, extraNote?: string, back?: { label: string; go: () => void }): HTMLElement {
   const { site, filter } = ctx;
   const mine = permitsOf(site, place, filter);
   const byCategory = new Map<number, number>();
@@ -32,6 +32,7 @@ export function placePanel(ctx: Ctx, place: number, extraNote?: string): HTMLEle
   const out = h(
     "section",
     { class: "focus" },
+    back ? h("button", { type: "button", class: "linkish back", onclick: back.go }, `Back to ${back.label}`) : null,
     panelHead(placeName(site.places, place), () => ctx.go(null)),
     note(extraNote),
     h("p", { class: "lead" }, placeSummary(byCategory, mine.map((i) => site.permits.year[i]!), site.index.categories)),

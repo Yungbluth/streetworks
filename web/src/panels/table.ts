@@ -82,7 +82,7 @@ function rows(e: Entry, style: TableStyle): HTMLTableRowElement[] {
     swatch(e.category, 10),
     h("span", { class: "permit-what" }, what),
     // The swatch is colour alone, so the kind is written out too
-    h("span", { class: "permit-kind" }, e.category, d?.noWork ? ", no work done" : ""),
+    h("span", { class: "permit-kind" }, e.category, d?.noWork ? ", no work done" : "", style.first === "Away" && e.placeName ? ` · ${e.placeName}` : ""),
   );
   const first =
     style.first === "Away" ? (e.distanceM === undefined ? "" : feet(e.distanceM)) : style.first === "Δ" && e.delta ? `Δ${e.delta}` : "";

@@ -184,9 +184,13 @@ test("the legend sits beside the map", async ({ page }) => {
   const kind = page.getByRole("button", { name: /Excavation/ });
   await expect(kind).toBeInViewport();
   await expect(kind).toHaveAttribute("aria-pressed", "true");
+  // Shown kinds carry a check, so the chips read as switches before any is off.
+  await expect(kind.locator("svg.check")).toBeVisible();
+  await expect(page.getByText("Select a kind to show or hide it")).toBeVisible();
   await kind.click();
   await expect(page.getByRole("button", { name: /Excavation/ })).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByRole("button", { name: /Excavation/ })).toBeFocused();
+  await expect(page.getByRole("button", { name: /Excavation/ }).locator("svg.check")).toHaveCount(0);
   await page.getByRole("button", { name: "What the kinds mean" }).click();
   await expect(page.getByRole("heading", { name: "What the kinds mean" })).toBeInViewport();
 });
@@ -280,4 +284,18 @@ test("a street's profile says which block the pointer is over", async ({ page })
   const box = (await bars.boundingBox())!;
   await page.mouse.move(box.x + box.width - 2, box.y + box.height / 2);
   await expect(page.locator(".profile-readout")).toHaveText(/^\d+ block · \d+ permits?$/);
+});
+
+test("a block opened from its street leads back to the street", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.goto("/#q=e+speedway+blvd");
+  await expect(page.getByRole("heading", { level: 2, name: "E Speedway Blvd" })).toBeVisible();
+  await page.locator(".busiest .linkish").first().click();
+  const back = page.getByRole("button", { name: "Back to E Speedway Blvd" });
+  await expect(back).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("heading", { level: 2, name: "E Speedway Blvd" })).toBeVisible();
+  await page.locator(".busiest .linkish").first().click();
+  await page.getByRole("button", { name: "Back to E Speedway Blvd" }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "E Speedway Blvd" })).toBeVisible();
 });

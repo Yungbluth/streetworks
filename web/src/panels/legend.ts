@@ -2,7 +2,7 @@ import type { Site } from "../data";
 import { h } from "../dom";
 import { matcher, type Filter } from "../filters";
 import { num } from "../format";
-import { swatch } from "../marks";
+import { strokeIcon, swatch } from "../marks";
 
 export interface LegendEvents {
   setCategory(c: number, on: boolean): void;
@@ -30,6 +30,7 @@ export function legend(site: Site, f: Filter, ev: LegendEvents, linkClass = "lin
     "div",
     { class: "cell legend" },
     h("h2", { class: "cell-label" }, "Legend: kind of work", h("span", { class: "cell-count" }, on === all ? `all ${all} shown` : `${on} of ${all} shown`)),
+    h("p", { class: "legend-hint" }, "Select a kind to show or hide it."),
     h(
       "ul",
       { class: "kinds" },
@@ -49,6 +50,7 @@ export function legend(site: Site, f: Filter, ev: LegendEvents, linkClass = "lin
             swatch(name),
             h("span", { class: "kind-name" }, name),
             h("span", { class: "kind-n" }, num(counts[c]!)),
+            pressed ? strokeIcon("check") : h("span", { class: "check-slot", "aria-hidden": "true" }),
           ),
         );
       }),
