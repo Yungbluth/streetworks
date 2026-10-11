@@ -196,3 +196,15 @@ test("changing the filters doesn't resize the map", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Reset filters" })).toBeVisible();
   expect(await height()).toBe(before);
 });
+
+test("the map marks the open place, letters its radius", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.goto("/#place=b%3AE+SPEEDWAY+BLVD%3A700");
+  await expect(page.locator(".place-mark .tag")).toHaveText(/^\d+$/);
+  await expect(page.locator(".dimension")).toHaveText(/^R \d+ ft$/);
+  await expect(page.locator(".leaflet-control-scale-line")).toBeVisible();
+  await expect(page.locator(".north")).toBeVisible();
+  await expect(page.locator(".leaflet-control-zoom-in svg")).toBeVisible();
+  await page.getByRole("button", { name: "Clear" }).click();
+  await expect(page.locator(".place-mark")).toHaveCount(0);
+});

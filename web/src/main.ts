@@ -9,6 +9,7 @@ import { fill, h } from "./dom";
 import { summarizePlaces, type Filter } from "./filters";
 import { placeName, plural } from "./format";
 import { DETAIL_ZOOM } from "./dots";
+import { Annotations, mapDevices } from "./annotations";
 import { PermitMap } from "./map";
 import { placeAt, type Ctx, type Focus } from "./model";
 import { aboutPanel } from "./panels/about";
@@ -102,6 +103,8 @@ async function start() {
           : `Enter opens ${placeName(site.places, place)} (${plural(summary.count[place]!, "permit")})`;
     },
   });
+  const notes = new Annotations(map.map, "ring");
+  mapDevices(map.map);
   map.setBasemap(dark.matches);
   dark.addEventListener("change", () => {
     map.setBasemap(dark.matches);
@@ -164,22 +167,30 @@ async function start() {
     map.map.invalidateSize();
     const c = ctx();
     const box = $("focus");
+    notes.clear();
     if (!focus) {
       map.clearFocus();
       fill(box, busiestPanel(c, map.visible()));
       return;
     }
     switch (focus.kind) {
-      case "place":
-        map.circle(placeAt(site, focus.place), radiusM, move);
+      case "place": {
+        const at = placeAt(site, focus.place);
+        map.circle(at, radiusM, move);
+        const n = summary.count[focus.place]!;
+        notes.mark(at, n ? String(n) : undefined);
+        notes.dimension(at, radiusM);
         fill(box, placePanel(c, focus.place, focus.note));
         break;
+      }
       case "street":
         map.outline(streetBlocks(c, focus.street), move);
         fill(box, streetPanel(c, focus.street));
         break;
       case "spot":
         map.circle(focus.at, radiusM, move);
+        notes.mark(focus.at, undefined);
+        notes.dimension(focus.at, radiusM);
         fill(box, spotPanel(c, focus.title, focus.at, focus.note));
         break;
     }
