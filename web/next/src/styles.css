@@ -1176,3 +1176,138 @@ p {
   display: flex;
   justify-content: flex-end;
 }
+
+.general-notes {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 1.6em;
+}
+
+.general-notes li::marker {
+  font-weight: 700;
+}
+
+.kind-meanings {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+}
+
+.kind-meanings dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-weight: 700;
+}
+
+.kind-meanings dd {
+  margin: 0;
+}
+
+/* ---- phone ----------------------------------------------------------- */
+
+@media (max-width: 860px) {
+  .sheet {
+    position: static;
+    display: flex;
+    flex-direction: column;
+    border: 0;
+    outline: 0;
+  }
+
+  .sheet-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 14px 16px 12px;
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+
+  .mark {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .sheet-title {
+    white-space: normal;
+  }
+
+  .search-cell {
+    width: auto;
+    margin: 0;
+  }
+
+  .sheet-info {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 12px;
+  }
+
+  .plan {
+    height: 50vh;
+    border-right: 0;
+    border-bottom: 1.5px solid var(--rule-strong);
+  }
+
+  .has-focus .plan {
+    height: 38vh;
+  }
+
+  .title-block {
+    grid-template-columns: 1fr;
+    border-right: 0;
+    border-top: 0;
+    border-bottom: 1.5px solid var(--rule-strong);
+  }
+
+  .cell-slot + .cell,
+  .cell + .cell-slot {
+    border-left: 0;
+    border-top: 1px solid var(--rule-strong);
+  }
+
+  .revisions {
+    padding-inline: 26px;
+  }
+
+  .legend .kinds {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sheet-detail {
+    overflow: visible;
+  }
+
+  .detail-body {
+    padding: 0 16px 32px;
+  }
+
+  .detail-head {
+    margin: 0 -16px;
+    padding: 12px 16px 10px;
+  }
+
+  .detail-head h2 {
+    font-size: 20px;
+  }
+
+  .map-jump {
+    display: inline;
+  }
+
+  .permit-table th:nth-child(1) {
+    width: 3.6em;
+  }
+
+  .permit-table th:nth-child(2) {
+    width: 7em;
+  }
+
+  .permit-more td {
+    padding-left: 6px;
+  }
+}
