@@ -112,6 +112,12 @@ test.describe("on a phone", () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   });
 
+  test("the year chart is on the first screen", async ({ page }) => {
+    await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+    await page.goto("/");
+    await expect(page.locator(".chart")).toBeInViewport({ ratio: 0.9 });
+  });
+
 });
 
 test.describe("getting back", () => {
@@ -246,4 +252,23 @@ test.describe("the frame around the map", () => {
     // the developer detail is there, folded away
     await expect(page.getByText("the server said 500")).toBeHidden();
   });
+});
+
+test.describe("rewinding", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  });
+
+  test("Replay is the primary control and the map shows the years as they run", async ({ page }) => {
+    await page.goto("/#from=2005&to=2006");
+    const stamp = page.locator(".year-stamp");
+    await expect(stamp).toHaveText("2005–2006");
+    const play = page.getByRole("button", { name: "Replay" });
+    await expect(play).toHaveClass(/primary/);
+    await expect(play.locator("svg")).toBeVisible();
+    await play.click();
+    await expect(stamp).toHaveText("2005");
+    await expect(stamp).toHaveText("2005–2006", { timeout: 3000 });
+  });
+
 });

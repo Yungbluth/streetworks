@@ -219,6 +219,7 @@ async function start() {
     setRange(from, to, live) {
       filter = { ...filter, from, to };
       render({ filters: !live, focus: !live });
+      if (!live) $("status").textContent = years.el.querySelector("h3")?.textContent ?? "";
     },
   });
   // The year chart and the legend share the strip under the map
@@ -273,6 +274,7 @@ async function start() {
     summary = summarizePlaces(site.permits, filter, placeCount);
     map.show(summary, filter.to);
     years.update(filter);
+    $("year-stamp").textContent = filter.from === filter.to ? String(filter.from) : `${filter.from}–${filter.to}`;
     years.showReset(filtersChanged(), resetFilters);
     if (what.filters) renderFilters();
     if (what.focus) renderFocus(false);

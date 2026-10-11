@@ -87,3 +87,13 @@ export function strokeIcon(kind: "plus" | "minus" | "clear"): SVGSVGElement {
   s.append(p);
   return s;
 }
+
+/** Play and stop, filled, for the Replay button */
+export function controlGlyph(kind: "play" | "stop"): SVGSVGElement {
+  const s = svg(12);
+  const p = document.createElementNS(NS, "path");
+  p.setAttribute("d", kind === "play" ? "M2.5 1.5 L10.5 6 L2.5 10.5 Z" : "M2.5 2.5 H9.5 V9.5 H2.5 Z");
+  p.setAttribute("fill", "currentColor");
+  s.append(p);
+  return s;
+}

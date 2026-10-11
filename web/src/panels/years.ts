@@ -2,6 +2,7 @@ import { yearSpan, type Site } from "../data";
 import { fill, h } from "../dom";
 import { ageOf, ageRanges, countByYear, type Filter } from "../filters";
 import { num, yearsText } from "../format";
+import { controlGlyph } from "../marks";
 
 export interface YearEvents {
   setRange(from: number, to: number, live: boolean): void;
@@ -52,9 +53,10 @@ export function yearStrip(site: Site, ev: YearEvents) {
   const hFrom = handle("from");
   const hTo = handle("to");
   const chart = h("div", { class: "chart" }, bars, hFrom, hTo);
-  const total = h("h3", { "aria-live": "polite" });
+  // Not a live region: it changes on every step of a drag or replay
+  const total = h("h3", {});
   const key = h("p", { class: "key" });
-  const play = h("button", { type: "button", class: "play" });
+  const play = h("button", { type: "button", class: "play primary" });
   // Reset keeps its place while hidden, so showing it never reflows the strip
   const reset = h("button", { type: "button", class: "linkish reset off", "aria-hidden": "true", tabindex: "-1" }, "Reset filters");
   const sparseNote = h("span", { class: "sparse-note" });
@@ -66,7 +68,15 @@ export function yearStrip(site: Site, ev: YearEvents) {
       axis.append(h("span", { style: `left: ${((y - first + 0.5) / span) * 100}%` }, String(y)));
     }
   }
-  const el = h("section", { class: "years", "aria-label": "Years" }, h("div", { class: "head" }, play, total, reset, key, sparseNote), chart, axis);
+  const el = h(
+    "section",
+    { class: "years", "aria-label": "Years" },
+    h("div", { class: "head" }, play, total, reset),
+    chart,
+    axis,
+    h("div", { class: "foot" }, key, sparseNote),
+  );
+  const label = (playing: boolean) => play.replaceChildren(controlGlyph(playing ? "stop" : "play"), playing ? "Stop" : "Replay");
 
   const yearAt = (clientX: number) => {
     const r = bars.getBoundingClientRect();
@@ -147,7 +157,7 @@ export function yearStrip(site: Site, ev: YearEvents) {
     if (!timer) return;
     clearInterval(timer);
     timer = 0;
-    play.textContent = "Replay";
+    label(false);
     const [f, t] = before ?? [from, to];
     before = null;
     set(f, t, false);
@@ -161,7 +171,7 @@ export function yearStrip(site: Site, ev: YearEvents) {
       if (to >= end) return stop();
       set(from, to + 1, true);
     }, 650);
-    play.textContent = "Stop";
+    label(true);
     set(from, from, true);
   });
 
@@ -187,7 +197,7 @@ export function yearStrip(site: Site, ev: YearEvents) {
     hFrom.setAttribute("aria-valuetext", String(from));
     hTo.setAttribute("aria-valuetext", String(to));
     total.textContent = `${num(inRange)} permits, ${yearsText(from, to)}`;
-    if (!timer) play.textContent = "Replay";
+    if (!timer) label(false);
 
     const r = ageRanges(to);
     const clampText = (a: number, b: number) => yearsText(Math.max(a, from), b);
