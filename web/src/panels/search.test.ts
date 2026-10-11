@@ -28,3 +28,8 @@ describe("search results", () => {
     expect(apartMessage(places, apart)).toBe("Speedway Blvd and Grant Rd don't meet. At their closest they're 1.1 mi apart.");
   });
 });
+
+it("counts a whole street under the current filters", () => {
+  const r = describeFound(places, { kind: "street", street: 0, bounds, permits: 1234 }, "speedway", (street) => (street === 0 ? 99 : 0));
+  expect(r.detail).toBe("Whole street, 99 permits");
+});

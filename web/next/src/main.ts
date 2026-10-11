@@ -316,9 +316,7 @@ async function start() {
 
   const [firstYear, lastYear] = yearSpan(site.index);
   $("sheet-title").textContent = `City of Tucson right-of-way permits, ${firstYear} to ${lastYear}`;
-  // the search box is shared with the first page
   const box = searchBox(site.places, (q) => search(q), (f) => go(f));
-  box.append(h("div", { class: "dropdown" }, ...box.querySelectorAll(".results-note, .results, .results-empty")));
   const field = box.querySelector("input")!;
   const clear = h("button", { type: "button", class: "search-clear", "aria-label": "Clear search", hidden: true }, strokeIcon("clear"));
   clear.addEventListener("click", () => {

@@ -4,7 +4,7 @@ import "@fontsource/public-sans/800.css";
 import "leaflet/dist/leaflet.css";
 import "./styles.css";
 
-import { errorMessage, loadSite, yearSpan, type Site } from "./data";
+import { errorMessage, loadSite, PlaceKind, yearSpan, type Site } from "./data";
 import { fill, h } from "./dom";
 import { summarizePlaces, type Filter } from "./filters";
 import { placeName, plural } from "./format";
@@ -17,6 +17,7 @@ import { busiestPanel } from "./panels/busiest";
 import { filtersPanel } from "./panels/filters";
 import { legend } from "./panels/legend";
 import { placePanel, spotPanel } from "./panels/place";
+import { nearby } from "./panels/radius";
 import { describe, searchBox } from "./panels/search";
 import { streetBlocks, streetPanel } from "./panels/street";
 import { yearStrip } from "./panels/years";
@@ -130,6 +131,8 @@ async function start() {
   function resetFilters() {
     filter = initialFilter(site);
     render({ focus: true, filters: true });
+    years.el.querySelector<HTMLElement>(".play")?.focus();
+    $("status").textContent = `Filters reset. ${years.el.querySelector("h3")?.textContent ?? ""}`;
   }
 
   const sameSet = (a: Set<number>, b: Set<number>) => a.size === b.size && [...a].every((x) => b.has(x));
@@ -155,10 +158,27 @@ async function start() {
     }
   }
 
+  /** a new radius redraws only the circle and the nearby section */
   function setRadius(m: number) {
     radiusM = m;
-    renderFocus(true);
     saveHash();
+    if (!focus || focus.kind === "street") return renderFocus(true);
+    const at = focus.kind === "place" ? placeAt(site, focus.place) : focus.at;
+    map.circle(at, radiusM, true);
+    markFocus(at);
+    const old = $("focus").querySelector(".nearby");
+    const listed = !!old?.querySelector(".permit-table");
+    const fresh = nearby(ctx(), at, focus.kind === "place" ? { exclude: focus.place, listNow: listed } : { listNow: true });
+    old?.replaceWith(fresh);
+    fresh.querySelector("select")?.focus();
+  }
+
+  /** the ring and count on the open place or spot, and its radius */
+  function markFocus(at: { lat: number; lng: number }) {
+    notes.clear();
+    const n = focus?.kind === "place" ? summary.count[focus.place]! : 0;
+    notes.mark(at, n ? String(n) : undefined);
+    notes.dimension(at, radiusM);
   }
 
   function renderFocus(move: boolean) {
@@ -177,9 +197,7 @@ async function start() {
       case "place": {
         const at = placeAt(site, focus.place);
         map.circle(at, radiusM, move);
-        const n = summary.count[focus.place]!;
-        notes.mark(at, n ? String(n) : undefined);
-        notes.dimension(at, radiusM);
+        markFocus(at);
         fill(box, placePanel(c, focus.place, focus.note));
         break;
       }
@@ -189,8 +207,7 @@ async function start() {
         break;
       case "spot":
         map.circle(focus.at, radiusM, move);
-        notes.mark(focus.at, undefined);
-        notes.dimension(focus.at, radiusM);
+        markFocus(focus.at);
         fill(box, spotPanel(c, focus.title, focus.at, focus.note));
         break;
     }
@@ -299,7 +316,16 @@ async function start() {
   }
 
   $("lede").textContent = `Every permit to dig up, close or work in a Tucson street, back to ${site.index.dateRange[0].slice(0, 4)}.`;
-  fill($("search"), searchBox(site.places, (q) => search(q), (f) => go(f)));
+  const blocksOf = new Map<number, number[]>();
+  site.places.kind.forEach((k, p) => {
+    if (k !== PlaceKind.Block) return;
+    const s = site.places.street[p]!;
+    const list = blocksOf.get(s);
+    if (list) list.push(p);
+    else blocksOf.set(s, [p]);
+  });
+  const streetCount = (s: number) => (blocksOf.get(s) ?? []).reduce((a, p) => a + summary.count[p]!, 0);
+  fill($("search"), searchBox(site.places, (q) => search(q), (f) => go(f), streetCount));
   fill($("about"), aboutPanel(site.index));
   const restore = () => {
     applyHash();

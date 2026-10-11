@@ -9,6 +9,9 @@ export interface YearEvents {
 
 const markRadius = { solid: "5", ring: "4.2", speck: "1.8" };
 
+// A finger has to travel this far before it counts as a drag rather than a tap
+const SLOP_PX = 8;
+
 const svg = (shape: "solid" | "ring" | "speck") => {
   const ns = "http://www.w3.org/2000/svg";
   const s = document.createElementNS(ns, "svg");
@@ -76,31 +79,54 @@ export function yearStrip(site: Site, ev: YearEvents) {
   };
 
   let dragging: "from" | "to" | null = null;
+  let pending: { id: number; x: number; y: number } | null = null;
+  const nearer = (y: number) => (Math.abs(y - from) <= Math.abs(y - to) ? "from" : "to");
   const dragTo = (y: number) => {
     if (dragging === "from") set(Math.min(y, to), to, true);
     else set(from, Math.max(y, from), true);
   };
-  chart.addEventListener("pointerdown", (e) => {
-    const y = yearAt(e.clientX);
-    if (e.target === hFrom) dragging = "from";
-    else if (e.target === hTo) dragging = "to";
-    else dragging = Math.abs(y - from) <= Math.abs(y - to) ? "from" : "to";
+  const begin = (e: PointerEvent, which: "from" | "to") => {
+    dragging = which;
     chart.setPointerCapture(e.pointerId);
     stop();
-    dragTo(y);
+    dragTo(yearAt(e.clientX));
+  };
+  chart.addEventListener("pointerdown", (e) => {
+    const onHandle = e.target === hFrom ? "from" : e.target === hTo ? "to" : null;
+    if (onHandle) return begin(e, onHandle);
+    if (e.pointerType === "touch") pending = { id: e.pointerId, x: e.clientX, y: e.clientY };
+    else begin(e, nearer(yearAt(e.clientX)));
   });
   chart.addEventListener("pointermove", (e) => {
+    if (pending?.id === e.pointerId) {
+      const dx = Math.abs(e.clientX - pending.x);
+      const dy = Math.abs(e.clientY - pending.y);
+      if (dy > SLOP_PX && dy >= dx) pending = null;
+      else if (dx > SLOP_PX) {
+        pending = null;
+        begin(e, nearer(yearAt(e.clientX)));
+      }
+      return;
+    }
     if (dragging) dragTo(yearAt(e.clientX));
   });
-  const release = () => {
+  const release = (e?: PointerEvent) => {
+    if (e?.type === "pointerup" && pending?.id === e.pointerId) {
+      // A tap with no travel: move the nearer handle there
+      const y = yearAt(e.clientX);
+      dragging = nearer(y);
+      stop();
+      dragTo(y);
+    }
+    pending = null;
     if (!dragging) return;
     dragging = null;
     set(from, to, false);
   };
   chart.addEventListener("pointerup", release);
-  chart.addEventListener("pointercancel", release);
-  chart.addEventListener("lostpointercapture", release);
-  window.addEventListener("blur", release);
+  chart.addEventListener("pointercancel", () => release());
+  chart.addEventListener("lostpointercapture", () => release());
+  window.addEventListener("blur", () => release());
 
   for (const [hd, which] of [[hFrom, "from"], [hTo, "to"]] as const) {
     hd.addEventListener("keydown", (e) => {

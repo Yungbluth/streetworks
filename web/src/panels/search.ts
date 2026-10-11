@@ -5,7 +5,13 @@ import type { Focus } from "../model";
 import type { Found } from "../search";
 import { withoutDirection } from "../street";
 
-export function describe(places: Places, f: Found, q: string): { label: string; detail: string; focus: Focus } {
+export function describe(
+  places: Places,
+  f: Found,
+  q: string,
+  /** A street's permits under the page's current filters, so the count matches what opens. */
+  countOf?: (street: number) => number,
+): { label: string; detail: string; focus: Focus } {
   const street = (i: number) => prettyStreet(places.streets[i] ?? "");
   switch (f.kind) {
     case "address":
@@ -20,7 +26,8 @@ export function describe(places: Places, f: Found, q: string): { label: string; 
         },
       };
     case "street": {
-      const detail = `Whole street, ${num(f.permits)} ${f.permits === 1 ? "permit" : "permits"}`;
+      const n = countOf ? countOf(f.street) : f.permits;
+      const detail = `Whole street, ${num(n)} ${n === 1 ? "permit" : "permits"}`;
       return { label: street(f.street), detail, focus: { kind: "street", street: f.street, q } };
     }
     case "intersection": {
@@ -50,7 +57,12 @@ export function emptyMessage(q: string): string {
   return `No street with permits matches that. Search knows street names, not places or businesses. ${forms}`;
 }
 
-export function searchBox(places: Places, run: (q: string) => Found[], choose: (focus: Focus) => void): HTMLElement {
+export function searchBox(
+  places: Places,
+  run: (q: string) => Found[],
+  choose: (focus: Focus) => void,
+  countOf?: (street: number) => number,
+): HTMLElement {
   const listId = "search-results";
   const input = h("input", {
     type: "search", id: "q", autocomplete: "off", spellcheck: "false",
@@ -89,7 +101,7 @@ export function searchBox(places: Places, run: (q: string) => Found[], choose: (
     const q = input.value.trim();
     if (!q) return close();
     const found = run(q);
-    results = found.map((f) => describe(places, f, q));
+    results = found.map((f) => describe(places, f, q, countOf));
     const first = found[0];
     const gap = first?.kind === "street" ? first.apart : undefined;
     apart.hidden = !gap;
@@ -130,5 +142,6 @@ export function searchBox(places: Places, run: (q: string) => Found[], choose: (
     }
   });
 
-  return h("div", { class: "search", role: "search" }, input, apart, list, empty);
+  // The note, the list and the empty message float together under the field
+  return h("div", { class: "search", role: "search" }, input, h("div", { class: "dropdown" }, apart, list, empty));
 }
