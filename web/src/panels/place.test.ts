@@ -41,23 +41,23 @@ describe("placePanel", () => {
     go: () => {}, setRadius: () => {}, showAllKinds: () => {}, retry: () => {},
   };
 
-  it("leads with the summary, then what's nearby", async () => {
+  it("leads with the summary, then its own permits", async () => {
     const el = placePanel(ctx, 0);
     await new Promise((r) => setTimeout(r, 0));
-    const order = [...el.querySelectorAll(".lead, .nearby, .history")].map((n) => n.className.split(" ")[0]);
-    expect(order).toEqual(["lead", "nearby", "history"]);
+    const order = [...el.querySelectorAll(".lead, .nearby, .permit-wrap")].map((n) => n.className.split(" ")[0]);
+    expect(order).toEqual(["lead", "permit-wrap", "nearby"]);
     expect(el.querySelector(".lead")!.textContent).toBe("2 permits from 2020 to 2024, all Excavation.");
   });
 
-  it("shows each permit as a one-line row that opens to the details", async () => {
+  it("shows each permit as a table line", async () => {
     const el = placePanel(ctx, 0);
     await new Promise((r) => setTimeout(r, 0));
-    const rows = [...el.querySelectorAll(".history details")];
+    const rows = [...el.querySelectorAll(".permit-row")];
     expect(rows).toHaveLength(2);
     const first = rows[0]!;
-    expect(first.querySelector("summary")!.textContent).toContain("Work P1");
-    expect(first.querySelector("summary")!.textContent).toContain("May 6, 2024");
-    expect(first.textContent).toContain("Filed as 100 E A ST");
+    expect(first.querySelector(".permit-date")!.textContent).toBe("May 6, 2024");
+    expect(first.querySelector(".permit-open")!.textContent).toContain("Work P1");
+    expect(first.nextElementSibling!.textContent).toContain("100 E A ST");
   });
 });
 

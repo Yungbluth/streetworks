@@ -13,8 +13,8 @@ test("the built site loads its data and opens a place", async ({ page }) => {
   const name = await busiest.first().textContent();
   await busiest.first().click();
   await expect(page.getByRole("heading", { level: 2, name: name! })).toBeVisible();
-  await expect(page.locator(".history .permit").first()).toBeVisible();
-  await expect(page.locator(".history .error")).toHaveCount(0);
+  await expect(page.locator(".permit-row").first()).toBeVisible();
+  await expect(page.locator(".focus .error")).toHaveCount(0);
 
   expect(errors).toEqual([]);
 });
@@ -53,7 +53,7 @@ test("unchecking a kind doesn't resize the map", async ({ page }) => {
   await expect(page.locator(".years h3")).toBeVisible();
   const height = () => page.locator("#map").evaluate((el) => el.getBoundingClientRect().height);
   const before = await height();
-  await page.locator(".cat input:checked").first().uncheck();
+  await page.locator('.kind[aria-pressed="true"]').first().click();
   await expect(page.getByRole("button", { name: "Reset filters" })).toBeVisible();
   expect(await height()).toBe(before);
 

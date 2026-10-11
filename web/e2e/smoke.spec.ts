@@ -17,7 +17,7 @@ test("search an address", async ({ page }) => {
 
   const heading = page.getByRole("heading", { level: 2, name: "700 block of E Speedway Blvd" });
   await expect(heading).toBeVisible();
-  await expect(page.locator(".history .permit").first()).toContainText("Excavation");
+  await expect(page.locator(".permit-row").first()).toContainText("Excavation");
   expect(page.url()).toContain("place=b%3AE+SPEEDWAY+BLVD%3A700");
 
   const link = page.url();
@@ -31,7 +31,7 @@ test("search an address", async ({ page }) => {
   const box = (await page.locator("#map").boundingBox())!;
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   await expect(heading).toBeVisible();
-  await expect(page.locator(".history .permit")).not.toHaveCount(0);
+  await expect(page.locator(".permit-row")).not.toHaveCount(0);
 
   expect(errors).toEqual([]);
 });
@@ -53,7 +53,7 @@ test("a link restores the years", async ({ page }) => {
 test("the zoom note shows only", async ({ page }) => {
   await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
   await page.goto("/#place=b%3AE+SPEEDWAY+BLVD%3A700");
-  await expect(page.getByRole("heading", { level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "700 block of E Speedway Blvd" })).toBeVisible();
   const note = page.getByText("Zoom in to see older work");
   await expect(note).toBeHidden();
 
@@ -163,7 +163,7 @@ test.describe("keyboard and screen reader", () => {
 
   test("Esc closes the open place", async ({ page }) => {
     await page.goto("/#place=b%3AE+SPEEDWAY+BLVD%3A700");
-    await expect(page.getByRole("heading", { level: 2 })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: "700 block of E Speedway Blvd" })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("heading", { name: "Busiest places in view" })).toBeVisible();
     expect(page.url()).not.toContain("place=");
@@ -171,17 +171,18 @@ test.describe("keyboard and screen reader", () => {
 
 });
 
-test("the year strip says which kinds are shown and leads to them", async ({ page }) => {
+test("the legend sits beside the map", async ({ page }) => {
   await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.setViewportSize({ width: 1400, height: 900 });
   await page.goto("/");
-  const kinds = page.getByRole("button", { name: /^(All \d+ kinds|\d+ of \d+ kinds|1 kind|No kinds)$/ });
-  // The fixture has one kind of work; the real site has nine.
-  await expect(kinds).toHaveText("1 kind");
-  const before = await kinds.textContent();
-  await page.locator(".cat input:checked").first().uncheck();
-  await expect(kinds).not.toHaveText(before!);
-  await kinds.click();
-  await expect(page.getByRole("heading", { name: "Kinds of work" })).toBeInViewport();
+  const kind = page.getByRole("button", { name: /Excavation/ });
+  await expect(kind).toBeInViewport();
+  await expect(kind).toHaveAttribute("aria-pressed", "true");
+  await kind.click();
+  await expect(page.getByRole("button", { name: /Excavation/ })).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByRole("button", { name: /Excavation/ })).toBeFocused();
+  await page.getByRole("button", { name: "What the kinds mean" }).click();
+  await expect(page.getByRole("heading", { name: "What the kinds mean" })).toBeInViewport();
 });
 
 test("changing the filters doesn't resize the map", async ({ page }) => {
@@ -191,7 +192,7 @@ test("changing the filters doesn't resize the map", async ({ page }) => {
   await expect(page.locator(".years h3")).toBeVisible();
   const height = () => page.locator("#map").evaluate((el) => el.getBoundingClientRect().height);
   const before = await height();
-  await page.locator(".cat input:checked").first().uncheck();
+  await page.locator('.kind[aria-pressed="true"]').first().click();
   await expect(page.getByRole("button", { name: "Reset filters" })).toBeVisible();
   expect(await height()).toBe(before);
 });

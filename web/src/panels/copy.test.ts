@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { PlaceKind, type Site } from "../data";
 import { summarizePlaces } from "../filters";
 import type { Ctx } from "../model";
-import { filtersPanel } from "./filters";
+import { aboutPanel } from "./about";
 import { streetPanel } from "./street";
 
 const site = {
@@ -13,10 +13,10 @@ const site = {
   detail: async () => ({}),
 } as Site;
 const filter = { from: 2005, to: 2026, cats: new Set([1]), includeNoWork: false };
-const noop = { setCategory() {}, setNoWork() {}, async setOverlay() {} };
+const quality = { unique_permits: 2, no_block: 0, unplaced: 0, no_date: 0, no_work: 0, date_min: "2020-01-01", date_max: "2021-01-01" };
 
-describe("kinds of work", () => {
-  const text = () => filtersPanel(site, filter, new Set(), noop).textContent ?? "";
+describe("kinds of work, in About", () => {
+  const text = () => aboutPanel({ ...site.index, sparseBefore: 2005, sources: [], quality } as unknown as Site["index"]).textContent ?? "";
   it("says what a dot's color and size mean", () => {
     expect(text()).toContain("A dot's color is the kind of work filed there most often");
   });
@@ -26,14 +26,14 @@ describe("kinds of work", () => {
   });
 });
 
-describe("street rows", () => {
-  it("name blocks as blocks", () => {
+describe("a whole street", () => {
+  it("is a profile of its blocks", () => {
     const ctx: Ctx = {
       site, filter, radiusM: 152, summary: summarizePlaces(site.permits, filter, 2),
       go: () => {}, setRadius: () => {}, showAllKinds: () => {}, retry: () => {},
     };
-    const labels = [...streetPanel(ctx, 0).querySelectorAll(".label")].map((l) => l.textContent);
-    expect(labels).toEqual(["0 block", "100 block"]);
-    expect(streetPanel(ctx, 0).textContent).toContain("2 permits on 2 blocks, in address order.");
+    const labels = [...streetPanel(ctx, 0).querySelectorAll(".station")].map((l) => l.getAttribute("aria-label"));
+    expect(labels).toEqual(["0 block, 1 permit", "100 block, 1 permit"]);
+    expect(streetPanel(ctx, 0).textContent).toContain("2 permits on 2 blocks.");
   });
 });
