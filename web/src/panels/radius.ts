@@ -4,8 +4,8 @@ import { permitsMatching } from "../filters";
 import { distanceMeters, type LatLng } from "../geo";
 import { byDateDesc, detailsFor, permitAt, type Ctx } from "../model";
 import { RADII } from "../url";
-import { categoryBars, failed, loading } from "./common";
-import { historyList } from "./history";
+import { failed, kindSplit, loading, tableStyle } from "./common";
+import { permitTable } from "./table";
 
 export function nearby(ctx: Ctx, center: LatLng, opts: { listNow?: boolean; exclude?: number } = {}): HTMLElement {
   const { site } = ctx;
@@ -38,9 +38,10 @@ export function nearby(ctx: Ctx, center: LatLng, opts: { listNow?: boolean; excl
     ),
   );
   if (!found.length) return out;
-  if (opts.exclude === undefined) out.append(categoryBars(cats, site.index.categories));
+  if (opts.exclude === undefined) out.append(kindSplit(cats, site.index.categories));
 
   const list = h("div", {});
+  let focusList = false;
   const show = async () => {
     list.replaceChildren(loading());
     try {
@@ -58,7 +59,8 @@ export function nearby(ctx: Ctx, center: LatLng, opts: { listNow?: boolean; excl
           };
         })
         .sort((a, b) => byDateDesc(a.detail, b.detail) || a.distanceM - b.distanceM);
-      list.replaceChildren(historyList(entries));
+      list.replaceChildren(permitTable(entries, tableStyle("Away")));
+      if (focusList) list.querySelector<HTMLElement>(".permit-open")?.focus();
     } catch (e) {
       list.replaceChildren(failed("the permits here", e, () => void show()));
     }
@@ -66,7 +68,7 @@ export function nearby(ctx: Ctx, center: LatLng, opts: { listNow?: boolean; excl
   if (opts.listNow) void show();
   else
     list.append(
-      h("button", { type: "button", class: "more", onclick: () => void show() }, `List them, newest first`),
+      h("button", { type: "button", class: "more", onclick: () => ((focusList = true), void show()) }, `List them, newest first`),
     );
   out.append(list);
   return out;

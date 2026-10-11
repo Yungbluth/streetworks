@@ -3,6 +3,7 @@ import { h } from "../dom";
 import { num } from "../format";
 import { swatch } from "../marks";
 import { paint } from "../paint";
+import type { TableStyle } from "./table";
 
 export function panelHead(title: string, onClear: () => void): HTMLElement {
   return h(
@@ -80,3 +81,5 @@ export function kindSplit(counts: Map<number, number>, categories: string[]): HT
     ),
   );
 }
+
+export const tableStyle = (first: TableStyle["first"]): TableStyle => ({ first, button: "more", link: "linkish" });

@@ -1,6 +1,8 @@
 import type { Index } from "../data";
 import { h } from "../dom";
 import { dateText, num } from "../format";
+import { swatch } from "../marks";
+import { kindMeanings } from "./filters";
 
 export function aboutPanel(idx: Index): HTMLElement {
   const q = idx.quality;
@@ -26,6 +28,16 @@ export function aboutPanel(idx: Index): HTMLElement {
       h("li", {}, `${num(q.no_work)} permits were voided, withdrawn or denied, or are still in review. They're hidden unless you include them.`),
       h("li", {}, "A permit near a corner may be filed under either street. Work done without a permit never appears."),
     ),
+    h("h3", { id: "kinds-meaning", tabindex: "-1" }, "What the kinds mean"),
+    h("p", {}, "A dot's color is the kind of work filed there most often. Bigger dots mean more permits."),
+    h(
+      "dl",
+      { class: "kind-meanings" },
+      ...kindMeanings
+        .filter(([name]) => idx.categories.includes(name))
+        .flatMap(([name, meaning]) => [h("dt", {}, swatch(name, 10), name), h("dd", {}, meaning)]),
+    ),
+    h("p", { class: "quiet" }, "Civic event and Small wireless start off: they're mostly street closures and equipment on poles, not digging."),
     h(
       "p",
       { class: "quiet" },

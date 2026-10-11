@@ -14,6 +14,7 @@ import { placeAt, type Ctx, type Focus } from "./model";
 import { aboutPanel } from "./panels/about";
 import { busiestPanel } from "./panels/busiest";
 import { filtersPanel } from "./panels/filters";
+import { legend } from "./panels/legend";
 import { placePanel, spotPanel } from "./panels/place";
 import { describe, searchBox } from "./panels/search";
 import { streetBlocks, streetPanel } from "./panels/street";
@@ -114,10 +115,13 @@ async function start() {
     render({ focus: true, filters: true });
   }
 
-  function showKindsOfWork() {
-    const box = $("filters");
-    box.scrollIntoView({ block: "start", behavior: reducedMotion.matches ? "auto" : "smooth" });
-    box.querySelector<HTMLInputElement>(".cat input")?.focus({ preventScroll: true });
+  /** opens About at its section on the kinds of work */
+  function showMeanings() {
+    const about = $("about").querySelector("details");
+    if (about) about.open = true;
+    const heading = $("kinds-meaning");
+    heading.scrollIntoView({ block: "start", behavior: reducedMotion.matches ? "auto" : "smooth" });
+    heading.focus({ preventScroll: true });
   }
 
   function resetFilters() {
@@ -187,24 +191,40 @@ async function start() {
       render({ filters: !live, focus: !live });
     },
   });
-  $("years").replaceWith(years.el);
+  // The year chart and the legend share the strip under the map
+  const legendSlot = h("div", { class: "legend-slot" });
+  $("years").replaceWith(h("div", { class: "strip", id: "strip" }, years.el, legendSlot));
   years.showZoomNote(map.map.getZoom() < DETAIL_ZOOM);
 
   function renderFilters() {
     fill(
+      legendSlot,
+      legend(
+        site,
+        filter,
+        {
+          setCategory(c, on) {
+            const cats = new Set(filter.cats);
+            if (on) cats.add(c);
+            else cats.delete(c);
+            filter = { ...filter, cats };
+            render({ focus: true, filters: true });
+            legendSlot.querySelectorAll<HTMLButtonElement>(".kind")
+              .forEach((b) => b.querySelector(".kind-name")?.textContent === site.index.categories[c] && b.focus());
+          },
+          setNoWork(on) {
+            filter = { ...filter, includeNoWork: on };
+            render({ focus: true, filters: true });
+            legendSlot.querySelector<HTMLInputElement>(".check input")?.focus();
+          },
+          showMeanings,
+        },
+        "linkish",
+      ),
+    );
+    fill(
       $("filters"),
-      filtersPanel(site, filter, overlaysOn, {
-        setCategory(c, on) {
-          const cats = new Set(filter.cats);
-          if (on) cats.add(c);
-          else cats.delete(c);
-          filter = { ...filter, cats };
-          render({ focus: true });
-        },
-        setNoWork(on) {
-          filter = { ...filter, includeNoWork: on };
-          render({ focus: true, filters: true });
-        },
+      filtersPanel(site, overlaysOn, {
         async setOverlay(name, on) {
           const o = site.index.overlays.find((x) => x.name === name)!;
           if (on) overlaysOn.add(name);
@@ -224,7 +244,6 @@ async function start() {
     map.show(summary, filter.to);
     years.update(filter);
     years.showReset(filtersChanged(), resetFilters);
-    years.showKinds(filter.cats.size, site.index.categories.length, showKindsOfWork);
     if (what.filters) renderFilters();
     if (what.focus) renderFocus(false);
     saveHash();

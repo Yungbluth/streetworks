@@ -17,31 +17,34 @@ export function streetBlocks(ctx: Ctx, street: number): number[] {
 export function streetPanel(ctx: Ctx, street: number): HTMLElement {
   const { site, summary } = ctx;
   const blocks = streetBlocks(ctx, street);
-  const total = blocks.reduce((a, p) => a + summary.count[p]!, 0);
-  const busy = blocks.filter((p) => summary.count[p]! > 0).length;
-  const max = Math.max(1, ...blocks.map((p) => summary.count[p]!));
+  const busy = blocks.filter((p) => summary.count[p]! > 0);
+  const total = busy.reduce((a, p) => a + summary.count[p]!, 0);
+  const open = (p: number) => () => ctx.go({ kind: "place", place: p }, { move: true });
+  const top = [...busy].sort((a, b) => summary.count[b]! - summary.count[a]!).slice(0, 8);
   return h(
     "section",
     { class: "focus" },
     panelHead(prettyStreet(site.places.streets[street]!), () => ctx.go(null)),
-    h("p", { class: "sub" }, `${plural(total, "permit")} on ${plural(busy, "block")}, in address order.`),
-    h(
-      "ul",
-      { class: "bars street" },
-      ...blocks.map((p) =>
-        h(
-          "li",
-          {},
+    h("p", { class: "sub" }, total ? `${plural(total, "permit")} on ${plural(busy.length, "block")}.` : "No permits on this street match the filters."),
+    h("h3", {}, "Blocks in address order"),
+    streetProfile(blocks.map((p) => ({ block: site.places.block[p]!, n: summary.count[p]!, open: open(p) })), String),
+    ...(top.length
+      ? [
+          h("h3", {}, "Busiest blocks"),
           h(
-            "button",
-            { type: "button", onclick: () => ctx.go({ kind: "place", place: p }, { move: true }) },
-            h("span", { class: "label" }, `${site.places.block[p]} block`),
-            h("span", { class: "track" }, h("i", { style: `width: ${Math.round((100 * summary.count[p]!) / max)}%` })),
-            h("span", { class: "n" }, num(summary.count[p]!)),
+            "ol",
+            { class: "busiest" },
+            ...top.map((p) =>
+              h(
+                "li",
+                {},
+                h("button", { type: "button", class: "linkish", onclick: open(p) }, `${site.places.block[p]} block`),
+                h("span", { class: "n" }, num(summary.count[p]!)),
+              ),
+            ),
           ),
-        ),
-      ),
-    ),
+        ]
+      : []),
   );
 }
 

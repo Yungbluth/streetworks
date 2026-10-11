@@ -54,7 +54,6 @@ export function yearStrip(site: Site, ev: YearEvents) {
   const play = h("button", { type: "button", class: "play" });
   // Reset keeps its place while hidden, so showing it never reflows the strip
   const reset = h("button", { type: "button", class: "linkish reset off", "aria-hidden": "true", tabindex: "-1" }, "Reset filters");
-  const kinds = h("button", { type: "button", class: "linkish kinds-jump" });
   const sparseNote = h("span", { class: "sparse-note" });
   const zoomNote = h("span", { class: "zoom-note", hidden: true }, "Zoom in to see older work");
   const axis = h("div", { class: "axis", "aria-hidden": "true" });
@@ -64,7 +63,7 @@ export function yearStrip(site: Site, ev: YearEvents) {
       axis.append(h("span", { style: `left: ${((y - first + 0.5) / span) * 100}%` }, String(y)));
     }
   }
-  const el = h("section", { class: "years", "aria-label": "Years" }, h("div", { class: "head" }, play, total, kinds, reset, key, sparseNote), chart, axis);
+  const el = h("section", { class: "years", "aria-label": "Years" }, h("div", { class: "head" }, play, total, reset, key, sparseNote), chart, axis);
 
   const yearAt = (clientX: number) => {
     const r = bars.getBoundingClientRect();
@@ -184,11 +183,6 @@ export function yearStrip(site: Site, ev: YearEvents) {
     key.classList.toggle("zoomed-out", zoomedOut);
   }
 
-  function showKinds(on: number, all: number, onClick: () => void) {
-    kinds.textContent = all === 1 ? (on ? "1 kind" : "No kinds") : on === all ? `All ${all} kinds` : `${on} of ${all} kinds`;
-    kinds.onclick = onClick;
-  }
-
   function showReset(visible: boolean, onReset: () => void) {
     reset.classList.toggle("off", !visible);
     if (visible) {
@@ -204,5 +198,5 @@ export function yearStrip(site: Site, ev: YearEvents) {
     };
   }
 
-  return { el, update, showReset, showKinds, showZoomNote };
+  return { el, update, showReset, showZoomNote };
 }

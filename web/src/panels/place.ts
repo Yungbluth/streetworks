@@ -1,9 +1,9 @@
 import { h } from "../dom";
 import { placeName, plural } from "../format";
 import { byDateDesc, detailsFor, permitsOf, placeAt, type Ctx } from "../model";
-import { categoryBars, failed, loading, note, panelHead, showAll } from "./common";
-import { historyList } from "./history";
+import { failed, kindSplit, loading, note, panelHead, showAll, tableStyle } from "./common";
 import { nearby } from "./radius";
+import { permitTable } from "./table";
 
 /** The answer to "what's been happening here?" in one sentence */
 export function placeSummary(byCategory: Map<number, number>, years: number[], categories: string[]): string {
@@ -35,11 +35,11 @@ export function placePanel(ctx: Ctx, place: number, extraNote?: string): HTMLEle
     panelHead(placeName(site.places, place), () => ctx.go(null)),
     note(extraNote),
     h("p", { class: "lead" }, placeSummary(byCategory, mine.map((i) => site.permits.year[i]!), site.index.categories)),
-    byCategory.size > 1 ? categoryBars(byCategory, site.index.categories) : null,
+    byCategory.size > 1 ? kindSplit(byCategory, site.index.categories) : null,
     !mine.length && filter.cats.size < site.index.categories.length ? showAll(ctx.showAllKinds) : null,
-    nearby(ctx, placeAt(site, place), { exclude: place }),
     mine.length ? h("h3", {}, "Permits here, newest first") : null,
     history,
+    nearby(ctx, placeAt(site, place), { exclude: place }),
   );
   if (mine.length)
     detailsFor(site, mine)
@@ -47,7 +47,7 @@ export function placePanel(ctx: Ctx, place: number, extraNote?: string): HTMLEle
         const entries = mine
           .map((i) => ({ index: i, category: site.index.categories[site.permits.cat[i]!]!, detail: details.get(i) }))
           .sort((a, b) => byDateDesc(a.detail, b.detail));
-        history.replaceWith(historyList(entries));
+        history.replaceWith(permitTable(entries, tableStyle(null)));
       })
       .catch((e: unknown) => history.replaceChildren(failed("this place's permits", e, ctx.retry)));
   return out;
