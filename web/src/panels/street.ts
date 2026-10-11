@@ -82,9 +82,32 @@ export function streetProfile(stations: Station[], label: (block: number) => str
     buttons[to]!.tabIndex = 0;
     buttons[to]!.focus();
   });
+  const readout = h("p", { class: "profile-readout", "aria-hidden": "true" }, "\u00a0");
+  const at = (clientX: number) => {
+    const r = bars.getBoundingClientRect();
+    return Math.min(stations.length - 1, Math.max(0, Math.floor(((clientX - r.left) / r.width) * stations.length)));
+  };
+  let near = -1;
+  bars.addEventListener("pointermove", (e) => {
+    const i = at(e.clientX);
+    if (i === near) return;
+    buttons[near]?.classList.remove("near");
+    near = i;
+    buttons[i]!.classList.add("near");
+    readout.textContent = `${stations[i]!.block} block · ${plural(stations[i]!.n, "permit")}`;
+  });
+  bars.addEventListener("pointerleave", () => {
+    buttons[near]?.classList.remove("near");
+    near = -1;
+    readout.textContent = "\u00a0";
+  });
+  bars.addEventListener("click", (e) => {
+    if (e.target === bars) stations[at(e.clientX)]!.open();
+  });
   return h(
     "div",
     { class: "profile" },
+    readout,
     bars,
     h("div", { class: "profile-axis", "aria-hidden": "true" }, ...stations.map((s, i) => h("span", {}, ticks[i] ? label(s.block) : ""))),
   );

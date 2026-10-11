@@ -1,5 +1,5 @@
 import type { Age } from "./filters";
-import { edgeFor, paint } from "./paint";
+import { cssVar, edgeFor, paint } from "./paint";
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -32,7 +32,8 @@ export function ageMark(age: Age): SVGSVGElement {
 }
 
 export function swatch(category: string, size = 12): SVGSVGElement {
-  const edge = edgeFor(category);
+  // a page may give every swatch a hairline (--swatch-edge)
+  const edge = edgeFor(category) || cssVar("--swatch-edge") || undefined;
   const r = size / 2 - (edge ? 1 : 0.5);
   return svg(size, circle({ cx: size / 2, cy: size / 2, r, fill: paint(category), ...(edge ? { stroke: edge, "stroke-width": 1 } : {}) }));
 }

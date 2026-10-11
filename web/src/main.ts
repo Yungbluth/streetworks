@@ -143,9 +143,29 @@ async function start() {
     return filter.from !== start.from || filter.to !== start.to || filter.includeNoWork !== start.includeNoWork || !sameSet(filter.cats, start.cats);
   }
 
+  // what opened the current place, so closing it can put the keyboard back
+  let opener: { el: HTMLElement; text: string } | null = null;
+
   function go(f: Focus | null, opts: { move?: boolean } = { move: true }) {
+    if (f && !focus && document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
+      opener = { el: document.activeElement, text: document.activeElement.textContent ?? "" };
+    }
+    const closing = !f && focus !== null;
     focus = f;
     renderFocus(opts.move ?? true);
+    if (closing) {
+      saveHash(true);
+      // the list is redrawn, so find the same button again by its text
+      const back =
+        (opener && document.contains(opener.el) && opener.el) ||
+        [...document.querySelectorAll<HTMLElement>("#focus button, #map")].find((b) => opener && b.textContent === opener.text && opener.text) ||
+        (opener?.el.id === "map" ? $("map") : null) ||
+        $("focus").querySelector<HTMLElement>("h2");
+      opener = null;
+      back?.focus({ preventScroll: true });
+      $("status").textContent = "Closed. Busiest places in view.";
+      return;
+    }
     // a new place is a step people expect Back to undo
     saveHash(true);
     $("focus").querySelector<HTMLElement>("h2")?.focus({ preventScroll: true });

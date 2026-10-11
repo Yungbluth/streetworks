@@ -26,6 +26,7 @@
   --paint-small-wireless-edge: #23252a73;
   --paint-other-edge: #23252a73;
   --paint-edge: #55585d;
+  --swatch-edge: #23252a59;
 
   --panel-width: 408px;
   color-scheme: light;
@@ -44,6 +45,7 @@
     --error: #ff8a80;
     --focus-ring: #6aa6ff;
     --paint-edge: #e9e7e2;
+    --swatch-edge: #e9e7e259;
     /* on asphalt the base layer is a dim grey, and the bright paints need no edge */
     --paint-excavation: #55585e;
     --paint-combo-edge: none;
@@ -826,6 +828,16 @@ h3 {
   outline-offset: 0;
 }
 
+.profile-readout {
+  min-height: 1.5em;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.station.near .station-bar {
+  background: var(--focus-ring);
+}
+
 .profile-axis {
   display: flex;
   gap: 1px;
@@ -1316,8 +1328,21 @@ select {
   }
   .kind,
   .check,
-  .toggle {
+  .toggle,
+  .nearby select {
     min-height: 44px;
+  }
+  .busiest .linkish,
+  .about summary {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .panel-head .linkish {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
   }
   .handle {
     width: 44px;

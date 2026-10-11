@@ -10,6 +10,8 @@ export interface YearEvents {
 
 const markRadius = { solid: "5", ring: "4.2", speck: "1.8" };
 
+const hidden = (text: string) => h("span", { class: "visually-hidden" }, text);
+
 // A finger has to travel this far before it counts as a drag rather than a tap
 const SLOP_PX = 8;
 
@@ -203,9 +205,9 @@ export function yearStrip(site: Site, ev: YearEvents) {
     const clampText = (a: number, b: number) => yearsText(Math.max(a, from), b);
     fill(
       key,
-      h("span", {}, svg("solid"), clampText(r.recent[0], r.recent[1])),
-      r.back[1] >= from ? h("span", { class: "older" }, svg("ring"), clampText(r.back[0], r.back[1])) : null,
-      r.oldBefore > from ? h("span", { class: "older" }, svg("speck"), `${from} to ${r.oldBefore - 1}`) : null,
+      h("span", {}, svg("solid"), hidden("Solid dots: "), clampText(r.recent[0], r.recent[1])),
+      r.back[1] >= from ? h("span", { class: "older" }, svg("ring"), hidden("Rings: "), clampText(r.back[0], r.back[1])) : null,
+      r.oldBefore > from ? h("span", { class: "older" }, svg("speck"), hidden("Specks: "), `${from} to ${r.oldBefore - 1}`) : null,
       zoomNote,
     );
     sparseNote.textContent =

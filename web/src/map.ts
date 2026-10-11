@@ -229,16 +229,13 @@ export class PermitMap {
       if (p !== undefined) events.pick(p);
     });
     let byPointer = false;
-    el.addEventListener("pointerdown", () => (byPointer = true), true);
-    el.addEventListener("keydown", () => (byPointer = false), true);
+    document.addEventListener("pointerdown", () => (byPointer = true), true);
+    document.addEventListener("keydown", () => (byPointer = false), true);
     const tellAim = () => {
       if (document.activeElement === el && !byPointer) events.aimed(aimed(), true);
     };
     el.addEventListener("focus", tellAim);
-    el.addEventListener("blur", () => {
-      byPointer = false;
-      events.aimed(undefined, false);
-    });
+    el.addEventListener("blur", () => events.aimed(undefined, false));
     this.map.on("moveend", tellAim);
   }
 

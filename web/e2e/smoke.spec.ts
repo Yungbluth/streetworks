@@ -272,3 +272,12 @@ test.describe("rewinding", () => {
   });
 
 });
+
+test("a street's profile says which block the pointer is over", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.goto("/#q=e+speedway+blvd");
+  const bars = page.locator(".profile-bars");
+  const box = (await bars.boundingBox())!;
+  await page.mouse.move(box.x + box.width - 2, box.y + box.height / 2);
+  await expect(page.locator(".profile-readout")).toHaveText(/^\d+ block · \d+ permits?$/);
+});

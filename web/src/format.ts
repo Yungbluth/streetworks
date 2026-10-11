@@ -26,8 +26,8 @@ export const plural = (n: number, one: string, many = `${one}s`) => `${num(n)} $
 
 export function feet(m: number): string {
   const ft = m * 3.28084;
-  if (ft >= 1320) return `${(ft / 5280).toFixed(1).replace(/\.0$/, "")} mi`;
-  return `${Math.round(ft / 10) * 10} ft`;
+  if (ft >= 1056) return `${(ft / 5280).toFixed(1).replace(/\.0$/, "")} mi`;
+  return `${num(Math.round(ft / 10) * 10)} ft`;
 }
 
 export const yearsText = (from: number, to: number) => (from === to ? String(from) : `${from} to ${to}`);

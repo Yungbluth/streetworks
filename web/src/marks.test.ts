@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { cloudPath, station } from "./marks";
+// @vitest-environment happy-dom
+import { afterEach, describe, expect, it } from "vitest";
+import { cloudPath, station, swatch } from "./marks";
 
 describe("cloudPath", () => {
   it("draws a closed loop of outward scallops", () => {
@@ -17,4 +18,15 @@ describe("stations", () => {
     expect(station(10000)).toBe("100+00");
   });
 
+});
+
+describe("swatch", () => {
+  afterEach(() => (document.documentElement.style.cssText = ""));
+  it("gets the page's swatch hairline", () => {
+    document.documentElement.style.setProperty("--paint-excavation", "#e7e8e3");
+    document.documentElement.style.setProperty("--paint-excavation-edge", "none");
+    expect(swatch("Excavation").querySelector("circle")!.getAttribute("stroke")).toBeNull();
+    document.documentElement.style.setProperty("--swatch-edge", "#23252a66");
+    expect(swatch("Excavation").querySelector("circle")!.getAttribute("stroke")).toBe("#23252a66");
+  });
 });

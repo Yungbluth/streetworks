@@ -20,7 +20,7 @@ export function busiestPanel(ctx: Ctx, view: L.LatLngBounds): HTMLElement {
   return h(
     "section",
     { class: "focus" },
-    h("h2", {}, "Busiest places in view"),
+    h("h2", { tabindex: "-1" }, "Busiest places in view"),
     top.length
       ? h(
           "ol",

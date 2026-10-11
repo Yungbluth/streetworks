@@ -24,6 +24,9 @@ describe("feet and years", () => {
     expect(feet(10)).toBe("30 ft");
     expect(feet(152)).toBe("500 ft");
     expect(feet(805)).toBe("0.5 mi");
+    // Thousands get a separator, and miles take over at a fifth of a mile
+    expect(feet(300)).toBe("980 ft");
+    expect(feet(330)).toBe("0.2 mi");
   });
   it("says a span of years plainly", () => {
     expect(yearsText(2005, 2026)).toBe("2005 to 2026");
