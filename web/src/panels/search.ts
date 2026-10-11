@@ -49,6 +49,10 @@ export function apartMessage(places: Places, apart: { sides: [number, number]; g
   return `${a} and ${b} don't meet. At their closest they're ${feet(apart.gapM)} apart.`;
 }
 
+const PAUSE_MS = 400;
+// "1200", "1200 E", "1200-1250 n.": a number, maybe a direction, no street yet
+const numberOnly = /^\d{1,6}(?:\s*[-–]\s*\d{1,6})?(?:\s+[nsew]\.?)?\s*$/i;
+
 const zip = /^\s*\d{5}(?:-\d{4})?\s*$/;
 
 export function emptyMessage(q: string): string {
@@ -75,9 +79,11 @@ export function searchBox(
   // said once above the list, rather than under every result
   const apart = h("p", { class: "results-note", hidden: true, role: "status" });
   let results: ReturnType<typeof describe>[] = [];
+  let emptyTimer: number | undefined;
   let active = -1;
 
   const close = () => {
+    clearTimeout(emptyTimer);
     list.hidden = true;
     empty.hidden = true;
     apart.hidden = true;
@@ -117,10 +123,17 @@ export function searchBox(
       ),
     );
     list.hidden = !results.length;
-    empty.hidden = !!results.length;
-    empty.textContent = results.length ? "" : emptyMessage(q);
     input.setAttribute("aria-expanded", String(!!results.length));
     highlight(-1);
+    // Most queries are mid-word, so "nothing matches" waits for a pause
+    clearTimeout(emptyTimer);
+    empty.hidden = true;
+    if (results.length) return;
+    emptyTimer = window.setTimeout(() => {
+      const message = numberOnly.test(q) && !zip.test(q) ? "Now the street, like 1200 E Speedway." : q.length >= 3 ? emptyMessage(q) : "";
+      empty.textContent = message;
+      empty.hidden = !message;
+    }, PAUSE_MS);
   };
 
   input.addEventListener("input", update);

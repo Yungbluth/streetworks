@@ -103,11 +103,11 @@ export function buildSearch(places: Places, perPlace: Uint32Array) {
   const busiestFirst = (l: Street[]) => l.sort((a, b) => b.permits - a.permits);
 
   // the streets a query could mean
-  function matchStreets(q: Query, limit: number): Street[] {
+  function matchStreets(q: Query, limit: number, minPrefix = 2): Street[] {
     const exact = byCore.get(q.core) ?? [];
     const prefix: Street[] = [];
     const contains: Street[] = [];
-    if (q.core.length >= 2) {
+    if (q.core.length >= minPrefix) {
       let i = lowerBound(cores, q.core);
       for (; i < cores.length && cores[i]!.startsWith(q.core); i++) {
         if (cores[i] !== q.core) prefix.push(...byCore.get(cores[i]!)!);
@@ -141,7 +141,8 @@ export function buildSearch(places: Places, perPlace: Uint32Array) {
     if (direct !== undefined) pairs.push({ found: atPlace(direct), d: 0 });
 
     const sidesA = matchStreets(qa, 4);
-    const sidesB = matchStreets(qb, 4);
+    // the second street is usually still being typed: one letter is a start
+    const sidesB = matchStreets(qb, 4, 1);
     for (const sa of sidesA) {
       for (const sb of sidesB) {
         if (sa === sb) continue;
