@@ -72,6 +72,7 @@ async function start() {
   let focus: Focus | null = null;
   const overlaysOn = new Set<string>();
   let summary = summarizePlaces(site.permits, filter, placeCount);
+  let replaying = false;
   const findPlace = placeLookup(site.places);
 
   const tip = $("tip");
@@ -244,7 +245,10 @@ async function start() {
       render({ filters: !live, focus: !live });
       if (!live) $("status").textContent = years.el.querySelector("h3")?.textContent ?? "";
     },
-    replaying: (on) => map.setFilling(on),
+    replaying: (on) => {
+      replaying = on;
+      map.setFilling(on);
+    },
   });
   // The year chart and the legend share the strip under the map
   const legendSlot = h("div", { class: "legend-slot" });
@@ -299,7 +303,7 @@ async function start() {
     map.show(summary, filter.to);
     years.update(filter);
     $("year-stamp").textContent = filter.from === filter.to ? String(filter.from) : `${filter.from}–${filter.to}`;
-    years.showReset(filtersChanged(), resetFilters);
+    years.showReset(filtersChanged() && !replaying, resetFilters);
     if (what.filters) renderFilters();
     if (what.focus) renderFocus(false);
     saveHash();

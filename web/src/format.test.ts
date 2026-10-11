@@ -23,7 +23,12 @@ describe("feet and years", () => {
   it("rounds distances the way people say them", () => {
     expect(feet(10)).toBe("30 ft");
     expect(feet(152)).toBe("500 ft");
-    expect(feet(805)).toBe("0.5 mi");
+    // The radius choices are said in fractions, as their labels are
+    expect(feet(402)).toBe("¼ mi");
+    expect(feet(805)).toBe("½ mi");
+    expect(feet(1207)).toBe("¾ mi");
+    expect(feet(1609)).toBe("1 mi");
+    expect(feet(2414)).toBe("1½ mi");
     // Thousands get a separator, and miles take over at a fifth of a mile
     expect(feet(300)).toBe("980 ft");
     expect(feet(330)).toBe("0.2 mi");

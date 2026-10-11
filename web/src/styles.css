@@ -180,7 +180,7 @@ select {
 .strip {
   grid-area: years;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 430px;
+  grid-template-columns: minmax(0, 1fr) 460px;
   border-top: 1px solid var(--line);
 }
 

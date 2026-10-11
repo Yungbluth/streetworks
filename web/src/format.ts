@@ -24,10 +24,19 @@ const nf = new Intl.NumberFormat("en-US");
 export const num = (n: number) => nf.format(n);
 export const plural = (n: number, one: string, many = `${one}s`) => `${num(n)} ${n === 1 ? one : many}`;
 
+const quarters = ["", "¼", "½", "¾"];
+
 export function feet(m: number): string {
   const ft = m * 3.28084;
-  if (ft >= 1056) return `${(ft / 5280).toFixed(1).replace(/\.0$/, "")} mi`;
-  return `${num(Math.round(ft / 10) * 10)} ft`;
+  if (ft < 1056) return `${num(Math.round(ft / 10) * 10)} ft`;
+  // Past a fifth of a mile people talk in miles.
+  const mi = ft / 5280;
+  const q = Math.round(mi * 4);
+  if (Math.abs(mi - q / 4) < 0.01) {
+    const whole = Math.floor(q / 4);
+    return `${whole > 0 ? whole : ""}${quarters[q % 4]} mi`;
+  }
+  return `${mi.toFixed(1).replace(/\.0$/, "")} mi`;
 }
 
 export const yearsText = (from: number, to: number) => (from === to ? String(from) : `${from} to ${to}`);

@@ -272,6 +272,7 @@ test.describe("rewinding", () => {
     await expect(play.locator("svg")).toBeVisible();
     await play.click();
     await expect(stamp).toHaveText("2005");
+    await expect(page.getByRole("button", { name: "Reset filters" })).toBeHidden();
     await expect(stamp).toHaveText("2005–2006", { timeout: 3000 });
   });
 
