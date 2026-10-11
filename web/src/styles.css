@@ -211,7 +211,8 @@ select {
     order: 0;
     padding-top: 18px;
   }
-  #search {
+  #search,
+  .byline {
     order: 1;
   }
   .map-area {
@@ -421,9 +422,42 @@ select {
 /* ---- panel ------------------------------------------------------------- */
 
 h1 {
-  font-size: 22px;
-  font-weight: 800;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 10px;
   line-height: 1.2;
+}
+
+.wordmark {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.descriptor {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.byline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin-top: -12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.byline a,
+.byline .linkish {
+  color: var(--ink);
+}
+
+.load-error details {
+  font-size: 13px;
+  color: var(--muted);
 }
 
 .lede {

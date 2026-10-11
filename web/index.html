@@ -4,18 +4,24 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="description" content="Every permit to dig up, close or work in a Tucson street, on a map you can rewind." />
-    <title>Tucson street permits</title>
+    <meta name="description" content="Every permit to dig up, close or work in a Tucson street since 1996, on a map you can rewind." />
+    <title>Streetworks · Tucson street permits</title>
   </head>
   <body>
     <p id="status" class="visually-hidden" role="status" aria-live="polite"></p>
     <div class="layout" id="layout">
       <aside class="panel">
         <header>
-          <h1>Tucson street permits</h1>
+          <h1><span class="wordmark">Streetworks</span> <span class="descriptor">Tucson street permits</span></h1>
           <p id="lede" class="lede">Every permit to dig up, close or work in a Tucson street.</p>
         </header>
-        <div id="search"></div>
+        <div id="search"><p class="quiet loading">Loading the permit record…</p></div>
+        <!-- After the search box, so search stays the first thing Tab reaches. -->
+        <p class="byline">
+          <span>By Matthew Yungbluth</span>
+          <a href="https://github.com/yungbluth/streetworks">Source on GitHub</a>
+          <button type="button" class="linkish" id="how">How it works</button>
+        </p>
         <div id="focus"></div>
         <div id="filters"></div>
         <div id="about"></div>

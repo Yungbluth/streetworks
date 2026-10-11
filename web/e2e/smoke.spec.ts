@@ -208,3 +208,42 @@ test("the map marks the open place, letters its radius", async ({ page }) => {
   await page.getByRole("button", { name: "Clear" }).click();
   await expect(page.locator(".place-mark")).toHaveCount(0);
 });
+
+test.describe("the frame around the map", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  });
+
+  test("says what it is", async ({ page }) => {
+    await page.goto("/");
+    await expect(page).toHaveTitle("Streetworks · Tucson street permits");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(/^Streetworks/);
+    await expect(page.getByText("By Matthew Yungbluth")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Source on GitHub" })).toHaveAttribute("href", /github\.com\//);
+    await page.getByRole("button", { name: "How it works" }).click();
+    const heading = page.getByRole("heading", { name: "How it works" });
+    await expect(heading).toBeInViewport();
+    await expect(page.locator(".about")).toContainText("no server");
+  });
+
+  test("shows that the data is loading", async ({ page }) => {
+    await page.route(/data\/permits\.json/, async (r) => {
+      await new Promise((ok) => setTimeout(ok, 1500));
+      await r.continue();
+    });
+    await page.goto("/");
+    await expect(page.getByText(/^Loading/).first()).toBeVisible();
+    await expect(page.locator(".years h3")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/^Loading/)).toHaveCount(0);
+  });
+
+  test("says in plain words", async ({ page }) => {
+    await page.route(/data\/permits\.json/, (r) => r.fulfill({ status: 500, body: "" }));
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "The permit data didn't load" })).toBeVisible();
+    await expect(page.getByText("Check your connection, then try again.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+    // the developer detail is there, folded away
+    await expect(page.getByText("the server said 500")).toBeHidden();
+  });
+});

@@ -55,10 +55,11 @@ async function start() {
       $("map"),
       h(
         "div",
-        { class: "load-error" },
+        { class: "load-error", role: "alert" },
         h("h2", {}, "The permit data didn't load"),
-        h("p", {}, errorMessage(e)),
+        h("p", {}, "Check your connection, then try again."),
         h("button", { type: "button", class: "more", onclick: () => location.reload() }, "Try again"),
+        h("details", {}, h("summary", {}, "Technical details"), h("p", {}, errorMessage(e))),
       ),
     );
     return;
@@ -119,14 +120,15 @@ async function start() {
     render({ focus: true, filters: true });
   }
 
-  /** opens About at its section on the kinds of work */
-  function showMeanings() {
+  function openAbout(section: string) {
     const about = $("about").querySelector("details");
     if (about) about.open = true;
-    const heading = $("kinds-meaning");
+    const heading = $(section);
     heading.scrollIntoView({ block: "start", behavior: reducedMotion.matches ? "auto" : "smooth" });
     heading.focus({ preventScroll: true });
   }
+  const showMeanings = () => openAbout("kinds-meaning");
+  $("how").addEventListener("click", () => openAbout("how-it-works"));
 
   function resetFilters() {
     filter = initialFilter(site);
@@ -315,7 +317,7 @@ async function start() {
     }
   }
 
-  $("lede").textContent = `Every permit to dig up, close or work in a Tucson street, back to ${site.index.dateRange[0].slice(0, 4)}.`;
+  $("lede").textContent = `Every permit to dig up, close or work in a Tucson street, back to ${site.index.dateRange[0].slice(0, 4)}. Drag the years, or press Replay to watch the city fill in.`;
   const blocksOf = new Map<number, number[]>();
   site.places.kind.forEach((k, p) => {
     if (k !== PlaceKind.Block) return;

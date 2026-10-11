@@ -28,8 +28,15 @@ export function aboutPanel(idx: Index): HTMLElement {
       h("li", {}, `${num(q.no_work)} permits were voided, withdrawn or denied, or are still in review. They're hidden unless you include them.`),
       h("li", {}, "A permit near a corner may be filed under either street. Work done without a permit never appears."),
     ),
+    h("h3", { id: "reading-the-map", tabindex: "-1" }, "Reading the map"),
+    h(
+      "ul",
+      {},
+      h("li", {}, "A dot's color is the kind of work filed there most often. Bigger dots mean more permits."),
+      h("li", {}, "Its shape is how recent the newest permit is, within the years you've chosen: solid for the last three years, a ring for the seven before that, a faint speck for older."),
+      h("li", {}, "Zoomed out over the whole city, only solid dots show. Rings and specks appear when you zoom in."),
+    ),
     h("h3", { id: "kinds-meaning", tabindex: "-1" }, "What the kinds mean"),
-    h("p", {}, "A dot's color is the kind of work filed there most often. Bigger dots mean more permits."),
     h(
       "dl",
       { class: "kind-meanings" },
@@ -38,6 +45,12 @@ export function aboutPanel(idx: Index): HTMLElement {
         .flatMap(([name, meaning]) => [h("dt", {}, swatch(name, 10), name), h("dd", {}, meaning)]),
     ),
     h("p", { class: "quiet" }, "Civic event and Small wireless start off: they're mostly street closures and equipment on poles, not digging."),
+    h("h3", { id: "how-it-works", tabindex: "-1" }, "How it works"),
+    h(
+      "p",
+      {},
+      "A Go program downloads the City of Tucson's open right-of-way records every week and writes them as a few compressed files. Everything else happens in your browser: searching, filtering and counting the permits takes milliseconds. There's no server, no geocoder and no API key.",
+    ),
     h(
       "p",
       { class: "quiet" },
