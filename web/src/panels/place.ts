@@ -1,5 +1,6 @@
+import type { Detail } from "../data";
 import { h } from "../dom";
-import { placeName, plural } from "../format";
+import { num, placeName, plural, yearsText } from "../format";
 import { byDateDesc, detailsFor, permitsOf, placeAt, type Ctx } from "../model";
 import { failed, kindSplit, loading, note, panelHead, showAll, tableStyle } from "./common";
 import { nearby } from "./radius";
@@ -22,6 +23,37 @@ export function placeSummary(byCategory: Map<number, number>, years: number[], c
   return `${plural(total, "permit")}${when}, ${kinds}.`;
 }
 
+export function whoFor(details: Detail[]): string | null {
+  const counts = new Map<string, number>();
+  for (const d of details) {
+    const name = d.utility?.trim() || d.applicant?.trim();
+    if (name) counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  const top = [...counts].sort((a, b) => b[1] - a[1]);
+  if (!top.length) return null;
+  if (top.length === 1) return top[0]![1] === 1 ? `Filed for ${top[0]![0]}.` : `All filed for ${top[0]![0]}.`;
+  return `Filed mostly for ${top[0]![0]} (${num(top[0]![1])}) and ${top[1]![0]} (${num(top[1]![1])}).`;
+}
+
+export function perYear(years: number[], from: number, to: number): number[] {
+  const out = new Array<number>(to - from + 1).fill(0);
+  for (const y of years) if (y >= from && y <= to) out[y - from]!++;
+  return out;
+}
+
+/** A place's permits per year as a small strip of bars over the chosen years */
+function placeYears(years: number[], from: number, to: number): HTMLElement {
+  const counts = perYear(years, from, to);
+  const max = Math.max(1, ...counts);
+  const busy = counts.flatMap((n, i) => (n ? [`${num(n)} in ${from + i}`] : []));
+  return h(
+    "figure",
+    { class: "place-years", role: "img", "aria-label": `Permits per year, ${yearsText(from, to)}: ${busy.join(", ")}.` },
+    h("div", { class: "bars" }, ...counts.map((n, i) => h("span", { class: n ? "bar" : "bar none", style: `--h: ${(n / max) * 100}%`, title: `${from + i}: ${plural(n, "permit")}` }))),
+    h("figcaption", { class: "ends", "aria-hidden": "true" }, h("span", {}, String(from)), h("span", {}, String(to))),
+  );
+}
+
 export function placePanel(ctx: Ctx, place: number, extraNote?: string, back?: { label: string; go: () => void }): HTMLElement {
   const { site, filter } = ctx;
   const mine = permitsOf(site, place, filter);
@@ -29,6 +61,7 @@ export function placePanel(ctx: Ctx, place: number, extraNote?: string, back?: {
   for (const i of mine) byCategory.set(site.permits.cat[i]!, (byCategory.get(site.permits.cat[i]!) ?? 0) + 1);
 
   const history = h("div", { class: "history" }, mine.length ? loading() : null);
+  const who = h("p", { class: "who", hidden: true });
   const out = h(
     "section",
     { class: "focus" },
@@ -36,7 +69,9 @@ export function placePanel(ctx: Ctx, place: number, extraNote?: string, back?: {
     panelHead(placeName(site.places, place), () => ctx.go(null)),
     note(extraNote),
     h("p", { class: "lead" }, placeSummary(byCategory, mine.map((i) => site.permits.year[i]!), site.index.categories)),
+    who,
     byCategory.size > 1 ? kindSplit(byCategory, site.index.categories) : null,
+    mine.length > 1 ? placeYears(mine.map((i) => site.permits.year[i]!), filter.from, filter.to) : null,
     !mine.length && filter.cats.size < site.index.categories.length ? showAll(ctx.showAllKinds) : null,
     mine.length ? h("h3", {}, "Permits here, newest first") : null,
     history,
@@ -49,6 +84,11 @@ export function placePanel(ctx: Ctx, place: number, extraNote?: string, back?: {
           .map((i) => ({ index: i, category: site.index.categories[site.permits.cat[i]!]!, detail: details.get(i) }))
           .sort((a, b) => byDateDesc(a.detail, b.detail));
         history.replaceWith(permitTable(entries, tableStyle(null)));
+        const named = whoFor(entries.flatMap((e) => (e.detail ? [e.detail] : [])));
+        if (named) {
+          who.textContent = named;
+          who.hidden = false;
+        }
       })
       .catch((e: unknown) => history.replaceChildren(failed("this place's permits", e, ctx.retry)));
   return out;

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { PlaceKind, type Detail, type Site } from "../data";
 import { summarizePlaces } from "../filters";
 import type { Ctx } from "../model";
-import { placePanel, placeSummary } from "./place";
+import { perYear, placePanel, placeSummary, whoFor } from "./place";
 
 describe("placeSummary", () => {
   const cats = ["Barricade", "Combo", "Excavation"];
@@ -17,6 +17,20 @@ describe("placeSummary", () => {
   });
   it("says so when nothing matches", () => {
     expect(placeSummary(new Map(), [], cats)).toBe("No permits here match the filters.");
+  });
+});
+
+describe("whoFor", () => {
+  const d = (utility?: string, applicant?: string) => ({ utility, applicant }) as Detail;
+  it("names the two it was most often filed for", () => {
+    const ds = [d("Southwest Gas"), d("Southwest Gas"), d(undefined, "Tucson Water"), d("Southwest Gas", "Acme Paving"), d("Tucson Water")];
+    expect(whoFor(ds)).toBe("Filed mostly for Southwest Gas (3) and Tucson Water (2).");
+  });
+});
+
+describe("perYear", () => {
+  it("counts permits in each year of the range, zeros included", () => {
+    expect(perYear([2020, 2022, 2022, 2030, 0], 2019, 2023)).toEqual([0, 1, 0, 2, 0]);
   });
 });
 
@@ -47,6 +61,24 @@ describe("placePanel", () => {
     const order = [...el.querySelectorAll(".lead, .nearby, .permit-wrap")].map((n) => n.className.split(" ")[0]);
     expect(order).toEqual(["lead", "permit-wrap", "nearby"]);
     expect(el.querySelector(".lead")!.textContent).toBe("2 permits from 2020 to 2024, all Excavation.");
+  });
+
+  it("draws its permits per year across the chosen years", () => {
+    const el = placePanel(ctx, 0);
+    const bars = el.querySelectorAll(".place-years .bar");
+    expect(bars).toHaveLength(22);
+    expect(el.querySelector(".place-years")!.getAttribute("aria-label")).toBe("Permits per year, 2005 to 2026: 1 in 2020, 1 in 2024.");
+  });
+
+  it("says who the work was filed for, once the records load", async () => {
+    const named = { ...site, detail: async () => Object.fromEntries(Object.entries(await site.detail("")).map(([k, v]) => [k, { ...v, utility: "Tucson Water" }])) };
+    const el = placePanel({ ...ctx, site: named }, 0);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(el.querySelector(".who")!.textContent).toBe("All filed for Tucson Water.");
+    const plain = placePanel(ctx, 0);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(plain.querySelector(".permit-row")).not.toBeNull();
+    expect(plain.querySelector(".who:not([hidden])")).toBeNull();
   });
 
   it("shows each permit as a table line", async () => {
