@@ -54,7 +54,7 @@ test("the zoom note shows only", async ({ page }) => {
   await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
   await page.goto("/#place=b%3AE+SPEEDWAY+BLVD%3A700");
   await expect(page.getByRole("heading", { level: 2, name: "700 block of E Speedway Blvd" })).toBeVisible();
-  const note = page.getByText("Zoom in to see older work");
+  const note = page.getByText("Zoom in to see rings and specks");
   await expect(note).toBeHidden();
 
   const out = page.locator(".leaflet-control-zoom-out");
@@ -75,18 +75,6 @@ test("replay starts at the first year and steps to the last", async ({ page }) =
   await expect(total).toHaveText(/permits, 2005$/);
   await expect(total).toHaveText(/permits, 2005 to 2006$/, { timeout: 3000 });
   await expect(play).toBeVisible({ timeout: 3000 });
-});
-
-test("Replay ends on the filled-in city and keeps it until the years change", async ({ page }) => {
-  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
-  await page.goto("/");
-  const note = page.getByText("Zoom in to see older work");
-  await expect(note).toBeVisible();
-  await page.getByRole("button", { name: "Replay" }).click();
-  await expect(page.getByRole("button", { name: "Replay" })).toBeVisible({ timeout: 5000 });
-  await expect(note).toBeHidden();
-  await page.getByRole("slider", { name: "First year" }).press("ArrowRight");
-  await expect(note).toBeVisible();
 });
 
 test.describe("on a phone", () => {
@@ -313,22 +301,28 @@ test("a block opened from its street leads back to the street", async ({ page })
   await expect(page.getByRole("heading", { level: 2, name: "E Speedway Blvd" })).toBeVisible();
 });
 
-test("Excavation, the most common kind, stands out from the map in light and dark", async ({ browser }) => {
+test("Excavation keeps its pale paint and shows on the map by its edge", async ({ browser }) => {
   for (const colorScheme of ["light", "dark"] as const) {
     const page = await browser.newPage({ colorScheme });
     await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
     await page.goto("/");
-    const ratio = await page.evaluate(() => {
+    const { paint, edge, map } = await page.evaluate(() => {
       const css = getComputedStyle(document.documentElement);
       const lum = (hex: string) => {
         const c = [1, 3, 5].map((i) => parseInt(hex.trim().slice(i, i + 2), 16) / 255).map((x) => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4));
         return 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!;
       };
-      const a = lum(css.getPropertyValue("--paint-excavation"));
-      const b = lum(css.getPropertyValue("--map"));
-      return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+      const own = css.getPropertyValue("--paint-excavation-edge").trim();
+      return {
+        paint: lum(css.getPropertyValue("--paint-excavation")),
+        edge: own && own !== "none" ? lum(own) : null,
+        map: lum(css.getPropertyValue("--map")),
+      };
     });
-    expect(ratio, colorScheme).toBeGreaterThanOrEqual(3);
+    const ratio = (a: number, b: number) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    expect(paint, colorScheme).toBeGreaterThan(map);
+    const shown = edge === null ? ratio(paint, map) : ratio(edge, map);
+    expect(shown, colorScheme).toBeGreaterThanOrEqual(3);
     await page.close();
   }
 });

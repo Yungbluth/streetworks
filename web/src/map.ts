@@ -20,9 +20,7 @@ class DotLayer extends L.Layer {
   summary?: PlaceSummary;
   end = 0;
   highlighted = new Set<number>();
-  /** true while a replay runs, and after one ends: older work stays on as specks at any zoom */
-  filling = false;
-  /** true only while a replay runs: the year just added gets a halo */
+  // true while a replay runs: the year just added gets a halo
   arrivals = false;
 
   constructor(
@@ -77,7 +75,6 @@ class DotLayer extends L.Layer {
     const order: number[] = [];
     for (let p = 0; p < places.kind.length; p++) {
       if (!summary.count[p]) continue;
-      if (!drawnAge(ageOf(summary.newest[p]!, this.end), zoom, this.filling) && !this.highlighted.has(p)) continue;
       const lat = places.lat[p]! / 1e5;
       const lng = places.lng[p]! / 1e5;
       if (lat < bounds.getSouth() || lat > bounds.getNorth() || lng < bounds.getWest() || lng > bounds.getEast()) continue;
@@ -96,7 +93,7 @@ class DotLayer extends L.Layer {
       const pt = map.latLngToContainerPoint([places.lat[p]! / 1e5, places.lng[p]! / 1e5]);
       const cat = summary.cat[p]!;
       const real = ageOf(summary.newest[p]!, this.end);
-      const age = drawnAge(real, zoom, this.filling) ?? real;
+      const age = drawnAge(real, zoom);
       const own = dotStyle(age, this.radius(summary.count[p]!, metersPerPx), colors[cat]!, edges[cat]);
       // While a street is open, the rest of the map steps back
       const style = this.highlighted.size && !this.highlighted.has(p) ? faded(own) : own;
@@ -263,15 +260,10 @@ export class PermitMap {
   }
 
   /** Keeps older work on the map while a replay fills the city in */
-  /** Keeps older work on the map at any zoom; arrivals also rings the newest year. */
-  setFilling(on: boolean, arrivals = false) {
-    this.dots.filling = on;
-    this.dots.arrivals = arrivals;
+  /** while a replay runs, each year's new dots arrive with a halo */
+  setReplaying(on: boolean) {
+    this.dots.arrivals = on;
     this.dots.redraw();
-  }
-
-  get filling() {
-    return this.dots.filling;
   }
 
   show(summary: PlaceSummary, end: number) {

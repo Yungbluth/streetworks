@@ -73,14 +73,7 @@ async function start() {
   const overlaysOn = new Set<string>();
   let summary = summarizePlaces(site.permits, filter, placeCount);
   let replaying = false;
-  let filled = false;
-  const zoomNote = () => years.showZoomNote(map.map.getZoom() < DETAIL_ZOOM && !map.filling);
-  function unfill() {
-    if (!filled) return;
-    filled = false;
-    map.setFilling(false);
-    zoomNote();
-  }
+  const zoomNote = () => years.showZoomNote(map.map.getZoom() < DETAIL_ZOOM);
   const findPlace = placeLookup(site.places);
 
   const tip = $("tip");
@@ -140,7 +133,6 @@ async function start() {
   $("how").addEventListener("click", () => openAbout("how-it-works"));
 
   function resetFilters() {
-    unfill();
     filter = initialFilter(site);
     render({ focus: true, filters: true });
     years.el.querySelector<HTMLElement>(".play")?.focus();
@@ -251,16 +243,13 @@ async function start() {
 
   const years = yearStrip(site, {
     setRange(from, to, live) {
-      if (from !== filter.from || to !== filter.to) unfill();
       filter = { ...filter, from, to };
       render({ filters: true, focus: !live || !focus });
       if (!live) $("status").textContent = years.el.querySelector("h3")?.textContent ?? "";
     },
-    replaying: (on, finished) => {
+    replaying: (on) => {
       replaying = on;
-      filled = !on && !!finished;
-      map.setFilling(on || filled, on);
-      zoomNote();
+      map.setReplaying(on);
     },
   });
   // The year chart and the legend share the strip under the map

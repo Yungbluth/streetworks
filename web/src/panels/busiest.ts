@@ -59,7 +59,7 @@ function dotKey(commonest: string[]): HTMLElement {
       {},
       ...row("Color", commonest.slice(0, 3).map((c) => swatch(c, 12)), "The kind of work filed there most often."),
       ...row("Size", [inkDot(6), inkDot(10), inkDot(14)], "How many permits."),
-      ...row("Shape", [ageMark("recent"), ageMark("back"), ageMark("old")], "How recent: solid for the last three years, a ring for the seven before, a speck for older."),
+      ...row("Shape", [ageMark("recent"), ageMark("back"), ageMark("old")], "Zoomed in, how recent: solid for the last three years, a ring for the seven before, a speck for older."),
     ),
   );
 }

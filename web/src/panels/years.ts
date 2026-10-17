@@ -66,7 +66,7 @@ export function yearStrip(site: Site, ev: YearEvents) {
   const key = h("p", { class: "key" });
   const play = h("button", { type: "button", class: "play primary" });
   const sparseNote = h("span", { class: "sparse-note" });
-  const zoomNote = h("span", { class: "zoom-note", hidden: true }, "Zoom in to see older work");
+  const zoomNote = h("span", { class: "zoom-note", hidden: true }, "Zoom in to see rings and specks");
   const axis = h("div", { class: "axis", "aria-hidden": "true" });
   for (let y = first; y <= last; y++) {
     // every fifth year and the ends, unless an end would crowd its neighbour

@@ -10,9 +10,9 @@
   --error: #a3161c;
   --focus-ring: #0b7a75;
 
-  /* Excavation, the digging the site is about, is drawn in the page's ink */
-  --paint-excavation: #23252a;
-  --paint-excavation-edge: none;
+  /* Excavation is the crews' white paint */
+  --paint-excavation: #f4f4f0;
+  --paint-excavation-edge: #55585d;
   /* barricades are cones and closures, not digging */
   --paint-barricade: #dc6a9c;
   --paint-combo: #f2c12e;
@@ -47,7 +47,9 @@
     --focus-ring: #4fd1c5;
     --paint-edge: #e9e7e2;
     --swatch-edge: #e9e7e259;
+    /* On asphalt the white shows by itself, and the bright paints need no edge */
     --paint-excavation: #e9e7e2;
+    --paint-excavation-edge: none;
     --paint-combo-edge: none;
     --paint-small-wireless-edge: none;
     --paint-other-edge: none;

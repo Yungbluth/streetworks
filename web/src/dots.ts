@@ -26,14 +26,10 @@ export function dotStyle(age: Age, full: number, color: string, edge?: string): 
   }
 }
 
-/** the zoom at which older work joins the map */
 export const DETAIL_ZOOM = 14;
 
-export const visibleAt = (age: Age, zoom: number) => age === "recent" || zoom >= DETAIL_ZOOM;
-
-export function drawnAge(age: Age, zoom: number, filling: boolean): Age | null {
-  if (visibleAt(age, zoom)) return age;
-  return filling ? "old" : null;
+export function drawnAge(age: Age, zoom: number): Age {
+  return zoom >= DETAIL_ZOOM ? age : "recent";
 }
 
 /** During a replay, whether a place's newest work is the year just added. */

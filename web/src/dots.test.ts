@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DETAIL_ZOOM, arriving, dotStyle, drawnAge, faded, visibleAt } from "./dots";
+import { DETAIL_ZOOM, arriving, dotStyle, drawnAge, faded } from "./dots";
 
 describe("dotStyle", () => {
   it("draws recent work solid", () => {
@@ -25,16 +25,6 @@ describe("dotStyle", () => {
 
 });
 
-describe("visibleAt", () => {
-  it("shows only recent work at city zoom", () => {
-    expect(visibleAt("recent", 11)).toBe(true);
-    expect(visibleAt("back", 11)).toBe(false);
-    expect(visibleAt("old", 13)).toBe(false);
-    expect(visibleAt("back", DETAIL_ZOOM)).toBe(true);
-    expect(visibleAt("old", 17)).toBe(true);
-  });
-});
-
 describe("faded", () => {
   it("fades a dot that isn't part of the selection", () => {
     const style = dotStyle("back", 6, "#e8418c");
@@ -46,12 +36,12 @@ describe("faded", () => {
 });
 
 describe("drawnAge", () => {
-  it("leaves older work off at city zoom", () => {
-    expect(drawnAge("back", 11, false)).toBeNull();
-    expect(drawnAge("back", 11, true)).toBe("old");
-    expect(drawnAge("old", 11, true)).toBe("old");
-    expect(drawnAge("recent", 11, false)).toBe("recent");
-    expect(drawnAge("back", DETAIL_ZOOM, false)).toBe("back");
+  it("draws every dot solid at city zoom", () => {
+    expect(drawnAge("back", 11)).toBe("recent");
+    expect(drawnAge("old", 13)).toBe("recent");
+    expect(drawnAge("recent", 11)).toBe("recent");
+    expect(drawnAge("back", DETAIL_ZOOM)).toBe("back");
+    expect(drawnAge("old", 17)).toBe("old");
   });
 });
 
