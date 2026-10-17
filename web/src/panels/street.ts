@@ -87,6 +87,7 @@ export function streetProfile(stations: Station[], label: (block: number) => str
     const r = bars.getBoundingClientRect();
     return Math.min(stations.length - 1, Math.max(0, Math.floor(((clientX - r.left) / r.width) * stations.length)));
   };
+  const say = (i: number) => `${stations[i]!.block} block · ${plural(stations[i]!.n, "permit")}`;
   let near = -1;
   bars.addEventListener("pointermove", (e) => {
     const i = at(e.clientX);
@@ -94,12 +95,20 @@ export function streetProfile(stations: Station[], label: (block: number) => str
     buttons[near]?.classList.remove("near");
     near = i;
     buttons[i]!.classList.add("near");
-    readout.textContent = `${stations[i]!.block} block · ${plural(stations[i]!.n, "permit")}`;
+    readout.textContent = say(i);
   });
   bars.addEventListener("pointerleave", () => {
     buttons[near]?.classList.remove("near");
     near = -1;
     readout.textContent = "\u00a0";
+  });
+  // the keyboard gets the same readout for the block it's on
+  bars.addEventListener("focusin", (e) => {
+    const i = buttons.indexOf(e.target as HTMLButtonElement);
+    if (i >= 0) readout.textContent = say(i);
+  });
+  bars.addEventListener("focusout", () => {
+    if (near < 0) readout.textContent = "\u00a0";
   });
   bars.addEventListener("click", (e) => {
     if (e.target === bars) stations[at(e.clientX)]!.open();

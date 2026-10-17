@@ -46,6 +46,8 @@ export function yearStrip(site: Site, ev: YearEvents) {
   let to = last;
   let timer = 0;
   let before: [number, number] | null = null;
+  // once someone has moved the years, they don't need telling how
+  let moved = false;
 
   const bars = h("div", { class: "bars" });
   const yearBars = Array.from({ length: span }, (_, i) => bars.appendChild(h("div", { title: String(first + i) })));
@@ -76,10 +78,10 @@ export function yearStrip(site: Site, ev: YearEvents) {
   const el = h(
     "section",
     { class: "years", "aria-label": "Years" },
-    h("div", { class: "head" }, play, total, reset),
+    h("div", { class: "head" }, play, total),
     chart,
     axis,
-    h("div", { class: "foot" }, key, sparseNote),
+    h("div", { class: "foot" }, key, h("div", { class: "note-row" }, sparseNote, reset)),
   );
   const label = (playing: boolean) => play.replaceChildren(controlGlyph(playing ? "stop" : "play"), playing ? "Stop" : "Replay");
 
@@ -97,6 +99,7 @@ export function yearStrip(site: Site, ev: YearEvents) {
   let pending: { id: number; x: number; y: number } | null = null;
   const nearer = (y: number) => (Math.abs(y - from) <= Math.abs(y - to) ? "from" : "to");
   const dragTo = (y: number) => {
+    moved = true;
     if (dragging === "from") set(Math.min(y, to), to, true);
     else set(from, Math.max(y, from), true);
   };
@@ -153,6 +156,7 @@ export function yearStrip(site: Site, ev: YearEvents) {
       if (y === undefined) return;
       e.preventDefault();
       stop();
+      moved = true;
       if (which === "from") set(Math.max(first, Math.min(y, to)), to, false);
       else set(from, Math.min(last, Math.max(y, from)), false);
     });
@@ -218,7 +222,9 @@ export function yearStrip(site: Site, ev: YearEvents) {
     sparseNote.textContent =
       from < sparse
         ? `Before ${sparse} the city's records are thin, so those years look quieter than they were.`
-        : "Drag either end of the chart to choose the years.";
+        : moved
+          ? "\u00a0"
+          : "Drag either end to choose the years.";
   }
 
   function showZoomNote(zoomedOut: boolean) {
