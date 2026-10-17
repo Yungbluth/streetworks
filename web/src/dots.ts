@@ -36,4 +36,7 @@ export function drawnAge(age: Age, zoom: number, filling: boolean): Age | null {
   return filling ? "old" : null;
 }
 
+/** During a replay, whether a place's newest work is the year just added. */
+export const arriving = (newest: number, end: number, replaying: boolean) => replaying && newest === end;
+
 export const faded = (s: DotStyle): DotStyle => ({ ...s, alpha: s.alpha * 0.25 });

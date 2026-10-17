@@ -92,3 +92,14 @@ test.describe("on a phone", () => {
   });
 
 });
+
+test("the legend's counts follow Replay as it runs", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.goto("/");
+  const count = page.getByRole("button", { name: /Excavation/ }).locator(".kind-n");
+  const full = await count.textContent();
+  await page.getByRole("button", { name: "Replay" }).click();
+  await expect(count).not.toHaveText(full!, { timeout: 2000 });
+  await page.getByRole("button", { name: "Stop" }).click();
+  await expect(count).toHaveText(full!);
+});

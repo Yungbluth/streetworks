@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DETAIL_ZOOM, dotStyle, drawnAge, faded, visibleAt } from "./dots";
+import { DETAIL_ZOOM, arriving, dotStyle, drawnAge, faded, visibleAt } from "./dots";
 
 describe("dotStyle", () => {
   it("draws recent work solid", () => {
@@ -52,5 +52,13 @@ describe("drawnAge", () => {
     expect(drawnAge("old", 11, true)).toBe("old");
     expect(drawnAge("recent", 11, false)).toBe("recent");
     expect(drawnAge("back", DETAIL_ZOOM, false)).toBe("back");
+  });
+});
+
+describe("arriving", () => {
+  it("marks the year a replay has just added", () => {
+    expect(arriving(2019, 2019, true)).toBe(true);
+    expect(arriving(2018, 2019, true)).toBe(false);
+    expect(arriving(2019, 2019, false)).toBe(false);
   });
 });

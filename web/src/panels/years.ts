@@ -6,7 +6,8 @@ import { controlGlyph } from "../marks";
 
 export interface YearEvents {
   setRange(from: number, to: number, live: boolean): void;
-  replaying?(on: boolean): void;
+  // Replay started (true) or stopped; finished is true when it ran to the end
+  replaying?(on: boolean, finished?: boolean): void;
 }
 
 const markRadius = { solid: "5", ring: "4.2", speck: "1.8" };
@@ -162,11 +163,11 @@ export function yearStrip(site: Site, ev: YearEvents) {
     });
   }
 
-  function stop() {
+  function stop(finished = false) {
     if (!timer) return;
     clearInterval(timer);
     timer = 0;
-    ev.replaying?.(false);
+    ev.replaying?.(false, finished);
     label(false);
     const [f, t] = before ?? [from, to];
     before = null;
@@ -179,7 +180,7 @@ export function yearStrip(site: Site, ev: YearEvents) {
     ev.replaying?.(true);
     // start the timer first: setting the range redraws this strip
     timer = window.setInterval(() => {
-      if (to >= end) return stop();
+      if (to >= end) return stop(true);
       set(from, to + 1, true);
     }, STEP_MS);
     label(true);
@@ -216,7 +217,7 @@ export function yearStrip(site: Site, ev: YearEvents) {
       key,
       h("span", {}, svg("solid"), hidden("Solid dots: "), clampText(r.recent[0], r.recent[1])),
       r.back[1] >= from ? h("span", { class: "older" }, svg("ring"), hidden("Rings: "), clampText(r.back[0], r.back[1])) : null,
-      r.oldBefore > from ? h("span", { class: "older" }, svg("speck"), hidden("Specks: "), `${from} to ${r.oldBefore - 1}`) : null,
+      r.oldBefore > from ? h("span", { class: "older" }, svg("speck"), hidden("Specks: "), yearsText(from, r.oldBefore - 1)) : null,
       zoomNote,
     );
     sparseNote.textContent =

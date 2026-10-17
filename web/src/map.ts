@@ -1,6 +1,6 @@
 import L from "leaflet";
 import type { Index, Places, TileSource } from "./data";
-import { dotStyle, drawnAge, faded } from "./dots";
+import { arriving, dotStyle, drawnAge, faded } from "./dots";
 import { overlayPopup } from "./overlay";
 import { ageOf, type PlaceSummary } from "./filters";
 import type { LatLng } from "./geo";
@@ -20,8 +20,10 @@ class DotLayer extends L.Layer {
   summary?: PlaceSummary;
   end = 0;
   highlighted = new Set<number>();
-  /** True while a replay runs: older work stays on as specks at any zoom */
+  /** true while a replay runs, and after one ends: older work stays on as specks at any zoom */
   filling = false;
+  /** true only while a replay runs: the year just added gets a halo */
+  arrivals = false;
 
   constructor(
     private places: Places,
@@ -103,6 +105,14 @@ class DotLayer extends L.Layer {
       d.y[i] = pt.y;
       d.r[i] = Math.max(style.r, 4); // a comfortable target to click, whatever is drawn
 
+      if (arriving(summary.newest[p]!, this.end, this.arrivals)) {
+        ctx.globalAlpha = 0.35;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, style.r + 3, 0, Math.PI * 2);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = colors[cat]!;
+        ctx.stroke();
+      }
       ctx.globalAlpha = style.alpha;
       ctx.beginPath();
       ctx.arc(pt.x, pt.y, style.r, 0, Math.PI * 2);
@@ -253,9 +263,15 @@ export class PermitMap {
   }
 
   /** Keeps older work on the map while a replay fills the city in */
-  setFilling(on: boolean) {
+  /** Keeps older work on the map at any zoom; arrivals also rings the newest year. */
+  setFilling(on: boolean, arrivals = false) {
     this.dots.filling = on;
+    this.dots.arrivals = arrivals;
     this.dots.redraw();
+  }
+
+  get filling() {
+    return this.dots.filling;
   }
 
   show(summary: PlaceSummary, end: number) {

@@ -7,7 +7,7 @@ import "./styles.css";
 import { errorMessage, loadSite, PlaceKind, yearSpan, type Site } from "./data";
 import { fill, h } from "./dom";
 import { summarizePlaces, type Filter } from "./filters";
-import { placeName, plural, prettyStreet } from "./format";
+import { feet, placeName, plural, prettyStreet } from "./format";
 import { DETAIL_ZOOM } from "./dots";
 import { Annotations, mapDevices } from "./annotations";
 import { PermitMap } from "./map";
@@ -22,7 +22,7 @@ import { describe, searchBox } from "./panels/search";
 import { streetBlocks, streetPanel } from "./panels/street";
 import { yearStrip } from "./panels/years";
 import { buildSearch } from "./search";
-import { DEFAULT_RADIUS, fromHash, placeKey, placeLookup, toHash } from "./url";
+import { DEFAULT_RADIUS, RADII, fromHash, placeKey, placeLookup, toHash } from "./url";
 
 const $ = (id: string) => document.getElementById(id)!;
 const dark = window.matchMedia("(prefers-color-scheme: dark)");
@@ -73,6 +73,14 @@ async function start() {
   const overlaysOn = new Set<string>();
   let summary = summarizePlaces(site.permits, filter, placeCount);
   let replaying = false;
+  let filled = false;
+  const zoomNote = () => years.showZoomNote(map.map.getZoom() < DETAIL_ZOOM && !map.filling);
+  function unfill() {
+    if (!filled) return;
+    filled = false;
+    map.setFilling(false);
+    zoomNote();
+  }
   const findPlace = placeLookup(site.places);
 
   const tip = $("tip");
@@ -96,13 +104,13 @@ async function start() {
     moved: () => {
       if (!focus) renderFocus(false);
     },
-    zoomed: (zoom) => years.showZoomNote(zoom < DETAIL_ZOOM),
+    zoomed: () => zoomNote(),
     aimed: (place, active) => {
       aim.hidden = !active;
       aimLine.textContent = !active
         ? ""
         : place === undefined
-          ? "Nothing at the centre. Arrow keys move the map."
+          ? "Nothing at the center. Arrow keys move the map."
           : `Enter opens ${placeName(site.places, place)} (${plural(summary.count[place]!, "permit")})`;
     },
   });
@@ -132,6 +140,7 @@ async function start() {
   $("how").addEventListener("click", () => openAbout("how-it-works"));
 
   function resetFilters() {
+    unfill();
     filter = initialFilter(site);
     render({ focus: true, filters: true });
     years.el.querySelector<HTMLElement>(".play")?.focus();
@@ -195,6 +204,7 @@ async function start() {
     const fresh = nearby(ctx(), at, focus.kind === "place" ? { exclude: focus.place, listNow: listed } : { listNow: true });
     old?.replaceWith(fresh);
     fresh.querySelector("select")?.focus();
+    $("status").textContent = `Nearby now means within ${RADII.find((r) => r.m === m)?.label ?? feet(m)}.`;
   }
 
   /** the ring and count on the open place or spot, and its radius */
@@ -241,19 +251,27 @@ async function start() {
 
   const years = yearStrip(site, {
     setRange(from, to, live) {
+      if (from !== filter.from || to !== filter.to) unfill();
       filter = { ...filter, from, to };
-      render({ filters: !live, focus: !live });
+      render({ filters: true, focus: !live || !focus });
       if (!live) $("status").textContent = years.el.querySelector("h3")?.textContent ?? "";
     },
-    replaying: (on) => {
+    replaying: (on, finished) => {
       replaying = on;
-      map.setFilling(on);
+      filled = !on && !!finished;
+      map.setFilling(on || filled, on);
+      zoomNote();
     },
   });
   // The year chart and the legend share the strip under the map
   const legendSlot = h("div", { class: "legend-slot" });
   $("years").replaceWith(h("div", { class: "strip", id: "strip" }, years.el, legendSlot));
-  years.showZoomNote(map.map.getZoom() < DETAIL_ZOOM);
+  zoomNote();
+  // the strip isn't a control itself, so the skip link lands on Replay
+  document.querySelector<HTMLAnchorElement>(".skip")!.addEventListener("click", (e) => {
+    e.preventDefault();
+    years.el.querySelector<HTMLElement>(".play")?.focus();
+  });
 
   function renderFilters() {
     fill(
@@ -268,6 +286,7 @@ async function start() {
             else cats.delete(c);
             filter = { ...filter, cats };
             render({ focus: true, filters: true });
+            $("status").textContent = `${site.index.categories[c]} ${on ? "shown" : "hidden"}. ${years.el.querySelector("h3")?.textContent ?? ""}`;
             legendSlot.querySelectorAll<HTMLButtonElement>(".kind")
               .forEach((b) => b.querySelector(".kind-name")?.textContent === site.index.categories[c] && b.focus());
           },

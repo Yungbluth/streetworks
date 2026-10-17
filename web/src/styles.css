@@ -8,7 +8,7 @@
   --bar-off: #c9cbc5;
   --overlay: #1f6dd0;
   --error: #a3161c;
-  --focus-ring: #1f6dd0;
+  --focus-ring: #0b7a75;
 
   /* Excavation, the digging the site is about, is drawn in the page's ink */
   --paint-excavation: #23252a;
@@ -44,7 +44,7 @@
     --bar-off: #3a3d42;
     --overlay: #6aa6ff;
     --error: #ff8a80;
-    --focus-ring: #6aa6ff;
+    --focus-ring: #4fd1c5;
     --paint-edge: #e9e7e2;
     --swatch-edge: #e9e7e259;
     --paint-excavation: #e9e7e2;
@@ -398,6 +398,7 @@ select {
   background: color-mix(in srgb, var(--panel) 80%, transparent) !important;
   color: var(--ink) !important;
   font: 600 11px/1.4 "Public Sans", system-ui, sans-serif !important;
+  text-shadow: none !important;
 }
 
 .leaflet-control-zoom a {
@@ -439,6 +440,20 @@ h1 {
 .byline a,
 .byline .linkish {
   color: var(--ink);
+}
+
+.skip {
+  position: absolute;
+  left: -9999px;
+}
+
+.skip:focus {
+  position: static;
+  justify-self: start;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--ink);
+  color: var(--panel);
 }
 
 .load-error details {
@@ -560,7 +575,8 @@ h3 {
   right: 0;
   top: calc(100% + 4px);
   display: grid;
-  gap: 4px;
+  /* No gap: the note and the list read as one popup, with nothing showing through between them */
+  gap: 0;
   filter: drop-shadow(0 4px 10px rgb(0 0 0 / 0.12));
 }
 
@@ -1404,7 +1420,11 @@ select {
     min-height: 44px;
   }
   .busiest .linkish,
-  .about summary {
+  .about summary,
+  .byline a,
+  .byline .linkish,
+  .years .reset,
+  .legend-foot .linkish {
     display: inline-flex;
     align-items: center;
     min-height: 44px;

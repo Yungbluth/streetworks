@@ -77,6 +77,18 @@ test("replay starts at the first year and steps to the last", async ({ page }) =
   await expect(play).toBeVisible({ timeout: 3000 });
 });
 
+test("Replay ends on the filled-in city and keeps it until the years change", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.goto("/");
+  const note = page.getByText("Zoom in to see older work");
+  await expect(note).toBeVisible();
+  await page.getByRole("button", { name: "Replay" }).click();
+  await expect(page.getByRole("button", { name: "Replay" })).toBeVisible({ timeout: 5000 });
+  await expect(note).toBeHidden();
+  await page.getByRole("slider", { name: "First year" }).press("ArrowRight");
+  await expect(note).toBeVisible();
+});
+
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
@@ -299,4 +311,24 @@ test("a block opened from its street leads back to the street", async ({ page })
   await page.locator(".busiest .linkish").first().click();
   await page.getByRole("button", { name: "Back to E Speedway Blvd" }).click();
   await expect(page.getByRole("heading", { level: 2, name: "E Speedway Blvd" })).toBeVisible();
+});
+
+test("Excavation, the most common kind, stands out from the map in light and dark", async ({ browser }) => {
+  for (const colorScheme of ["light", "dark"] as const) {
+    const page = await browser.newPage({ colorScheme });
+    await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+    await page.goto("/");
+    const ratio = await page.evaluate(() => {
+      const css = getComputedStyle(document.documentElement);
+      const lum = (hex: string) => {
+        const c = [1, 3, 5].map((i) => parseInt(hex.trim().slice(i, i + 2), 16) / 255).map((x) => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4));
+        return 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!;
+      };
+      const a = lum(css.getPropertyValue("--paint-excavation"));
+      const b = lum(css.getPropertyValue("--map"));
+      return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    });
+    expect(ratio, colorScheme).toBeGreaterThanOrEqual(3);
+    await page.close();
+  }
 });

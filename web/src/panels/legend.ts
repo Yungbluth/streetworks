@@ -1,7 +1,7 @@
 import type { Site } from "../data";
 import { h } from "../dom";
 import { matcher, type Filter } from "../filters";
-import { num } from "../format";
+import { num, plural } from "../format";
 import { strokeIcon, swatch } from "../marks";
 
 export interface LegendEvents {
@@ -44,6 +44,7 @@ export function legend(site: Site, f: Filter, ev: LegendEvents, linkClass = "lin
             "button",
             {
               type: "button", class: "kind", "aria-pressed": String(pressed),
+              "aria-label": `${name}, ${plural(counts[c]!, "permit")}`,
               title: pressed ? `Hide ${name}` : `Show ${name}`,
               onclick: () => ev.setCategory(c, !pressed),
             },
