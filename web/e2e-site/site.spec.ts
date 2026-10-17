@@ -103,3 +103,13 @@ test("the legend's counts follow Replay as it runs", async ({ page }) => {
   await page.getByRole("button", { name: "Stop" }).click();
   await expect(count).toHaveText(full!);
 });
+
+test("one kind can be shown on its own", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.goto("/");
+  await page.getByRole("combobox", { name: "Show only one kind" }).selectOption("Utility");
+  await expect(page.getByRole("button", { name: /^Utility/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: /^Excavation/ })).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".legend .cell-count")).toHaveText("1 of 9 shown");
+  await expect(page.locator("#status")).toHaveText(/^Only Utility shown\. /);
+});

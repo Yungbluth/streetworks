@@ -9,6 +9,10 @@ export interface LegendEvents {
   setNoWork(on: boolean): void;
   /** Where "What the kinds mean" leads. */
   showMeanings(): void;
+  /** If given, a picker that shows one kind alone. */
+  showOnly?(c: number): void;
+  /** if given, Reset sits in the legend's head; it's hidden while there's nothing to reset */
+  reset?: { visible: boolean; go(): void };
 }
 
 // permits of each kind under the years and no-work choice, ignoring which kinds are on
@@ -26,11 +30,38 @@ export function legend(site: Site, f: Filter, ev: LegendEvents, linkClass = "lin
   const all = site.index.categories.length;
   // Busiest kinds first, so the colours that fill the map lead the key.
   const order = site.index.categories.map((_, c) => c).sort((a, b) => counts[b]! - counts[a]!);
+  const label = h("h2", { class: "cell-label" }, "Legend: kind of work", h("span", { class: "cell-count" }, on === all ? `all ${all} shown` : `${on} of ${all} shown`));
+  const reset = ev.reset
+    ? h("button", {
+        type: "button", class: `${linkClass} reset${ev.reset.visible ? "" : " off"}`,
+        "aria-hidden": ev.reset.visible ? undefined : "true", tabindex: ev.reset.visible ? undefined : "-1",
+        onclick: ev.reset.go,
+      }, "Reset filters")
+    : null;
+  const only = ev.showOnly
+    ? h(
+        "select",
+        {
+          class: "only", "aria-label": "Show only one kind",
+          onchange: (e: Event) => {
+            const c = site.index.categories.indexOf((e.target as HTMLSelectElement).value);
+            if (c >= 0) ev.showOnly!(c);
+          },
+        },
+        h("option", { value: "" }, "Show only…"),
+        ...order.map((c) => {
+          const name = site.index.categories[c]!;
+          return h("option", { value: name, selected: on === 1 && f.cats.has(c) }, name);
+        }),
+      )
+    : null;
   return h(
     "div",
     { class: "cell legend" },
-    h("h2", { class: "cell-label" }, "Legend: kind of work", h("span", { class: "cell-count" }, on === all ? `all ${all} shown` : `${on} of ${all} shown`)),
-    h("p", { class: "legend-hint" }, "Select a kind to show or hide it."),
+    reset ? h("div", { class: "legend-head" }, label, reset) : label,
+    only
+      ? h("div", { class: "legend-hint-row" }, h("p", { class: "legend-hint" }, "Select a kind to show or hide it."), only)
+      : h("p", { class: "legend-hint" }, "Select a kind to show or hide it."),
     h(
       "ul",
       { class: "kinds" },

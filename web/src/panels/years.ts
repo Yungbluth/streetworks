@@ -65,8 +65,6 @@ export function yearStrip(site: Site, ev: YearEvents) {
   const total = h("h3", {});
   const key = h("p", { class: "key" });
   const play = h("button", { type: "button", class: "play primary" });
-  // Reset keeps its place while hidden, so showing it never reflows the strip
-  const reset = h("button", { type: "button", class: "linkish reset off", "aria-hidden": "true", tabindex: "-1" }, "Reset filters");
   const sparseNote = h("span", { class: "sparse-note" });
   const zoomNote = h("span", { class: "zoom-note", hidden: true }, "Zoom in to see older work");
   const axis = h("div", { class: "axis", "aria-hidden": "true" });
@@ -76,13 +74,14 @@ export function yearStrip(site: Site, ev: YearEvents) {
       axis.append(h("span", { style: `left: ${((y - first + 0.5) / span) * 100}%` }, String(y)));
     }
   }
+  // The key and notes sit under the chart
   const el = h(
     "section",
     { class: "years", "aria-label": "Years" },
     h("div", { class: "head" }, play, total),
     chart,
     axis,
-    h("div", { class: "foot" }, key, h("div", { class: "note-row" }, sparseNote, reset)),
+    h("div", { class: "foot" }, key, sparseNote),
   );
   const label = (playing: boolean) => play.replaceChildren(controlGlyph(playing ? "stop" : "play"), playing ? "Stop" : "Replay");
 
@@ -233,20 +232,5 @@ export function yearStrip(site: Site, ev: YearEvents) {
     key.classList.toggle("zoomed-out", zoomedOut);
   }
 
-  function showReset(visible: boolean, onReset: () => void) {
-    reset.classList.toggle("off", !visible);
-    if (visible) {
-      reset.removeAttribute("aria-hidden");
-      reset.removeAttribute("tabindex");
-    } else {
-      reset.setAttribute("aria-hidden", "true");
-      reset.setAttribute("tabindex", "-1");
-    }
-    reset.onclick = () => {
-      stop();
-      onReset();
-    };
-  }
-
-  return { el, update, showReset, showZoomNote };
+  return { el, update, showZoomNote };
 }

@@ -296,6 +296,13 @@ async function start() {
             legendSlot.querySelector<HTMLInputElement>(".check input")?.focus();
           },
           showMeanings,
+          showOnly(c) {
+            filter = { ...filter, cats: new Set([c]) };
+            render({ focus: true, filters: true });
+            legendSlot.querySelector<HTMLSelectElement>(".only")?.focus();
+            $("status").textContent = `Only ${site.index.categories[c]} shown. ${years.el.querySelector("h3")?.textContent ?? ""}`;
+          },
+          reset: { visible: filtersChanged() && !replaying, go: resetFilters },
         },
         "linkish",
       ),
@@ -322,7 +329,6 @@ async function start() {
     map.show(summary, filter.to);
     years.update(filter);
     $("year-stamp").textContent = filter.from === filter.to ? String(filter.from) : `${filter.from}–${filter.to}`;
-    years.showReset(filtersChanged() && !replaying, resetFilters);
     if (what.filters) renderFilters();
     if (what.focus) renderFocus(false);
     saveHash();

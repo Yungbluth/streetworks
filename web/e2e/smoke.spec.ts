@@ -332,3 +332,16 @@ test("Excavation, the most common kind, stands out from the map in light and dar
     await page.close();
   }
 });
+
+test("the first view says how to read a dot", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.goto("/");
+  const key = page.locator(".dot-key");
+  await expect(key.getByRole("heading", { name: "Reading a dot" })).toBeVisible();
+  await expect(key).toContainText("Color");
+  await expect(key).toContainText("Size");
+  await expect(key).toContainText("Shape");
+  await page.goto("/#place=b%3AE+SPEEDWAY+BLVD%3A700");
+  await expect(page.getByRole("heading", { level: 2, name: "700 block of E Speedway Blvd" })).toBeVisible();
+  await expect(key).toHaveCount(0);
+});

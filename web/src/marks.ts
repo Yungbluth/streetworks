@@ -31,6 +31,10 @@ export function ageMark(age: Age): SVGSVGElement {
   }
 }
 
+export function inkDot(size: number): SVGSVGElement {
+  return svg(size, circle({ cx: size / 2, cy: size / 2, r: size / 2 - 0.5, fill: "currentColor" }));
+}
+
 export function swatch(category: string, size = 12): SVGSVGElement {
   // a page may give every swatch a hairline (--swatch-edge)
   const edge = edgeFor(category) || cssVar("--swatch-edge") || undefined;
