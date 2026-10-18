@@ -21,13 +21,16 @@ export function streetPanel(ctx: Ctx, street: number): HTMLElement {
   const total = busy.reduce((a, p) => a + summary.count[p]!, 0);
   const open = (p: number) => () => ctx.go({ kind: "place", place: p }, { move: true });
   const top = [...busy].sort((a, b) => summary.count[b]! - summary.count[a]!).slice(0, 8);
+  const bars = stretches(blocks.map((p) => ({ block: site.places.block[p]!, n: summary.count[p]!, open: open(p) })));
+  const peak = bars.reduce((best, b) => (b.n > best.n ? b : best), bars[0]!);
   return h(
     "section",
     { class: "focus" },
     panelHead(prettyStreet(site.places.streets[street]!), () => ctx.go(null)),
     h("p", { class: "sub" }, total ? `${plural(total, "permit")} on ${plural(busy.length, "block")}.` : "No permits on this street match the filters."),
     h("h3", {}, "Blocks in address order"),
-    streetProfile(blocks.map((p) => ({ block: site.places.block[p]!, n: summary.count[p]!, open: open(p) })), String),
+    total ? h("p", { class: "quiet" }, `Busiest: the ${peak.name ?? `${peak.block} block`}, ${plural(peak.n, "permit")} of ${num(total)}.`) : null,
+    streetProfile(bars, String),
     ...(top.length
       ? [
           h("h3", {}, "Busiest blocks"),
@@ -52,6 +55,35 @@ export interface Station {
   block: number;
   n: number;
   open: () => void;
+  // for a stretch of several blocks, such as "3000–3200 blocks"
+  name?: string;
+}
+
+// more bars than this and each is too thin to see or point at
+const MAX_BARS = 40;
+
+export function stretches(blocks: Station[]): Station[] {
+  if (blocks.length <= MAX_BARS) return blocks;
+  const first = Math.min(...blocks.map((b) => b.block));
+  const last = Math.max(...blocks.map((b) => b.block));
+  const span = (last - first) / 100 + 1;
+  const width = [2, 3, 5, 10, 20, 50, 100].find((w) => Math.ceil(span / w) <= MAX_BARS) ?? 100;
+  const groups = new Map<number, Station[]>();
+  for (const b of blocks) {
+    const at = first + Math.floor((b.block - first) / (width * 100)) * width * 100;
+    groups.set(at, [...(groups.get(at) ?? []), b]);
+  }
+  return [...groups]
+    .sort((a, b) => a[0] - b[0])
+    .map(([at, members]) => {
+      const busiest = members.reduce((best, b) => (b.n > best.n ? b : best), members[0]!);
+      return {
+        block: at,
+        n: members.reduce((sum, b) => sum + b.n, 0),
+        open: busiest.open,
+        name: `${at}–${at + (width - 1) * 100} blocks`,
+      };
+    });
 }
 
 // a street as a profile: its blocks in address order, each a bar as tall as its permit count
@@ -65,8 +97,8 @@ export function streetProfile(stations: Station[], label: (block: number) => str
       {
         type: "button", class: "station", tabindex: i === busiest ? 0 : -1, onclick: s.open,
         style: `--h: ${(s.n / max) * 100}%`,
-        "aria-label": `${s.block} block, ${plural(s.n, "permit")}`,
-        title: `${s.block} block: ${plural(s.n, "permit")}`,
+        "aria-label": `${s.name ?? `${s.block} block`}, ${plural(s.n, "permit")}`,
+        title: `${s.name ?? `${s.block} block`}: ${plural(s.n, "permit")}`,
       },
       h("span", { class: "station-bar", "aria-hidden": "true" }),
     ),
@@ -87,7 +119,7 @@ export function streetProfile(stations: Station[], label: (block: number) => str
     const r = bars.getBoundingClientRect();
     return Math.min(stations.length - 1, Math.max(0, Math.floor(((clientX - r.left) / r.width) * stations.length)));
   };
-  const say = (i: number) => `${stations[i]!.block} block · ${plural(stations[i]!.n, "permit")}`;
+  const say = (i: number) => `${stations[i]!.name ?? `${stations[i]!.block} block`} · ${plural(stations[i]!.n, "permit")}`;
   let near = -1;
   bars.addEventListener("pointermove", (e) => {
     const i = at(e.clientX);
@@ -117,7 +149,8 @@ export function streetProfile(stations: Station[], label: (block: number) => str
     "div",
     { class: "profile" },
     readout,
-    bars,
+    // the tallest bar's count, so the heights have a scale
+    h("div", { class: "profile-plot" }, h("span", { class: "profile-max", "aria-hidden": "true" }, num(max)), bars),
     h("div", { class: "profile-axis", "aria-hidden": "true" }, ...stations.map((s, i) => h("span", {}, ticks[i] ? label(s.block) : ""))),
   );
 }

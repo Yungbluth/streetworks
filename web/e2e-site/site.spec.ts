@@ -68,11 +68,11 @@ test("a street's profile says which block the keyboard is on", async ({ page }) 
   await page.goto("/#q=e+speedway+blvd");
   const readout = page.locator(".profile-readout");
   await page.locator('.station[tabindex="0"]').focus();
-  await expect(readout).toHaveText(/^\d+ block · \d+ permits?$/);
+  await expect(readout).toHaveText(/^\d+(–\d+)? blocks? · \d+ permits?$/);
   const first = await readout.textContent();
   await page.keyboard.press("Home");
   await expect(readout).not.toHaveText(first!);
-  await expect(readout).toHaveText(/^\d+ block · \d+ permits?$/);
+  await expect(readout).toHaveText(/^\d+(–\d+)? blocks? · \d+ permits?$/);
   const mark = await page.locator(".station:focus").evaluate((b) => parseFloat(getComputedStyle(b, "::before").width));
   expect(mark).toBeGreaterThanOrEqual(8);
 });

@@ -935,6 +935,23 @@ h3 {
   border-radius: 3px;
 }
 
+.profile-plot {
+  position: relative;
+}
+
+/* The tallest bar's count, at the top of the scale */
+.profile-max {
+  position: absolute;
+  z-index: 2;
+  top: -1px;
+  left: 0;
+  padding: 0 4px 0 0;
+  background: var(--panel);
+  font-size: 12px;
+  line-height: 1;
+  color: var(--muted);
+}
+
 .profile-readout {
   min-height: 1.5em;
   font-size: 13px;
