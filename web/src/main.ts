@@ -327,6 +327,7 @@ async function start() {
             $("status").textContent = `Only ${site.index.categories[c]} shown. ${years.el.querySelector("h3")?.textContent ?? ""}`;
           },
           reset: { visible: filtersChanged() && !replaying, go: resetFilters },
+          moreOpen: legendSlot.querySelector<HTMLDetailsElement>(".legend-more")?.open,
         },
         "linkish",
       ),

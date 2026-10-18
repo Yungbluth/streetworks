@@ -348,17 +348,16 @@ test("Excavation keeps its pale paint and shows on the map by its halo", async (
   }
 });
 
-test("the first view says how to read a dot", async ({ page }) => {
+test("the legend keeps its rarer options folded away", async ({ page }) => {
   await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
   await page.goto("/");
-  const key = page.locator(".dot-key");
-  await expect(key.getByRole("heading", { name: "Reading a dot" })).toBeVisible();
-  await expect(key).toContainText("Color");
-  await expect(key).toContainText("Size");
-  await expect(key).toContainText("Shape");
-  await page.goto("/#place=b%3AE+SPEEDWAY+BLVD%3A700");
-  await expect(page.getByRole("heading", { level: 2, name: "700 block of E Speedway Blvd" })).toBeVisible();
-  await expect(key).toHaveCount(0);
+  const only = page.getByRole("combobox", { name: "Show only one kind" });
+  const noWork = page.getByRole("checkbox", { name: "Include permits that never led to work" });
+  await expect(only).toBeHidden();
+  await expect(noWork).toBeHidden();
+  await page.locator(".legend").getByText("More options").click();
+  await expect(only).toBeVisible();
+  await expect(noWork).toBeVisible();
 });
 
 test("a permit line shows that it opens", async ({ page }) => {

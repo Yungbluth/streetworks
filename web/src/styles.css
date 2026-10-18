@@ -299,48 +299,6 @@ select {
   color: var(--muted);
 }
 
-/* ---- reading a dot ---------------------------------------------------- */
-
-.dot-key {
-  display: grid;
-  gap: 8px;
-  margin-top: 12px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
-}
-
-.dot-key h3 {
-  font-size: 15px;
-}
-
-.dot-key dl {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 8px 14px;
-  margin: 0;
-  font-size: 14px;
-}
-
-.dot-key dt {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-}
-
-.dot-key .marks {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  width: 44px;
-  color: var(--ink);
-}
-
-.dot-key dd {
-  margin: 0;
-  color: var(--muted);
-}
-
 /* The basemap is turned into concrete in light mode and asphalt in dark */
 .tiles-mute .leaflet-tile-pane {
   filter: grayscale(1) contrast(0.82) brightness(0.9);
@@ -1113,17 +1071,28 @@ select {
   color: var(--muted);
 }
 
-/* The hint and the one-kind picker share a line */
-.legend-hint-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-top: -4px;
+/* The rarer options, folded away under the chips */
+.legend-more {
+  flex: 1 1 auto;
 }
 
-.legend-hint-row .legend-hint {
-  margin-top: 0;
+.legend-more summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+/* Open, it takes its own line below "What the kinds mean" */
+.legend-more[open] {
+  order: 1;
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+}
+
+.legend-more[open] summary {
+  flex-basis: 100%;
 }
 
 .legend .only {
@@ -1259,10 +1228,12 @@ select {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 8px;
   flex: none;
-  min-width: 6.5em;
-  padding: 5px 14px;
+  min-width: 7.5em;
+  min-height: 40px;
+  padding: 6px 18px;
+  font-size: 16px;
   border: 1px solid var(--ink);
   border-radius: 6px;
   background: var(--ink);

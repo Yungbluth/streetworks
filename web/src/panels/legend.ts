@@ -13,6 +13,7 @@ export interface LegendEvents {
   showOnly?(c: number): void;
   /** if given, Reset sits in the legend's head; it's hidden while there's nothing to reset */
   reset?: { visible: boolean; go(): void };
+  moreOpen?: boolean;
 }
 
 // permits of each kind under the years and no-work choice, ignoring which kinds are on
@@ -56,13 +57,17 @@ export function legend(site: Site, f: Filter, ev: LegendEvents, linkClass = "lin
         }),
       )
     : null;
+  const noWork = h(
+    "label",
+    { class: "check" },
+    h("input", { type: "checkbox", checked: f.includeNoWork, onchange: (e) => ev.setNoWork((e.target as HTMLInputElement).checked) }),
+    "Include permits that never led to work",
+  );
   return h(
     "div",
     { class: "cell legend" },
     reset ? h("div", { class: "legend-head" }, label, reset) : label,
-    only
-      ? h("div", { class: "legend-hint-row" }, h("p", { class: "legend-hint" }, "Select a kind to show or hide it."), only)
-      : h("p", { class: "legend-hint" }, "Select a kind to show or hide it."),
+    h("p", { class: "legend-hint" }, "Select a kind to show or hide it. Bigger dots, more permits."),
     h(
       "ul",
       { class: "kinds" },
@@ -91,12 +96,9 @@ export function legend(site: Site, f: Filter, ev: LegendEvents, linkClass = "lin
     h(
       "div",
       { class: "legend-foot" },
-      h(
-        "label",
-        { class: "check" },
-        h("input", { type: "checkbox", checked: f.includeNoWork, onchange: (e) => ev.setNoWork((e.target as HTMLInputElement).checked) }),
-        "Include permits that never led to work",
-      ),
+      only
+        ? h("details", { class: "legend-more", open: !!ev.moreOpen || f.includeNoWork }, h("summary", {}, "More options"), only, noWork)
+        : noWork,
       h("button", { type: "button", class: linkClass, onclick: ev.showMeanings }, "What the kinds mean"),
     ),
   );

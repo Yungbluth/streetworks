@@ -107,6 +107,7 @@ test("the legend's counts follow Replay as it runs", async ({ page }) => {
 test("one kind can be shown on its own", async ({ page }) => {
   await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
   await page.goto("/");
+  await page.locator(".legend").getByText("More options").click();
   await page.getByRole("combobox", { name: "Show only one kind" }).selectOption("Utility");
   await expect(page.getByRole("button", { name: /^Utility/ })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: /^Excavation/ })).toHaveAttribute("aria-pressed", "false");
