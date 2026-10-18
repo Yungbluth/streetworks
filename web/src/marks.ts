@@ -1,5 +1,5 @@
 import type { Age } from "./filters";
-import { cssVar, edgeFor, paint } from "./paint";
+import { cssVar, edgeFor, haloFor, paint } from "./paint";
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -37,9 +37,14 @@ export function inkDot(size: number): SVGSVGElement {
 
 export function swatch(category: string, size = 12): SVGSVGElement {
   // a page may give every swatch a hairline (--swatch-edge)
-  const edge = edgeFor(category) || cssVar("--swatch-edge") || undefined;
-  const r = size / 2 - (edge ? 1 : 0.5);
-  return svg(size, circle({ cx: size / 2, cy: size / 2, r, fill: paint(category), ...(edge ? { stroke: edge, "stroke-width": 1 } : {}) }));
+  const halo = haloFor(category);
+  const edge = halo ? undefined : edgeFor(category) || cssVar("--swatch-edge") || undefined;
+  const r = size / 2 - (edge || halo ? 1.5 : 0.5);
+  return svg(size, circle({
+    cx: size / 2, cy: size / 2, r, fill: paint(category),
+    ...(edge ? { stroke: edge, "stroke-width": 1 } : {}),
+    ...(halo ? { style: `filter: drop-shadow(0 0 1px ${halo})` } : {}),
+  }));
 }
 
 /** A revision cloud: the scalloped loop a drafter draws around a change, here around the open place */

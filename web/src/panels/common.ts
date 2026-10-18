@@ -10,9 +10,18 @@ export function panelHead(title: string, onClear: () => void): HTMLElement {
     "div",
     { class: "panel-head" },
     h("h2", { tabindex: "-1" }, title),
+    // Only on a phone, where the map is above and the years far below
     h("button", { type: "button", class: "linkish map-jump", "aria-label": "Show the map", onclick: showMap }, "Map"),
+    h("button", { type: "button", class: "linkish map-jump", "aria-label": "Show the years", onclick: showYears }, "Years"),
     h("button", { type: "button", class: "linkish", onclick: onClear }, "Clear"),
   );
+}
+
+/** To the year strip, with the keyboard on Replay */
+function showYears() {
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  document.getElementById("strip")?.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
+  document.querySelector<HTMLElement>("#strip .play")?.focus({ preventScroll: true });
 }
 
 function showMap() {

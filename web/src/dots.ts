@@ -8,10 +8,12 @@ export interface DotStyle {
   alpha: number;
   outline?: string;
   outlineWidth?: number;
+  /** A soft shadow round the mark instead: a pale dot shows without a line that reads as a ring */
+  halo?: string;
 }
 
-export function dotStyle(age: Age, full: number, color: string, edge?: string): DotStyle {
-  const line = edge ? { outline: edge, outlineWidth: 1 } : {};
+export function dotStyle(age: Age, full: number, color: string, edge?: string, halo?: string): DotStyle {
+  const line = { ...(edge ? { outline: edge, outlineWidth: 1 } : {}), ...(halo ? { halo } : {}) };
   switch (age) {
     case "recent":
       return { r: full, fill: color, alpha: 1, ...line };

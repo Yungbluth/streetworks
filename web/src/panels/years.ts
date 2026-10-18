@@ -77,7 +77,8 @@ export function yearStrip(site: Site, ev: YearEvents) {
   // The key and notes sit under the chart
   const el = h(
     "section",
-    { class: "years", "aria-label": "Years" },
+    { class: "years", "aria-labelledby": "years-heading" },
+    h("h2", { class: "visually-hidden", id: "years-heading" }, "Years"),
     h("div", { class: "head" }, play, total),
     chart,
     axis,

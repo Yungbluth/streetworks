@@ -116,6 +116,16 @@ test.describe("on a phone", () => {
     expect(onTop).toBe(true);
   });
 
+  test("with a place open, a Years button in its head brings back Replay", async ({ page }) => {
+    await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+    await page.goto("/#place=b%3AE+SPEEDWAY+BLVD%3A700");
+    await expect(page.getByRole("heading", { level: 2, name: "700 block of E Speedway Blvd" })).toBeVisible();
+    await page.locator(".panel-head").getByRole("button", { name: "Show the years" }).click();
+    const play = page.getByRole("button", { name: "Replay" });
+    await expect(play).toBeFocused();
+    await expect(play).toBeInViewport();
+  });
+
   test("the page never scrolls sideways", async ({ page }) => {
     await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
     await page.goto("/");
@@ -312,7 +322,7 @@ test("a block opened from its street leads back to the street", async ({ page })
   await expect(page.getByRole("heading", { level: 2, name: "E Speedway Blvd" })).toBeVisible();
 });
 
-test("Excavation keeps its pale paint and shows on the map by its edge", async ({ browser }) => {
+test("Excavation keeps its pale paint and shows on the map by its halo", async ({ browser }) => {
   for (const colorScheme of ["light", "dark"] as const) {
     const page = await browser.newPage({ colorScheme });
     await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
@@ -323,7 +333,7 @@ test("Excavation keeps its pale paint and shows on the map by its edge", async (
         const c = [1, 3, 5].map((i) => parseInt(hex.trim().slice(i, i + 2), 16) / 255).map((x) => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4));
         return 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!;
       };
-      const own = css.getPropertyValue("--paint-excavation-edge").trim();
+      const own = css.getPropertyValue("--paint-excavation-halo").trim();
       return {
         paint: lum(css.getPropertyValue("--paint-excavation")),
         edge: own && own !== "none" ? lum(own) : null,
@@ -349,4 +359,13 @@ test("the first view says how to read a dot", async ({ page }) => {
   await page.goto("/#place=b%3AE+SPEEDWAY+BLVD%3A700");
   await expect(page.getByRole("heading", { level: 2, name: "700 block of E Speedway Blvd" })).toBeVisible();
   await expect(key).toHaveCount(0);
+});
+
+test("a permit line shows that it opens", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.goto("/#place=b%3AE+SPEEDWAY+BLVD%3A700");
+  const line = page.locator(".permit-open").first();
+  await expect(line.locator("svg.plus")).toBeVisible();
+  await line.click();
+  await expect(line.locator("svg.minus")).toBeVisible();
 });

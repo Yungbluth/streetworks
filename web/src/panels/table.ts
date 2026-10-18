@@ -1,7 +1,7 @@
 import type { Detail } from "../data";
 import { h } from "../dom";
 import { dateText, feet, num } from "../format";
-import { swatch } from "../marks";
+import { strokeIcon, swatch } from "../marks";
 
 export interface Entry {
   index: number;
@@ -76,6 +76,7 @@ function rows(e: Entry, style: TableStyle): HTMLTableRowElement[] {
         const open = toggle.getAttribute("aria-expanded") !== "true";
         toggle.setAttribute("aria-expanded", String(open));
         more.hidden = !open;
+        toggle.querySelector("svg.plus, svg.minus")?.replaceWith(strokeIcon(open ? "minus" : "plus"));
         row.classList.toggle("open", open);
       },
     },
@@ -83,6 +84,8 @@ function rows(e: Entry, style: TableStyle): HTMLTableRowElement[] {
     h("span", { class: "permit-what" }, what),
     // The swatch is colour alone, so the kind is written out too
     h("span", { class: "permit-kind" }, e.category, d?.noWork ? ", no work done" : "", style.first === "Away" && e.placeName ? ` · ${e.placeName}` : ""),
+    // a plus that turns to a minus, so a line shows that it opens
+    strokeIcon("plus"),
   );
   const first =
     style.first === "Away" ? (e.distanceM === undefined ? "" : feet(e.distanceM)) : style.first === "Δ" && e.delta ? `Δ${e.delta}` : "";

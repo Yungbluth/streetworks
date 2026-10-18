@@ -4,7 +4,7 @@ import { arriving, dotStyle, drawnAge, faded } from "./dots";
 import { overlayPopup } from "./overlay";
 import { ageOf, type PlaceSummary } from "./filters";
 import type { LatLng } from "./geo";
-import { cssVar, edgeFor, paint } from "./paint";
+import { cssVar, edgeFor, haloFor, paint } from "./paint";
 
 interface Drawn {
   place: Int32Array;
@@ -70,6 +70,7 @@ class DotLayer extends L.Layer {
     const metersPerPx = (156543.03 * Math.cos((map.getCenter().lat * Math.PI) / 180)) / 2 ** map.getZoom();
     const colors = this.categories.map(paint);
     const edges = this.categories.map(edgeFor);
+    const halos = this.categories.map(haloFor);
     const bounds = map.getBounds().pad(0.05);
 
     const order: number[] = [];
@@ -94,7 +95,7 @@ class DotLayer extends L.Layer {
       const cat = summary.cat[p]!;
       const real = ageOf(summary.newest[p]!, this.end);
       const age = drawnAge(real, zoom);
-      const own = dotStyle(age, this.radius(summary.count[p]!, metersPerPx), colors[cat]!, edges[cat]);
+      const own = dotStyle(age, this.radius(summary.count[p]!, metersPerPx), colors[cat]!, edges[cat], halos[cat]);
       // While a street is open, the rest of the map steps back
       const style = this.highlighted.size && !this.highlighted.has(p) ? faded(own) : own;
       d.place[i] = p;
@@ -111,6 +112,11 @@ class DotLayer extends L.Layer {
         ctx.stroke();
       }
       ctx.globalAlpha = style.alpha;
+      if (style.halo) {
+        ctx.shadowColor = style.halo;
+        // As soft as the dot is big: full halos on tiny city-wide dots pile into smudges
+        ctx.shadowBlur = Math.min(6, style.r);
+      }
       ctx.beginPath();
       ctx.arc(pt.x, pt.y, style.r, 0, Math.PI * 2);
       if (style.outline) {
@@ -129,6 +135,8 @@ class DotLayer extends L.Layer {
         ctx.strokeStyle = style.stroke;
         ctx.stroke();
       }
+      ctx.shadowBlur = 0;
+      ctx.shadowColor = "transparent";
       ctx.globalAlpha = 1;
     });
 

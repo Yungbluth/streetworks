@@ -30,7 +30,8 @@ export function legend(site: Site, f: Filter, ev: LegendEvents, linkClass = "lin
   const all = site.index.categories.length;
   // Busiest kinds first, so the colours that fill the map lead the key.
   const order = site.index.categories.map((_, c) => c).sort((a, b) => counts[b]! - counts[a]!);
-  const label = h("h2", { class: "cell-label" }, "Legend: kind of work", h("span", { class: "cell-count" }, on === all ? `all ${all} shown` : `${on} of ${all} shown`));
+  const shown = on === all ? `all ${all} shown` : `${on} of ${all} shown`;
+  const label = h("h2", { class: "cell-label", "aria-label": `Legend: kind of work, ${shown}` }, "Legend: kind of work", h("span", { class: "cell-count" }, shown));
   const reset = ev.reset
     ? h("button", {
         type: "button", class: `${linkClass} reset${ev.reset.visible ? "" : " off"}`,

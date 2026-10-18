@@ -12,6 +12,12 @@ export function paint(category: string): string {
 export const needsEdge = (category: string) => slug(category) === "excavation";
 
 /** The outline a kind's dots get, if any */
+/** a kind's halo, if the stylesheet gives it one (--paint-excavation-halo) */
+export function haloFor(category: string): string | undefined {
+  const own = cssVar(`--paint-${slug(category)}-halo`);
+  return own && own !== "none" ? own : undefined;
+}
+
 export function edgeFor(category: string): string | undefined {
   const own = cssVar(`--paint-${slug(category)}-edge`);
   if (own === "none") return undefined;

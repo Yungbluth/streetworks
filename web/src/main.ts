@@ -142,11 +142,14 @@ async function start() {
     const note = $("replay-note");
     note.textContent = `${plural(span, "year")} · ${num(total)} permits${busiest}`;
     note.hidden = false;
+    noteKey = filterKey(filter);
     $("status").textContent =
       `Replay finished. ${plural(span, "year")}, ${num(total)} permits.` +
       (top === undefined ? "" : ` Busiest in view: ${placeName(site.places, top)}, ${plural(summary.count[top]!, "permit")}.`);
   }
   const hideReplayNote = () => ($("replay-note").hidden = true);
+  const filterKey = (f: Filter) => `${f.from} ${f.to} ${[...f.cats].sort((a, b) => a - b)} ${f.includeNoWork}`;
+  let noteKey = "";
 
   function busiestInView(): number | undefined {
     const view = map.visible();
@@ -272,7 +275,6 @@ async function start() {
 
   const years = yearStrip(site, {
     setRange(from, to, live) {
-      if (!replaying && (from !== filter.from || to !== filter.to)) hideReplayNote();
       filter = { ...filter, from, to };
       render({ filters: true, focus: !live || !focus });
       // A finished replay has already said its own line.
@@ -347,6 +349,7 @@ async function start() {
   }
 
   function render(what: { focus?: boolean; filters?: boolean } = {}) {
+    if (!replaying && filterKey(filter) !== noteKey) hideReplayNote();
     summary = summarizePlaces(site.permits, filter, placeCount);
     map.show(summary, filter.to);
     years.update(filter);
@@ -410,6 +413,9 @@ async function start() {
     applyHash();
     render({ filters: true });
     renderFocus(true);
+    // A place or street arrived by a link is said aloud, as one opened by hand is
+    const shown = focus && $("focus").querySelector("h2")?.textContent;
+    if (shown) $("status").textContent = `Showing ${shown}.`;
   };
   restore();
   window.addEventListener("popstate", restore);
