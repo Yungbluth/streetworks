@@ -49,7 +49,7 @@ describe("stretches", () => {
     const bars = stretches(long);
     expect(bars.length).toBeLessThanOrEqual(40);
     expect(bars[0]).toMatchObject({ block: 0, n: 3, name: "0–200 blocks" });
-    expect(bars[10]).toMatchObject({ block: 3000, n: 52, name: "3000–3200 blocks" });
+    expect(bars[10]).toMatchObject({ block: 3000, n: 52, name: "3000–3200 blocks", opens: 3100 });
   });
 
   it("opens the busiest block in a stretch", () => {

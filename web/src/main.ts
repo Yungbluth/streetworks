@@ -179,9 +179,14 @@ async function start() {
 
   // what opened the current place, so closing it can put the keyboard back
   let opener: { el: HTMLElement; text: string } | null = null;
+  let fromBar: string | null = null;
 
   function go(f: Focus | null, opts: { move?: boolean } = { move: true }) {
-    if (f?.kind === "place" && !f.from && focus?.kind === "street") f = { ...f, from: focus };
+    if (f?.kind === "place" && !f.from && focus?.kind === "street") {
+      f = { ...f, from: focus };
+      fromBar = (document.activeElement as HTMLElement | null)?.closest(".station")?.getAttribute("aria-label") ?? null;
+    }
+    const upToStreet = f?.kind === "street" && focus?.kind === "place" && focus.from !== undefined;
     if (f && !focus && document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
       opener = { el: document.activeElement, text: document.activeElement.textContent ?? "" };
     }
@@ -203,7 +208,12 @@ async function start() {
     }
     // a new place is a step people expect Back to undo
     saveHash(true);
-    $("focus").querySelector<HTMLElement>("h2")?.focus({ preventScroll: true });
+    const bar = upToStreet && fromBar ? [...$("focus").querySelectorAll<HTMLElement>(".station")].find((b) => b.getAttribute("aria-label") === fromBar) : undefined;
+    fromBar = upToStreet ? null : fromBar;
+    if (bar) {
+      $("focus").querySelectorAll<HTMLElement>(".station").forEach((b) => (b.tabIndex = b === bar ? 0 : -1));
+      bar.focus({ preventScroll: true });
+    } else $("focus").querySelector<HTMLElement>("h2")?.focus({ preventScroll: true });
     // Say what was chosen for screen readers: the heading and its summary
     const box = $("focus");
     $("status").textContent = f

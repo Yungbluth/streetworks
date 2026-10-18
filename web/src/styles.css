@@ -1517,6 +1517,18 @@ select {
   }
 }
 
+.busiest .linkish,
+.byline a,
+.byline .linkish,
+.legend .only,
+.legend .reset,
+.legend-more summary,
+.legend-foot .linkish {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
 /* Fingers need bigger targets than a mouse does. */
 @media (pointer: coarse) {
   .leaflet-touch .leaflet-bar a {

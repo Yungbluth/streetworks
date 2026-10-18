@@ -68,11 +68,11 @@ test("a street's profile says which block the keyboard is on", async ({ page }) 
   await page.goto("/#q=e+speedway+blvd");
   const readout = page.locator(".profile-readout");
   await page.locator('.station[tabindex="0"]').focus();
-  await expect(readout).toHaveText(/^\d+(–\d+)? blocks? · \d+ permits?$/);
+  await expect(readout).toHaveText(/^\d+(–\d+)? blocks? · \d+ permits?( · opens the \d+ block)?$/);
   const first = await readout.textContent();
   await page.keyboard.press("Home");
   await expect(readout).not.toHaveText(first!);
-  await expect(readout).toHaveText(/^\d+(–\d+)? blocks? · \d+ permits?$/);
+  await expect(readout).toHaveText(/^\d+(–\d+)? blocks? · \d+ permits?( · opens the \d+ block)?$/);
   const mark = await page.locator(".station:focus").evaluate((b) => parseFloat(getComputedStyle(b, "::before").width));
   expect(mark).toBeGreaterThanOrEqual(8);
 });
@@ -113,4 +113,20 @@ test("one kind can be shown on its own", async ({ page }) => {
   await expect(page.getByRole("button", { name: /^Excavation/ })).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator(".legend .cell-count")).toHaveText("1 of 9 shown");
   await expect(page.locator("#status")).toHaveText(/^Only Utility shown\. /);
+});
+
+test("Esc from a block opened on the street profile lands back on its bar", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.goto("/#q=e+speedway+blvd");
+  await expect(page.locator(".focus")).toContainText("Busiest stretch: the ");
+  await expect(page.getByRole("heading", { name: "Busiest single blocks" })).toBeVisible();
+  const bar = page.locator('.station[tabindex="0"]');
+  await bar.focus();
+  await page.keyboard.press("Home");
+  const label = await page.locator(".station:focus").getAttribute("aria-label");
+  expect(label).toMatch(/, opens the \d+ block$/);
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "Back to E Speedway Blvd" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".station:focus")).toHaveAttribute("aria-label", label!);
 });

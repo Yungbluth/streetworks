@@ -29,11 +29,11 @@ export function streetPanel(ctx: Ctx, street: number): HTMLElement {
     panelHead(prettyStreet(site.places.streets[street]!), () => ctx.go(null)),
     h("p", { class: "sub" }, total ? `${plural(total, "permit")} on ${plural(busy.length, "block")}.` : "No permits on this street match the filters."),
     h("h3", {}, "Blocks in address order"),
-    total ? h("p", { class: "quiet" }, `Busiest: the ${peak.name ?? `${peak.block} block`}, ${plural(peak.n, "permit")} of ${num(total)}.`) : null,
+    total ? h("p", { class: "quiet" }, `Busiest ${peak.name ? "stretch" : "block"}: the ${peak.name ?? `${peak.block} block`}, ${plural(peak.n, "permit")} of ${num(total)}.`) : null,
     streetProfile(bars, String),
     ...(top.length
       ? [
-          h("h3", {}, "Busiest blocks"),
+          h("h3", {}, bars.length < blocks.length ? "Busiest single blocks" : "Busiest blocks"),
           h(
             "ol",
             { class: "busiest" },
@@ -57,6 +57,7 @@ export interface Station {
   open: () => void;
   // for a stretch of several blocks, such as "3000–3200 blocks"
   name?: string;
+  opens?: number;
 }
 
 // more bars than this and each is too thin to see or point at
@@ -81,6 +82,7 @@ export function stretches(blocks: Station[]): Station[] {
         block: at,
         n: members.reduce((sum, b) => sum + b.n, 0),
         open: busiest.open,
+        opens: busiest.block,
         name: `${at}–${at + (width - 1) * 100} blocks`,
       };
     });
@@ -97,8 +99,8 @@ export function streetProfile(stations: Station[], label: (block: number) => str
       {
         type: "button", class: "station", tabindex: i === busiest ? 0 : -1, onclick: s.open,
         style: `--h: ${(s.n / max) * 100}%`,
-        "aria-label": `${s.name ?? `${s.block} block`}, ${plural(s.n, "permit")}`,
-        title: `${s.name ?? `${s.block} block`}: ${plural(s.n, "permit")}`,
+        "aria-label": `${s.name ?? `${s.block} block`}, ${plural(s.n, "permit")}${s.opens === undefined ? "" : `, opens the ${s.opens} block`}`,
+        title: `${s.name ?? `${s.block} block`}: ${plural(s.n, "permit")}${s.opens === undefined ? "" : `, opens the ${s.opens} block`}`,
       },
       h("span", { class: "station-bar", "aria-hidden": "true" }),
     ),
@@ -119,7 +121,10 @@ export function streetProfile(stations: Station[], label: (block: number) => str
     const r = bars.getBoundingClientRect();
     return Math.min(stations.length - 1, Math.max(0, Math.floor(((clientX - r.left) / r.width) * stations.length)));
   };
-  const say = (i: number) => `${stations[i]!.name ?? `${stations[i]!.block} block`} · ${plural(stations[i]!.n, "permit")}`;
+  const say = (i: number) => {
+    const s = stations[i]!;
+    return `${s.name ?? `${s.block} block`} · ${plural(s.n, "permit")}${s.opens === undefined ? "" : ` · opens the ${s.opens} block`}`;
+  };
   let near = -1;
   bars.addEventListener("pointermove", (e) => {
     const i = at(e.clientX);

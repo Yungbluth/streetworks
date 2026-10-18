@@ -63,7 +63,8 @@ export const station = (block: number) => `${Math.floor(block / 100)}+00`;
 
 export function stationTicks(n: number): boolean[] {
   const step = Math.max(1, Math.ceil(n / 6));
-  return Array.from({ length: n }, (_, i) => i === n - 1 || (i % step === 0 && n - 1 - i >= step));
+  // The last label is right-aligned at the end, so the one before it keeps a step and a half clear
+  return Array.from({ length: n }, (_, i) => i === n - 1 || (i % step === 0 && n - 1 - i >= step * 1.5));
 }
 
 export function northArrow(): SVGSVGElement {
