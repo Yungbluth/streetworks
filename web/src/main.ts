@@ -6,8 +6,8 @@ import "./styles.css";
 
 import { errorMessage, loadSite, PlaceKind, yearSpan, type Site } from "./data";
 import { fill, h } from "./dom";
-import { summarizePlaces, type Filter } from "./filters";
-import { feet, placeName, plural, prettyStreet } from "./format";
+import { countByYear, summarizePlaces, type Filter } from "./filters";
+import { feet, num, placeName, plural, prettyStreet } from "./format";
 import { DETAIL_ZOOM } from "./dots";
 import { Annotations, mapDevices } from "./annotations";
 import { PermitMap } from "./map";
@@ -132,7 +132,36 @@ async function start() {
   const showMeanings = () => openAbout("kinds-meaning");
   $("how").addEventListener("click", () => openAbout("how-it-works"));
 
+  function endReplay() {
+    const span = filter.to - filter.from + 1;
+    // The same count as the year chart's total, not the sum over places
+    let total = 0;
+    for (const [y, n] of countByYear(site.permits, filter)) if (y >= filter.from && y <= filter.to) total += n;
+    const top = busiestInView();
+    const busiest = top === undefined ? "" : ` · busiest: ${placeName(site.places, top)} (${num(summary.count[top]!)})`;
+    const note = $("replay-note");
+    note.textContent = `${plural(span, "year")} · ${num(total)} permits${busiest}`;
+    note.hidden = false;
+    $("status").textContent =
+      `Replay finished. ${plural(span, "year")}, ${num(total)} permits.` +
+      (top === undefined ? "" : ` Busiest in view: ${placeName(site.places, top)}, ${plural(summary.count[top]!, "permit")}.`);
+  }
+  const hideReplayNote = () => ($("replay-note").hidden = true);
+
+  function busiestInView(): number | undefined {
+    const view = map.visible();
+    const { places } = site;
+    let best: number | undefined;
+    for (let p = 0; p < places.kind.length; p++) {
+      const n = summary.count[p]!;
+      if (!n || (best !== undefined && n <= summary.count[best]!)) continue;
+      if (view.contains([places.lat[p]! / 1e5, places.lng[p]! / 1e5])) best = p;
+    }
+    return best;
+  }
+
   function resetFilters() {
+    hideReplayNote();
     filter = initialFilter(site);
     render({ focus: true, filters: true });
     years.el.querySelector<HTMLElement>(".play")?.focus();
@@ -243,13 +272,17 @@ async function start() {
 
   const years = yearStrip(site, {
     setRange(from, to, live) {
+      if (!replaying && (from !== filter.from || to !== filter.to)) hideReplayNote();
       filter = { ...filter, from, to };
       render({ filters: true, focus: !live || !focus });
-      if (!live) $("status").textContent = years.el.querySelector("h3")?.textContent ?? "";
+      // A finished replay has already said its own line.
+      if (!live && $("replay-note").hidden) $("status").textContent = years.el.querySelector("h3")?.textContent ?? "";
     },
-    replaying: (on) => {
+    replaying: (on, finished) => {
       replaying = on;
       map.setReplaying(on);
+      if (finished) endReplay();
+      else hideReplayNote();
     },
   });
   // The year chart and the legend share the strip under the map

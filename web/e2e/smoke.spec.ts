@@ -77,6 +77,17 @@ test("replay starts at the first year and steps to the last", async ({ page }) =
   await expect(play).toBeVisible({ timeout: 3000 });
 });
 
+test("Replay ends by saying what it showed, until the years change", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.goto("/#from=2005&to=2006");
+  await page.getByRole("button", { name: "Replay" }).click();
+  const note = page.locator(".replay-note");
+  await expect(note).toHaveText(/^2 years · \d+ permits · busiest: .+ \(\d+\)$/, { timeout: 5000 });
+  await expect(page.locator("#status")).toHaveText(/^Replay finished\. 2 years, \d+ permits\. Busiest in view: .+, \d+ permits?\.$/);
+  await page.getByRole("slider", { name: "First year" }).press("ArrowRight");
+  await expect(note).toBeHidden();
+});
+
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
