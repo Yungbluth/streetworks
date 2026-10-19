@@ -1,7 +1,7 @@
 import { PlaceKind, type Detail } from "../data";
 import { h } from "../dom";
 import { num, placeName, plural, prettyStreet, yearsText } from "../format";
-import { byDateDesc, detailsFor, permitsOf, placeAt, type Ctx } from "../model";
+import { byDateDesc, detailsFor, DIG_KINDS, permitsOf, placeAt, type Ctx } from "../model";
 import { failed, kindSplit, loading, note, panelHead, showAll, tableStyle } from "./common";
 import { nearby } from "./radius";
 import { streetBlocks } from "./street";
@@ -23,9 +23,6 @@ export function placeSummary(byCategory: Map<number, number>, years: number[], c
   else kinds = `mostly ${name(top[0]![0])} (${top[0]![1]}) and ${name(top[1]![0])} (${top[1]![1]})`;
   return `${plural(total, "permit")}${when}, ${kinds}.`;
 }
-
-// the kinds that mean the street was dug into (see "What the kinds mean")
-const DIGS = ["Excavation", "Combo"];
 
 const median = (xs: number[]) => {
   const s = [...xs].sort((a, b) => a - b);
@@ -92,7 +89,7 @@ export function placePanel(ctx: Ctx, place: number, extraNote?: string, back?: {
 
   // digging counts whatever kinds are switched on
   const allKinds = { ...filter, cats: new Set(site.index.categories.map((_, c) => c)) };
-  const digCats = new Set(DIGS.map((d) => site.index.categories.indexOf(d)).filter((c) => c >= 0));
+  const digCats = new Set(DIG_KINDS.map((d) => site.index.categories.indexOf(d)).filter((c) => c >= 0));
   const digYears = (p: number) => permitsOf(site, p, allKinds).filter((i) => digCats.has(site.permits.cat[i]!)).map((i) => site.permits.year[i]!);
   const isBlock = site.places.kind[place] === PlaceKind.Block;
   const neighbours = isBlock ? streetBlocks(ctx, site.places.street[place]!).filter((p) => permitsOf(site, p, allKinds).length) : [];

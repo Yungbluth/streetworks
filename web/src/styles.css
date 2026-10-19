@@ -1353,12 +1353,13 @@ select {
   color: var(--muted);
 }
 
-.years .key.zoomed-out .older svg {
-  opacity: 0.4;
+.years .key .key-label {
+  color: var(--ink);
+  font-weight: 600;
 }
 
-.years .key .zoom-note {
-  font-style: italic;
+.years .key .key-note {
+  white-space: normal;
 }
 
 /* Each entry keeps its mark at full size and its years on one line */

@@ -7,11 +7,11 @@ import "./styles.css";
 import { errorMessage, loadSite, PlaceKind, yearSpan, type Site } from "./data";
 import { fill, h } from "./dom";
 import { countByYear, summarizePlaces, type Filter } from "./filters";
-import { feet, num, placeName, plural, prettyStreet } from "./format";
+import { feet, placeName, plural, prettyStreet } from "./format";
 import { DETAIL_ZOOM } from "./dots";
 import { Annotations, mapDevices } from "./annotations";
 import { PermitMap } from "./map";
-import { placeAt, type Ctx, type Focus } from "./model";
+import { digsByPlace, placeAt, type Ctx, type Focus } from "./model";
 import { aboutPanel } from "./panels/about";
 import { busiestPanel } from "./panels/busiest";
 import { filtersPanel } from "./panels/filters";
@@ -133,36 +133,29 @@ async function start() {
   const showMeanings = () => openAbout("kinds-meaning");
   $("how").addEventListener("click", () => openAbout("how-it-works"));
 
+  // a replay that runs to the end closes on what only watching the years go by shows
   function endReplay() {
     const span = filter.to - filter.from + 1;
-    // The same count as the year chart's total, not the sum over places
-    let total = 0;
-    for (const [y, n] of countByYear(site.permits, filter)) if (y >= filter.from && y <= filter.to) total += n;
-    const top = busiestInView();
-    const busiest = top === undefined ? "" : ` · busiest: ${placeName(site.places, top)} (${num(summary.count[top]!)})`;
+    const digs = digsByPlace(site, filter);
+    let repeated = 0;
+    for (let p = 0; p < digs.length; p++) if (digs[p]! >= 5 && site.places.kind[p] === PlaceKind.Block) repeated++;
+    let peak = filter.from;
+    let peakN = 0;
+    for (const [y, n] of countByYear(site.permits, filter)) {
+      if (y >= filter.from && y <= filter.to && n > peakN) [peak, peakN] = [y, n];
+    }
+    const blocks = repeated ? plural(repeated, "block") : "no blocks";
     const note = $("replay-note");
-    note.textContent = `${plural(span, "year")} · ${num(total)} permits${busiest}`;
+    note.textContent = `${plural(span, "year")} · ${blocks} dug up 5+ times · peak year ${peak} (${plural(peakN, "permit")})`;
     note.hidden = false;
     noteKey = filterKey(filter);
     $("status").textContent =
-      `Replay finished. ${plural(span, "year")}, ${num(total)} permits.` +
-      (top === undefined ? "" : ` Busiest in view: ${placeName(site.places, top)}, ${plural(summary.count[top]!, "permit")}.`);
+      `Replay finished. ${plural(span, "year")}. ${repeated ? plural(repeated, "block") : "No blocks"} dug up five times or more. ` +
+      `Peak year ${peak}, ${plural(peakN, "permit")}.`;
   }
   const hideReplayNote = () => ($("replay-note").hidden = true);
   const filterKey = (f: Filter) => `${f.from} ${f.to} ${[...f.cats].sort((a, b) => a - b)} ${f.includeNoWork}`;
   let noteKey = "";
-
-  function busiestInView(): number | undefined {
-    const view = map.visible();
-    const { places } = site;
-    let best: number | undefined;
-    for (let p = 0; p < places.kind.length; p++) {
-      const n = summary.count[p]!;
-      if (!n || (best !== undefined && n <= summary.count[best]!)) continue;
-      if (view.contains([places.lat[p]! / 1e5, places.lng[p]! / 1e5])) best = p;
-    }
-    return best;
-  }
 
   function resetFilters() {
     hideReplayNote();
@@ -204,7 +197,7 @@ async function start() {
         $("focus").querySelector<HTMLElement>("h2");
       opener = null;
       back?.focus({ preventScroll: true });
-      $("status").textContent = "Closed. Busiest places in view.";
+      $("status").textContent = "Closed. Most dug-up places in view.";
       return;
     }
     // a new place is a step people expect Back to undo

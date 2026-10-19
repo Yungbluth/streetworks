@@ -8,7 +8,7 @@ test("search an address", async ({ page }) => {
   await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
 
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Busiest places in view" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Most dug-up places in view" })).toBeVisible();
 
   const search = page.getByRole("combobox", { name: /Search/ });
   await search.fill("749 E Speedway");
@@ -50,23 +50,6 @@ test("a link restores the years", async ({ page }) => {
   expect(page.url()).toContain("from=2005");
 });
 
-test("the zoom note shows only", async ({ page }) => {
-  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
-  await page.goto("/#place=b%3AE+SPEEDWAY+BLVD%3A700");
-  await expect(page.getByRole("heading", { level: 2, name: "700 block of E Speedway Blvd" })).toBeVisible();
-  // It shares a line with the drag hint, which comes first until the years are moved.
-  await page.getByRole("slider", { name: "Last year" }).press("ArrowLeft");
-  const note = page.getByText("Zoom in to see rings and specks.");
-  await expect(note).toBeHidden();
-
-  const out = page.locator(".leaflet-control-zoom-out");
-  // clicks during a zoom animation are dropped, so keep zooming out until it shows
-  await expect(async () => {
-    await out.click();
-    await expect(note).toBeVisible({ timeout: 500 });
-  }).toPass({ timeout: 10_000 });
-});
-
 test("replay starts at the first year and steps to the last", async ({ page }) => {
   await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
   await page.goto("/#from=2005&to=2006");
@@ -84,8 +67,9 @@ test("Replay ends by saying what it showed, until the years change", async ({ pa
   await page.goto("/#from=2005&to=2006");
   await page.getByRole("button", { name: "Replay" }).click();
   const note = page.locator(".replay-note");
-  await expect(note).toHaveText(/^2 years · \d+ permits · busiest: .+ \(\d+\)$/, { timeout: 5000 });
-  await expect(page.locator("#status")).toHaveText(/^Replay finished\. 2 years, \d+ permits\. Busiest in view: .+, \d+ permits?\.$/);
+  // something the first view didn't already say
+  await expect(note).toHaveText(/^2 years · (no|\d+) blocks? dug up 5\+ times · peak year \d{4} \([\d,]+ permits?\)$/, { timeout: 5000 });
+  await expect(page.locator("#status")).toHaveText(/^Replay finished\. 2 years\. (No|\d+) blocks? dug up five times or more\. Peak year \d{4}, [\d,]+ permits?\.$/);
   await page.getByRole("slider", { name: "First year" }).press("ArrowRight");
   await expect(note).toBeHidden();
 });
@@ -160,7 +144,17 @@ test.describe("getting back", () => {
     await page.goBack();
     await expect(page.getByRole("heading", { level: 2, name: "700 block of E Speedway Blvd" })).toBeVisible();
     await page.goBack();
-    await expect(page.getByRole("heading", { level: 2, name: "Busiest places in view" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: "Most dug-up places in view" })).toBeVisible();
+  });
+
+  test("Stop holds the year a replay had reached", async ({ page }) => {
+    await page.goto("/#from=2005&to=2006");
+    await page.getByRole("button", { name: "Replay" }).click();
+    await expect(page.locator(".year-stamp")).toHaveText("2005");
+    await page.getByRole("button", { name: "Stop" }).click();
+    await expect(page.locator(".years h3")).toHaveText(/permits, 2005$/);
+    await page.waitForTimeout(800);
+    await expect(page.locator(".years h3")).toHaveText(/permits, 2005$/);
   });
 
   test("Reset filters puts the years and kinds back", async ({ page }) => {
@@ -194,7 +188,7 @@ test.describe("keyboard and screen reader", () => {
     await page.goto("/#place=b%3AE+SPEEDWAY+BLVD%3A700");
     await expect(page.getByRole("heading", { level: 2, name: "700 block of E Speedway Blvd" })).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("heading", { name: "Busiest places in view" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Most dug-up places in view" })).toBeVisible();
     expect(page.url()).not.toContain("place=");
   });
 
@@ -369,4 +363,12 @@ test("a permit line shows that it opens", async ({ page }) => {
   await expect(line.locator("svg.plus")).toBeVisible();
   await line.click();
   await expect(line.locator("svg.minus")).toBeVisible();
+});
+
+test("the first view ranks places by how often they were dug up", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.goto("/");
+  await expect(page.getByRole("heading", { level: 2, name: "Most dug-up places in view" })).toBeVisible();
+  await expect(page.locator(".busiest li").first()).toContainText(/\d+$/);
+  await expect(page.locator(".focus")).toContainText("Counts are times dug up");
 });

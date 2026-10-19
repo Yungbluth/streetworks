@@ -169,7 +169,7 @@ export function yearStrip(site: Site, ev: YearEvents) {
     timer = 0;
     ev.replaying?.(false, finished);
     label(false);
-    const [f, t] = before ?? [from, to];
+    const [f, t] = finished && before ? before : [from, to];
     before = null;
     set(f, t, false);
   }
@@ -211,28 +211,37 @@ export function yearStrip(site: Site, ev: YearEvents) {
     total.textContent = `${num(inRange)} permits, ${yearsText(from, to)}`;
     if (!timer) label(false);
 
+    drawKey();
+    sparseNote.textContent = note();
+  }
+
+  // zoomed out every dot is solid
+  function drawKey() {
+    if (zoomedOut) {
+      fill(key, h("span", { class: "key-note" }, "Zoomed out, every dot is solid. Zoom in to see how recent each place's work is."));
+      return;
+    }
     const r = ageRanges(to);
     const clampText = (a: number, b: number) => yearsText(Math.max(a, from), b);
     fill(
       key,
+      h("span", { class: "key-label" }, "Newest permit:"),
       h("span", {}, svg("solid"), hidden("Solid dots: "), clampText(r.recent[0], r.recent[1])),
-      r.back[1] >= from ? h("span", { class: "older" }, svg("ring"), hidden("Rings: "), clampText(r.back[0], r.back[1])) : null,
-      r.oldBefore > from ? h("span", { class: "older" }, svg("speck"), hidden("Specks: "), yearsText(from, r.oldBefore - 1)) : null,
+      r.back[1] >= from ? h("span", {}, svg("ring"), hidden("Rings: "), clampText(r.back[0], r.back[1])) : null,
+      r.oldBefore > from ? h("span", {}, svg("speck"), hidden("Specks: "), yearsText(from, r.oldBefore - 1)) : null,
     );
-    sparseNote.textContent = note();
   }
 
   // One line of notes under the key, the most useful first, so the strip never grows a line
   function note() {
     if (from < sparse) return `Before ${sparse} the city's records are thin, so those years look quieter than they were.`;
-    if (!moved) return "Drag either end to choose the years.";
-    return zoomedOut ? "Zoom in to see rings and specks." : "\u00a0";
+    return moved ? "\u00a0" : "Drag either end to choose the years.";
   }
 
   function showZoomNote(zoomedOutNow: boolean) {
+    if (zoomedOut === zoomedOutNow) return;
     zoomedOut = zoomedOutNow;
-    key.classList.toggle("zoomed-out", zoomedOutNow);
-    sparseNote.textContent = note();
+    drawKey();
   }
 
   return { el, update, showZoomNote };

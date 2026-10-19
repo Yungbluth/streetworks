@@ -19,17 +19,6 @@ test("the built site loads its data and opens a place", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test("zoomed out, the older entries in the key stay readable", async ({ page }) => {
-  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
-  await page.goto("/");
-  await page.getByRole("slider", { name: "Last year" }).press("ArrowLeft");
-  await expect(page.getByText("Zoom in to see rings and specks.")).toBeVisible();
-  // Only the marks fade; the year labels keep their full contrast
-  const older = page.locator(".years .key .older").first();
-  await expect(older).toHaveCSS("opacity", "1");
-  await expect(older.locator("svg")).not.toHaveCSS("opacity", "1");
-});
-
 test("search forgives the way people really type", async ({ page }) => {
   await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
   await page.goto("/");
@@ -127,6 +116,8 @@ test("the legend's counts follow Replay as it runs", async ({ page }) => {
   await page.getByRole("button", { name: "Replay" }).click();
   await expect(count).not.toHaveText(full!, { timeout: 2000 });
   await page.getByRole("button", { name: "Stop" }).click();
+  await expect(count).not.toHaveText(full!);
+  await page.getByRole("button", { name: "Reset filters" }).click();
   await expect(count).toHaveText(full!);
 });
 

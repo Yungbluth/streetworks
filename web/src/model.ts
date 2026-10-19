@@ -62,3 +62,19 @@ export async function detailsFor(site: Site, permits: number[]): Promise<Map<num
 
 // newest first; permits with no date go last
 export const byDateDesc = (a?: Detail, b?: Detail) => (b?.date ?? "").localeCompare(a?.date ?? "");
+
+export const DIG_KINDS = ["Excavation", "Combo"];
+
+const digCache = new WeakMap<Site, { key: string; out: Uint32Array }>();
+
+export function digsByPlace(site: Site, f: Filter): Uint32Array {
+  const key = `${f.from} ${f.to} ${f.includeNoWork}`;
+  const hit = digCache.get(site);
+  if (hit?.key === key) return hit.out;
+  const cats = new Set(DIG_KINDS.map((k) => site.index.categories.indexOf(k)).filter((c) => c >= 0));
+  const ok = matcher(site.permits, { ...f, cats });
+  const out = new Uint32Array(site.places.kind.length);
+  for (let i = 0; i < site.permits.place.length; i++) if (ok(i)) out[site.permits.place[i]!]!++;
+  digCache.set(site, { key, out });
+  return out;
+}
