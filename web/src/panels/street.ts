@@ -25,7 +25,10 @@ export function streetPanel(ctx: Ctx, street: number): HTMLElement {
   const rank = digging ? digsByPlace(site, ctx.filter) : summary.count;
   const dug = digging ? busy.reduce((a, p) => a + rank[p]!, 0) : 0;
   const top = busy.filter((p) => rank[p]).sort((a, b) => rank[b]! - rank[a]! || summary.count[b]! - summary.count[a]!).slice(0, 8);
-  const bars = stretches(blocks.map((p) => ({ block: site.places.block[p]!, n: summary.count[p]!, open: open(p) })));
+  // the profile, like the list, counts digs while a digging kind is shown
+  const bars = stretches(blocks.map((p) => ({ block: site.places.block[p]!, n: rank[p]!, open: open(p) })));
+  const unit = digging ? "dig" : "permit";
+  const barTotal = digging ? dug : total;
   const peak = bars.reduce((best, b) => (b.n > best.n ? b : best), bars[0]!);
   return h(
     "section",
@@ -39,8 +42,8 @@ export function streetPanel(ctx: Ctx, street: number): HTMLElement {
         : "No permits on this street match the filters.",
     ),
     h("h3", {}, "Blocks in address order"),
-    total ? h("p", { class: "quiet" }, `Busiest ${peak.name ? "stretch" : "block"}: the ${peak.name ?? `${peak.block} block`}, ${plural(peak.n, "permit")} of ${num(total)}.`) : null,
-    streetProfile(bars, String, "Block"),
+    barTotal ? h("p", { class: "quiet" }, `Busiest ${peak.name ? "stretch" : "block"}: the ${peak.name ?? `${peak.block} block`}, ${plural(peak.n, unit)} of ${num(barTotal)}.`) : null,
+    streetProfile(bars, String, "Block", unit),
     ...(top.length
       ? [
           h("h3", {}, bars.length < blocks.length ? "Busiest single blocks" : "Busiest blocks"),
@@ -105,7 +108,7 @@ export function stretches(blocks: Station[]): Station[] {
 }
 
 // a street as a profile: its blocks in address order, each a bar as tall as its permit count
-export function streetProfile(stations: Station[], label: (block: number) => string, unit?: string): HTMLElement {
+export function streetProfile(stations: Station[], label: (block: number) => string, unit?: string, counts = "permit"): HTMLElement {
   const max = Math.max(1, ...stations.map((s) => s.n));
   const busiest = stations.reduce((best, s, i) => (s.n > stations[best]!.n ? i : best), 0);
   const ticks = stationTicks(stations.length);
@@ -116,8 +119,8 @@ export function streetProfile(stations: Station[], label: (block: number) => str
       {
         type: "button", class: "station", tabindex: i === busiest ? 0 : -1, onclick: () => press(i),
         style: `--h: ${(s.n / max) * 100}%`,
-        "aria-label": `${s.name ?? `${s.block} block`}, ${plural(s.n, "permit")}${s.opens === undefined ? "" : `, opens the ${s.opens} block`}`,
-        title: `${s.name ?? `${s.block} block`}: ${plural(s.n, "permit")}${s.opens === undefined ? "" : `, opens the ${s.opens} block`}`,
+        "aria-label": `${s.name ?? `${s.block} block`}, ${plural(s.n, counts)}${s.opens === undefined ? "" : `, opens the ${s.opens} block`}`,
+        title: `${s.name ?? `${s.block} block`}: ${plural(s.n, counts)}${s.opens === undefined ? "" : `, opens the ${s.opens} block`}`,
       },
       h("span", { class: "station-bar", "aria-hidden": "true" }),
     ),
@@ -158,7 +161,7 @@ export function streetProfile(stations: Station[], label: (block: number) => str
   const say = (i: number) => {
     const s = stations[i]!;
     if (s.gap) return `${s.name ?? `${s.block} block`} · no blocks on record`;
-    return `${s.name ?? `${s.block} block`} · ${plural(s.n, "permit")}${s.opens === undefined ? "" : ` · opens the ${s.opens} block`}`;
+    return `${s.name ?? `${s.block} block`} · ${plural(s.n, counts)}${s.opens === undefined ? "" : ` · opens the ${s.opens} block`}`;
   };
   let near = -1;
   bars.addEventListener("pointermove", (e) => {

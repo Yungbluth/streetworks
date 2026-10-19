@@ -1112,40 +1112,21 @@ select {
   color: var(--muted);
 }
 
-/* The rarer options, folded away under the chips */
-/* Opens upward over the legend, so the strip and the map never change size */
-.legend-more {
-  position: relative;
+.legend-hint-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: -4px;
 }
 
-.legend-more summary {
-  list-style: none;
-  cursor: pointer;
-  color: var(--muted);
+.legend-hint-row .legend-hint {
+  margin-top: 0;
 }
 
-.legend-more summary::before {
-  content: "▸";
-  margin-right: 6px;
-}
-
-.legend-more[open] summary::before {
-  content: "▾";
-}
-
-.legend-more-body {
-  position: absolute;
-  z-index: 900;
-  left: 0;
-  bottom: calc(100% + 6px);
-  display: grid;
-  gap: 8px;
-  width: max-content;
-  padding: 10px 12px;
-  border: 1px solid var(--muted);
-  border-radius: 6px;
-  background: var(--panel);
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+.legend-hint-row .linkish {
+  flex: none;
+  font-size: 13px;
 }
 
 .legend .only {
@@ -1421,7 +1402,8 @@ select {
 
 .chart {
   position: relative;
-  height: 72px;
+  /* the time machine is the strip's main part, so its chart is the tallest thing in it */
+  height: 100px;
   margin-top: 12px;
   /* vertical swipes scroll the page; the code takes over for sideways ones */
   touch-action: pan-y;
@@ -1475,7 +1457,7 @@ select {
   position: absolute;
   bottom: -6px;
   width: 24px;
-  height: 84px;
+  height: 112px;
   margin-left: -12px;
   padding: 0;
   border: 0;
@@ -1639,7 +1621,7 @@ select {
 .byline .linkish,
 .legend .only,
 .legend .reset,
-.legend-more summary,
+.legend-hint-row .linkish,
 .legend-foot .linkish {
   display: inline-flex;
   align-items: center;
@@ -1670,7 +1652,7 @@ select {
   .byline .linkish,
   .legend .reset,
   .legend-foot .linkish,
-  .legend-more summary,
+  .legend-hint-row .linkish,
   .legend .only {
     display: inline-flex;
     align-items: center;

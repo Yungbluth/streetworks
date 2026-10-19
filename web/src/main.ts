@@ -303,26 +303,11 @@ async function start() {
       if (finished) endReplay();
       else hideReplayNote();
       if (on) $("status").textContent = resumed === undefined ? `Replay started from ${filter.from}.` : `Replay resumed from ${resumed}.`;
+      if (on && narrow.matches) $("map").scrollIntoView({ block: "start", behavior: reducedMotion.matches ? "auto" : "smooth" });
     },
   });
   // The year chart and the legend share the strip under the map
   const legendSlot = h("div", { class: "legend-slot" });
-  // "More options" opens over the chips, so Esc or a click anywhere else folds it away
-  const closeMore = () => {
-    const more = legendSlot.querySelector<HTMLDetailsElement>(".legend-more");
-    if (more) more.open = false;
-  };
-  legendSlot.addEventListener("keydown", (e) => {
-    const more = legendSlot.querySelector<HTMLDetailsElement>(".legend-more[open]");
-    if (e.key !== "Escape" || !more) return;
-    e.preventDefault();
-    more.open = false;
-    more.querySelector("summary")?.focus();
-  });
-  document.addEventListener("pointerdown", (e) => {
-    const more = legendSlot.querySelector<HTMLDetailsElement>(".legend-more[open]");
-    if (more && !more.contains(e.target as Node)) more.open = false;
-  });
   $("years").replaceWith(h("div", { class: "strip", id: "strip" }, years.el, legendSlot));
   zoomNote();
   // the strip isn't a control itself, so the skip link lands on Replay
@@ -357,13 +342,11 @@ async function start() {
           showMeanings,
           showOnly(c) {
             filter = { ...filter, cats: new Set([c]) };
-            closeMore();
             render({ focus: true, filters: true });
-            legendSlot.querySelector<HTMLElement>(".legend-more summary")?.focus();
+            legendSlot.querySelector<HTMLSelectElement>(".only")?.focus();
             $("status").textContent = `Only ${site.index.categories[c]} shown. ${years.el.querySelector("h3")?.textContent ?? ""}`;
           },
           reset: { visible: filtersChanged() && !replaying, go: resetFilters },
-          moreOpen: legendSlot.querySelector<HTMLDetailsElement>(".legend-more")?.open,
         },
         "linkish",
       ),
@@ -388,7 +371,9 @@ async function start() {
   function render(what: { focus?: boolean; filters?: boolean } = {}) {
     if (!replaying && filterKey(filter) !== noteKey) hideReplayNote();
     summary = summarizePlaces(site.permits, filter, placeCount);
-    map.show(summary, filter.to);
+    const digging = digKinds(site, filter).size > 0;
+    map.show(summary, filter.to, digging ? digsByPlace(site, filter) : undefined);
+    years.sizeKey(digging ? "times dug up" : "permits filed");
     years.update(filter);
     $("year-stamp").textContent = filter.from === filter.to ? String(filter.from) : `${filter.from}–${filter.to}`;
     if (what.filters) renderFilters();

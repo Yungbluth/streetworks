@@ -13,7 +13,6 @@ export interface LegendEvents {
   showOnly?(c: number): void;
   /** if given, Reset sits in the legend's head; it's hidden while there's nothing to reset */
   reset?: { visible: boolean; go(): void };
-  moreOpen?: boolean;
 }
 
 // permits of each kind under the years and no-work choice, ignoring which kinds are on
@@ -57,6 +56,7 @@ export function legend(site: Site, f: Filter, ev: LegendEvents, linkClass = "lin
         }),
       )
     : null;
+  const meanings = h("button", { type: "button", class: linkClass, onclick: ev.showMeanings }, "What the kinds mean");
   const noWork = h(
     "label",
     { class: "check" },
@@ -67,7 +67,9 @@ export function legend(site: Site, f: Filter, ev: LegendEvents, linkClass = "lin
     "div",
     { class: "cell legend" },
     reset ? h("div", { class: "legend-head" }, label, reset) : label,
-    h("p", { class: "legend-hint" }, "Select a kind to show or hide it. Bigger dots, more permits."),
+    only
+      ? h("div", { class: "legend-hint-row" }, h("p", { class: "legend-hint" }, "Select a kind to show or hide it."), meanings)
+      : h("p", { class: "legend-hint" }, "Select a kind to show or hide it. Bigger dots, more permits."),
     h(
       "ul",
       { class: "kinds" },
@@ -93,18 +95,9 @@ export function legend(site: Site, f: Filter, ev: LegendEvents, linkClass = "lin
         );
       }),
     ),
-    h(
-      "div",
-      { class: "legend-foot" },
-      only
-        ? h(
-            "details",
-            { class: "legend-more", open: !!ev.moreOpen },
-            h("summary", {}, "More options"),
-            h("div", { class: "legend-more-body" }, only, noWork),
-          )
-        : noWork,
-      h("button", { type: "button", class: linkClass, onclick: ev.showMeanings }, "What the kinds mean"),
-    ),
+    // With the one-kind picker, both options sit in plain view in the foot
+    only
+      ? h("div", { class: "legend-foot" }, only, noWork)
+      : h("div", { class: "legend-foot" }, noWork, meanings),
   );
 }

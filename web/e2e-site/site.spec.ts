@@ -58,11 +58,11 @@ test("a street's profile says which block the keyboard is on", async ({ page }) 
   await page.goto("/#q=e+speedway+blvd");
   const readout = page.locator(".profile-readout");
   await page.locator('.station[tabindex="0"]').focus();
-  await expect(readout).toHaveText(/^\d+(–\d+)? blocks? · \d+ permits?( · opens the \d+ block)?$/);
+  await expect(readout).toHaveText(/^\d+(–\d+)? blocks? · \d+ digs?( · opens the \d+ block)?$/);
   const first = await readout.textContent();
   await page.keyboard.press("Home");
   await expect(readout).not.toHaveText(first!);
-  await expect(readout).toHaveText(/^\d+(–\d+)? blocks? · \d+ permits?( · opens the \d+ block)?$/);
+  await expect(readout).toHaveText(/^\d+(–\d+)? blocks? · \d+ digs?( · opens the \d+ block)?$/);
   const mark = await page.locator(".station:focus").evaluate((b) => parseFloat(getComputedStyle(b, "::before").width));
   expect(mark).toBeGreaterThanOrEqual(8);
 });
@@ -139,7 +139,6 @@ test("the legend's counts follow Replay as it runs", async ({ page }) => {
 test("one kind can be shown on its own", async ({ page }) => {
   await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
   await page.goto("/");
-  await page.locator(".legend").getByText("More options").click();
   await page.getByRole("combobox", { name: "Show only one kind" }).selectOption("Utility");
   await expect(page.getByRole("button", { name: /^Utility/ })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: /^Excavation/ })).toHaveAttribute("aria-pressed", "false");
@@ -166,7 +165,6 @@ test("Esc from a block opened on the street profile lands back on its bar", asyn
 test("with no digging kind shown, the list ranks by permits and says so", async ({ page }) => {
   await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
   await page.goto("/");
-  await page.locator(".legend").getByText("More options").click();
   await page.getByRole("combobox", { name: "Show only one kind" }).selectOption("Utility");
   await expect(page.getByRole("heading", { level: 2, name: "Busiest places in view" })).toBeVisible();
   await expect(page.locator(".focus")).toContainText("Counts are permits; no digging kind is shown.");
@@ -175,7 +173,7 @@ test("with no digging kind shown, the list ranks by permits and says so", async 
 test("zoomed out, the chart draws its years in one tone, as the dots are", async ({ page }) => {
   await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
   await page.goto("/");
-  await expect(page.locator(".years .key")).toContainText("Dot color: the kind filed there most often");
+  await expect(page.locator(".years .key")).toContainText("Size: times dug up");
   const tone = (sel: string) => page.locator(sel).first().evaluate((b) => getComputedStyle(b).backgroundColor);
   expect(await tone(".chart .bars .back")).toBe(await tone(".chart .bars .recent"));
   expect(await tone(".chart .bars .old")).toBe(await tone(".chart .bars .recent"));
@@ -209,4 +207,11 @@ test("a finished replay picks out the blocks dug again and again", async ({ page
   await page.getByRole("slider", { name: "First year" }).press("ArrowRight");
   await page.waitForTimeout(300);
   expect(await drawn()).toBe(before);
+});
+
+test("with a digging kind shown, a street's profile counts digs", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.goto("/#q=e+speedway+blvd");
+  await expect(page.locator('.station[tabindex="0"]')).toHaveAttribute("aria-label", /, \d+ digs?, opens the \d+ block$/);
+  await expect(page.locator(".focus")).toContainText(/Busiest stretch: the [\d–]+ blocks, [\d,]+ digs of [\d,]+\./);
 });

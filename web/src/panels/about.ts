@@ -32,7 +32,7 @@ export function aboutPanel(idx: Index): HTMLElement {
     h(
       "ul",
       {},
-      h("li", {}, "A dot's color is the kind of work filed there most often. Bigger dots mean more permits."),
+      h("li", {}, "A dot's color is the kind of work filed there most often. Bigger dots mean it was dug up more often (Excavation and Combo permits), or, with neither kind shown, more permits."),
       h("li", {}, "Its shape is how recent the newest permit is, within the years you've chosen: solid for the last three years, a ring for the seven before that, a faint speck for older."),
       h("li", {}, "Zoomed out over the whole city, only solid dots show. Rings and specks appear when you zoom in."),
     ),

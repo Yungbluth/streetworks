@@ -121,6 +121,16 @@ test.describe("on a phone", () => {
     await expect(page.locator(".chart")).toBeInViewport({ ratio: 0.9 });
   });
 
+  test("Replay started from inside a place brings the map into view", async ({ page }) => {
+    await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+    await page.goto("/#place=b%3AE+SPEEDWAY+BLVD%3A700");
+    await expect(page.getByRole("heading", { level: 2, name: "700 block of E Speedway Blvd" })).toBeVisible();
+    await page.locator(".panel-head").getByRole("button", { name: "Show the years" }).click();
+    await page.getByRole("button", { name: "Replay" }).click();
+    await expect(page.locator("#map")).toBeInViewport({ ratio: 0.5 });
+    await expect(page.locator(".year-stamp")).toBeInViewport();
+  });
+
   test("the page never scrolls sideways", async ({ page }) => {
     await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
     await page.goto("/");
@@ -310,7 +320,7 @@ test("a street's profile says which block the pointer is over", async ({ page })
   const bars = page.locator(".profile-bars");
   const box = (await bars.boundingBox())!;
   await page.mouse.move(box.x + box.width - 2, box.y + box.height / 2);
-  await expect(page.locator(".profile-readout")).toHaveText(/^\d+ block · \d+ permits?$/);
+  await expect(page.locator(".profile-readout")).toHaveText(/^\d+ block · \d+ digs?$/);
 });
 
 test("a block opened from its street leads back to the street", async ({ page }) => {
@@ -353,18 +363,6 @@ test("Excavation keeps its pale paint and shows on the map by its halo", async (
   }
 });
 
-test("the legend keeps its rarer options folded away", async ({ page }) => {
-  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
-  await page.goto("/");
-  const only = page.getByRole("combobox", { name: "Show only one kind" });
-  const noWork = page.getByRole("checkbox", { name: "Include permits that never led to work" });
-  await expect(only).toBeHidden();
-  await expect(noWork).toBeHidden();
-  await page.locator(".legend").getByText("More options").click();
-  await expect(only).toBeVisible();
-  await expect(noWork).toBeVisible();
-});
-
 test("a permit line shows that it opens", async ({ page }) => {
   await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
   await page.goto("/#place=b%3AE+SPEEDWAY+BLVD%3A700");
@@ -380,36 +378,4 @@ test("the first view ranks places by how often they were dug up", async ({ page 
   await expect(page.getByRole("heading", { level: 2, name: "Most dug-up places in view" })).toBeVisible();
   await expect(page.locator(".busiest li .n").first()).toHaveText(/^\d+ digs?$/);
   await expect(page.locator(".focus")).toContainText("Counts are times dug up");
-});
-
-test("More options closes on Esc", async ({ page }) => {
-  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
-  await page.goto("/");
-  const summary = page.locator(".legend").getByText("More options");
-  const only = page.getByRole("combobox", { name: "Show only one kind" });
-  await summary.click();
-  await only.focus();
-  await page.keyboard.press("Escape");
-  await expect(only).toBeHidden();
-  await expect(page.locator(".legend-more summary")).toBeFocused();
-  await summary.click();
-  await expect(only).toBeVisible();
-  await page.locator(".years .chart").click({ position: { x: 5, y: 5 } });
-  await expect(only).toBeHidden();
-  await summary.click();
-  await only.selectOption("Excavation");
-  await expect(page.getByRole("combobox", { name: "Show only one kind" })).toBeHidden();
-});
-
-test("More options stays closed after it's closed, even with no-work permits included", async ({ page }) => {
-  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
-  await page.goto("/");
-  await page.locator(".legend").getByText("More options").click();
-  await page.getByRole("checkbox", { name: "Include permits that never led to work" }).check();
-  await expect(page.locator("#status")).toHaveText(/^Permits that never led to work included\. \d+ permits/);
-  await page.keyboard.press("Escape");
-  const only = page.getByRole("combobox", { name: "Show only one kind" });
-  await expect(only).toBeHidden();
-  await page.getByRole("slider", { name: "Last year" }).press("ArrowLeft");
-  await expect(only).toBeHidden();
 });

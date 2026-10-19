@@ -18,6 +18,8 @@ class DotLayer extends L.Layer {
   private canvas = document.createElement("canvas");
   private drawn: Drawn = { place: new Int32Array(0), x: new Float32Array(0), y: new Float32Array(0), r: new Float32Array(0), n: 0 };
   summary?: PlaceSummary;
+  // what a dot's size counts, when not its permits
+  size?: Uint32Array;
   end = 0;
   highlighted = new Set<number>();
   // true while a replay runs: the year just added gets a halo
@@ -95,7 +97,7 @@ class DotLayer extends L.Layer {
       const cat = summary.cat[p]!;
       const real = ageOf(summary.newest[p]!, this.end);
       const age = drawnAge(real, zoom);
-      const own = dotStyle(age, this.radius(summary.count[p]!, metersPerPx), colors[cat]!, edges[cat], halos[cat]);
+      const own = dotStyle(age, this.radius((this.size ?? summary.count)[p]!, metersPerPx), colors[cat]!, edges[cat], halos[cat]);
       // While a street is open, the rest of the map steps back
       const style = this.highlighted.size && !this.highlighted.has(p) ? faded(own) : own;
       d.place[i] = p;
@@ -270,8 +272,10 @@ export class PermitMap {
     this.dots.redraw();
   }
 
-  show(summary: PlaceSummary, end: number) {
+  // draws the places; size, if given, is what a dot's size counts (digs, say) instead of its permits
+  show(summary: PlaceSummary, end: number, size?: Uint32Array) {
     this.dots.summary = summary;
+    this.dots.size = size;
     this.dots.end = end;
     this.dots.redraw();
   }

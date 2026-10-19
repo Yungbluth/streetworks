@@ -67,8 +67,9 @@ export function yearStrip(site: Site, ev: YearEvents) {
   const play = h("button", { type: "button", class: "play primary" });
   const sparseNote = h("span", { class: "sparse-note" });
   const startOver = h("button", { type: "button", class: "linkish start-over", hidden: true }, "Start over");
-  // Zoomed out, dots are all solid; the key says so
+  // zoomed out, dots are all solid; the key says so, and what their size counts
   let zoomedOut = false;
+  let sizeBy = "times dug up";
   const axis = h("div", { class: "axis", "aria-hidden": "true" });
   for (let y = first; y <= last; y++) {
     // every fifth year and the ends, unless an end would crowd its neighbour
@@ -249,7 +250,7 @@ export function yearStrip(site: Site, ev: YearEvents) {
   function drawKey() {
     if (zoomedOut) {
       // zoomed out every dot is solid, so the line keys what a dot does say
-      fill(key, h("span", { class: "key-note" }, "Dot color: the kind filed there most often. Size: how many permits. Zoom in to see how recent."));
+      fill(key, h("span", { class: "key-note" }, `Color: kind filed most · Size: ${sizeBy} · Zoom in for age`));
       return;
     }
     const r = ageRanges(to);
@@ -276,5 +277,12 @@ export function yearStrip(site: Site, ev: YearEvents) {
     drawKey();
   }
 
-  return { el, update, showZoomNote };
+  /** what a dot's size counts, for the key */
+  function sizeKey(text: string) {
+    if (text === sizeBy) return;
+    sizeBy = text;
+    drawKey();
+  }
+
+  return { el, update, showZoomNote, sizeKey };
 }

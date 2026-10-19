@@ -33,8 +33,9 @@ describe("a whole street", () => {
       go: () => {}, setRadius: () => {}, showAllKinds: () => {}, retry: () => {},
     };
     const labels = [...streetPanel(ctx, 0).querySelectorAll(".station")].map((l) => l.getAttribute("aria-label"));
-    expect(labels).toEqual(["0 block, 1 permit", "100 block, 1 permit"]);
+    // while a digging kind is shown, the profile counts digs
+    expect(labels).toEqual(["0 block, 1 dig", "100 block, 1 dig"]);
     expect(streetPanel(ctx, 0).textContent).toContain("2 permits on 2 blocks; dug up twice.");
-    expect(streetPanel(ctx, 0).textContent).toContain("Busiest block: the 0 block, 1 permit of 2.");
+    expect(streetPanel(ctx, 0).textContent).toContain("Busiest block: the 0 block, 1 dig of 2.");
   });
 });
