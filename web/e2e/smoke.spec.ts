@@ -227,7 +227,7 @@ test("changing the filters doesn't resize the map", async ({ page }) => {
 test("the map marks the open place, letters its radius", async ({ page }) => {
   await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
   await page.goto("/#place=b%3AE+SPEEDWAY+BLVD%3A700");
-  await expect(page.locator(".place-mark .tag")).toHaveText(/^\d+$/);
+  await expect(page.locator(".place-mark .tag")).toHaveText(/^\d+ digs?$/);
   await expect(page.locator(".dimension")).toHaveText(/^R \d+ ft$/);
   await expect(page.locator(".leaflet-control-scale-line")).toBeVisible();
   await expect(page.locator(".north")).toBeVisible();
@@ -369,7 +369,7 @@ test("the first view ranks places by how often they were dug up", async ({ page 
   await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 2, name: "Most dug-up places in view" })).toBeVisible();
-  await expect(page.locator(".busiest li").first()).toContainText(/\d+$/);
+  await expect(page.locator(".busiest li .n").first()).toHaveText(/^\d+ digs?$/);
   await expect(page.locator(".focus")).toContainText("Counts are times dug up");
 });
 
@@ -390,4 +390,17 @@ test("More options closes on Esc", async ({ page }) => {
   await summary.click();
   await only.selectOption("Excavation");
   await expect(page.getByRole("combobox", { name: "Show only one kind" })).toBeHidden();
+});
+
+test("More options stays closed after it's closed, even with no-work permits included", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.goto("/");
+  await page.locator(".legend").getByText("More options").click();
+  await page.getByRole("checkbox", { name: "Include permits that never led to work" }).check();
+  await expect(page.locator("#status")).toHaveText(/^Permits that never led to work included\. \d+ permits/);
+  await page.keyboard.press("Escape");
+  const only = page.getByRole("combobox", { name: "Show only one kind" });
+  await expect(only).toBeHidden();
+  await page.getByRole("slider", { name: "Last year" }).press("ArrowLeft");
+  await expect(only).toBeHidden();
 });

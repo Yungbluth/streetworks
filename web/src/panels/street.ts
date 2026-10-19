@@ -42,7 +42,7 @@ export function streetPanel(ctx: Ctx, street: number): HTMLElement {
                 "li",
                 {},
                 h("button", { type: "button", class: "linkish", onclick: open(p) }, `${site.places.block[p]} block`),
-                h("span", { class: "n" }, num(summary.count[p]!)),
+                h("span", { class: "n" }, plural(summary.count[p]!, "permit")),
               ),
             ),
           ),

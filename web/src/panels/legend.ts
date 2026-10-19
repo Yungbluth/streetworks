@@ -99,7 +99,7 @@ export function legend(site: Site, f: Filter, ev: LegendEvents, linkClass = "lin
       only
         ? h(
             "details",
-            { class: "legend-more", open: !!ev.moreOpen || f.includeNoWork },
+            { class: "legend-more", open: !!ev.moreOpen },
             h("summary", {}, "More options"),
             h("div", { class: "legend-more-body" }, only, noWork),
           )

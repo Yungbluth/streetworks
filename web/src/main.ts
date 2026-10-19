@@ -240,7 +240,7 @@ async function start() {
     notes.clear();
     const place = focus?.kind === "place" ? focus.place : undefined;
     const n = place === undefined ? 0 : digKinds(site, filter).size ? digsByPlace(site, filter)[place]! : summary.count[place]!;
-    notes.mark(at, n ? String(n) : undefined);
+    notes.mark(at, n ? (digKinds(site, filter).size ? plural(n, "dig") : plural(n, "permit")) : undefined);
     notes.dimension(at, radiusM);
   }
 
@@ -285,11 +285,12 @@ async function start() {
       // A finished replay has already said its own line.
       if (!live && $("replay-note").hidden) $("status").textContent = years.el.querySelector("h3")?.textContent ?? "";
     },
-    replaying: (on, finished) => {
+    replaying: (on, finished, resumed) => {
       replaying = on;
       map.setReplaying(on);
       if (finished) endReplay();
       else hideReplayNote();
+      if (on) $("status").textContent = resumed === undefined ? `Replay started from ${filter.from}.` : `Replay resumed from ${resumed}.`;
     },
   });
   // The year chart and the legend share the strip under the map
@@ -339,6 +340,7 @@ async function start() {
             filter = { ...filter, includeNoWork: on };
             render({ focus: true, filters: true });
             legendSlot.querySelector<HTMLInputElement>(".check input")?.focus();
+            $("status").textContent = `Permits that never led to work ${on ? "included" : "left out"}. ${years.el.querySelector("h3")?.textContent ?? ""}`;
           },
           showMeanings,
           showOnly(c) {

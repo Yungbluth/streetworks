@@ -267,7 +267,6 @@ export class PermitMap {
     this.dots.redraw();
   }
 
-  /** Keeps older work on the map while a replay fills the city in */
   /** while a replay runs, each year's new dots arrive with a halo */
   setReplaying(on: boolean) {
     this.dots.arrivals = on;

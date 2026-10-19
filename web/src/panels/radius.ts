@@ -18,7 +18,7 @@ export function nearby(ctx: Ctx, center: LatLng, opts: { listNow?: boolean; excl
 
   const select = h(
     "select",
-    { "aria-label": "Distance", onchange: (e) => ctx.setRadius(Number((e.target as HTMLSelectElement).value)) },
+    { "aria-label": "Within", onchange: (e) => ctx.setRadius(Number((e.target as HTMLSelectElement).value)) },
     ...RADII.map((r) => h("option", { value: r.m, selected: r.m === ctx.radiusM }, r.label)),
   );
   const out = h(

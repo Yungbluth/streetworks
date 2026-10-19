@@ -1,6 +1,6 @@
 import type L from "leaflet";
 import { h } from "../dom";
-import { num, placeName } from "../format";
+import { placeName, plural } from "../format";
 import { showAll } from "./common";
 import { digKinds, digsByPlace, type Ctx } from "../model";
 
@@ -34,7 +34,7 @@ export function busiestPanel(ctx: Ctx, view: L.LatLngBounds): HTMLElement {
                 "li",
                 {},
                 h("button", { type: "button", class: "linkish", onclick: () => ctx.go({ kind: "place", place: p }, { move: true }) }, placeName(places, p)),
-                h("span", { class: "n" }, num(digs[p]!)),
+                h("span", { class: "n" }, digging ? plural(digs[p]!, "dig") : plural(digs[p]!, "permit")),
               ),
             ),
           ),

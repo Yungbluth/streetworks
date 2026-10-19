@@ -67,11 +67,12 @@ describe("placePanel", () => {
     go: () => {}, setRadius: () => {}, showAllKinds: () => {}, retry: () => {},
   };
 
-  it("leads with the summary, then its own permits", async () => {
+  it("leads with the summary, then what's nearby", async () => {
     const el = placePanel(ctx, 0);
     await new Promise((r) => setTimeout(r, 0));
     const order = [...el.querySelectorAll(".lead, .nearby, .permit-wrap")].map((n) => n.className.split(" ")[0]);
-    expect(order).toEqual(["lead", "permit-wrap", "nearby"]);
+    // What's around it comes before the full history, which can run long
+    expect(order).toEqual(["lead", "nearby", "permit-wrap"]);
     expect(el.querySelector(".lead")!.textContent).toBe("2 permits from 2020 to 2024, all Excavation.");
   });
 

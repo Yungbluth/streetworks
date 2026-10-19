@@ -105,14 +105,16 @@ export function placePanel(ctx: Ctx, place: number, extraNote?: string, back?: {
     panelHead(placeName(site.places, place), () => ctx.go(null)),
     note(extraNote),
     digs ? h("p", { class: "digs" }, digs) : null,
+    digs ? h("p", { class: "quiet digs-note" }, "A dig is an Excavation or Combo permit.") : null,
     h("p", { class: "lead" }, placeSummary(byCategory, mine.map((i) => site.permits.year[i]!), site.index.categories)),
     who,
     byCategory.size > 1 ? kindSplit(byCategory, site.index.categories) : null,
     mine.length > 1 ? placeYears(mine.map((i) => site.permits.year[i]!), filter.from, filter.to) : null,
     !mine.length && filter.cats.size < site.index.categories.length ? showAll(ctx.showAllKinds) : null,
+    // What's around it comes before the full history, which can run long
+    nearby(ctx, placeAt(site, place), { exclude: place }),
     mine.length ? h("h3", {}, "Permits here, newest first") : null,
     history,
-    nearby(ctx, placeAt(site, place), { exclude: place }),
   );
   if (mine.length)
     detailsFor(site, mine)

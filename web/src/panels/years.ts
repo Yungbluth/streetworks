@@ -6,8 +6,8 @@ import { controlGlyph } from "../marks";
 
 export interface YearEvents {
   setRange(from: number, to: number, live: boolean): void;
-  // Replay started (true) or stopped; finished is true when it ran to the end
-  replaying?(on: boolean, finished?: boolean): void;
+  // replay started (true) or stopped
+  replaying?(on: boolean, finished?: boolean, resumed?: number): void;
 }
 
 const markRadius = { solid: "5", ring: "4.2", speck: "1.8" };
@@ -66,6 +66,8 @@ export function yearStrip(site: Site, ev: YearEvents) {
   const key = h("p", { class: "key" });
   const play = h("button", { type: "button", class: "play primary" });
   const sparseNote = h("span", { class: "sparse-note" });
+  const startOver = h("button", { type: "button", class: "linkish start-over", hidden: true }, "Start over");
+  // Zoomed out, dots are all solid; the key says so
   let zoomedOut = false;
   const axis = h("div", { class: "axis", "aria-hidden": "true" });
   for (let y = first; y <= last; y++) {
@@ -82,9 +84,16 @@ export function yearStrip(site: Site, ev: YearEvents) {
     h("div", { class: "head" }, play, total),
     chart,
     axis,
-    h("div", { class: "foot" }, key, sparseNote),
+    h("div", { class: "foot" }, key, h("div", { class: "note-row" }, sparseNote, startOver)),
   );
-  const label = (playing: boolean) => play.replaceChildren(controlGlyph(playing ? "stop" : "play"), playing ? "Stop" : "Replay");
+  // Held after a stop, the button says it will carry on; its full name gives the end.
+  const label = (playing: boolean) => {
+    const resume = !playing && held !== null && held.at[0] === from && held.at[1] === to;
+    play.replaceChildren(controlGlyph(playing ? "stop" : "play"), playing ? "Stop" : resume ? "Resume" : "Replay");
+    if (resume) play.setAttribute("aria-label", `Resume to ${held!.chosen[1]}`);
+    else play.removeAttribute("aria-label");
+    startOver.hidden = !resume;
+  };
 
   const yearAt = (clientX: number) => {
     const r = bars.getBoundingClientRect();
@@ -175,8 +184,8 @@ export function yearStrip(site: Site, ev: YearEvents) {
     before = null;
     set(f, t, false);
   }
-  function run(end: number) {
-    ev.replaying?.(true);
+  function run(end: number, resumedFrom?: number) {
+    ev.replaying?.(true, false, resumedFrom);
     // start the timer first: setting the range redraws this strip
     timer = window.setInterval(() => {
       if (to >= end) return stop(true);
@@ -190,13 +199,22 @@ export function yearStrip(site: Site, ev: YearEvents) {
     held = null;
     if (resume) {
       before = resume.chosen;
-      run(resume.chosen[1]);
+      run(resume.chosen[1], to);
       set(from, to, true);
       return;
     }
     before = [from, to];
     run(to);
     set(from, from, true);
+  });
+  startOver.addEventListener("click", () => {
+    const chosen = held?.chosen;
+    held = null;
+    if (!chosen) return;
+    before = chosen;
+    run(chosen[1]);
+    set(chosen[0], chosen[0], true);
+    play.focus();
   });
 
   function update(f: Filter, counts = countByYear(site.permits, f)) {

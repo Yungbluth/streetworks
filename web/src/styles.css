@@ -690,6 +690,11 @@ h3 {
   line-height: 1.4;
 }
 
+.digs-note {
+  margin-top: -8px;
+  font-size: 13px;
+}
+
 .lead {
   font-size: 16px;
   line-height: 1.45;
@@ -1012,6 +1017,8 @@ select {
 .busiest li {
   display: grid;
   grid-template-columns: 1.6em 1fr auto;
+  /* the rank and count sit level with the link, however tall touch makes it */
+  align-items: center;
   gap: 10px;
   counter-increment: rank;
 }
@@ -1467,9 +1474,9 @@ select {
   touch-action: none;
   position: absolute;
   bottom: -6px;
-  width: 14px;
+  width: 24px;
   height: 84px;
-  margin-left: -7px;
+  margin-left: -12px;
   padding: 0;
   border: 0;
   background: none;
@@ -1479,7 +1486,7 @@ select {
 .handle::before {
   content: "";
   position: absolute;
-  left: 5px;
+  left: calc(50% - 2px);
   top: 0;
   bottom: 0;
   width: 4px;
@@ -1503,7 +1510,20 @@ select {
 .sparse-note {
   font-size: 13px;
   color: var(--muted);
+}
+
+/* The note line under the key, with Start over at its end after a stop */
+.years .note-row {
   flex-basis: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.start-over {
+  flex: none;
+  font-size: 13px;
 }
 
 .year-stamp {
