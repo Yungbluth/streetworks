@@ -1230,7 +1230,13 @@ select {
 
 .years .head h3 {
   min-width: 0;
-  white-space: nowrap;
+}
+
+/* One line on a desktop, where the strip has room */
+@media (min-width: 821px) {
+  .years .head h3 {
+    white-space: nowrap;
+  }
 }
 
 /* the key and notes under the chart */

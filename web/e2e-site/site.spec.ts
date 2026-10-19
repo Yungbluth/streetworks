@@ -81,6 +81,19 @@ test("a street's profile says which block the keyboard is on", async ({ page }) 
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
+  test("the year total keeps inside the page's side gutter", async ({ page }) => {
+    await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+    await page.goto("/");
+    const total = page.locator(".years .head h3");
+    await expect(total).toHaveText(/permits/);
+    const right = await total.evaluate((t) => {
+      const range = document.createRange();
+      range.selectNodeContents(t);
+      return range.getBoundingClientRect().right;
+    });
+    expect(right).toBeLessThanOrEqual(390 - 16);
+  });
+
   test("a first tap on the street profile previews a bar; a second opens it", async ({ page }) => {
     await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
     await page.goto("/#q=e+speedway+blvd");
