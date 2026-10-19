@@ -1223,7 +1223,6 @@ select {
   margin-top: 6px;
 }
 
-/* Replay is the page's main idea, so it's the one filled button */
 .play {
   display: inline-flex;
   align-items: center;
@@ -1239,7 +1238,6 @@ select {
   background: var(--ink);
   color: var(--panel);
   font-weight: 600;
-  font-size: 14px;
   cursor: pointer;
 }
 
@@ -1573,9 +1571,5 @@ select {
   }
   .handle::before {
     left: 20px;
-  }
-  .permit summary {
-    min-height: 44px;
-    align-items: center;
   }
 }
