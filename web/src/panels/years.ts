@@ -253,6 +253,7 @@ export function yearStrip(site: Site, ev: YearEvents) {
   function showZoomNote(zoomedOutNow: boolean) {
     if (zoomedOut === zoomedOutNow) return;
     zoomedOut = zoomedOutNow;
+    chart.classList.toggle("flat", zoomedOutNow);
     drawKey();
   }
 

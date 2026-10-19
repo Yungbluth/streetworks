@@ -372,3 +372,22 @@ test("the first view ranks places by how often they were dug up", async ({ page 
   await expect(page.locator(".busiest li").first()).toContainText(/\d+$/);
   await expect(page.locator(".focus")).toContainText("Counts are times dug up");
 });
+
+test("More options closes on Esc", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.goto("/");
+  const summary = page.locator(".legend").getByText("More options");
+  const only = page.getByRole("combobox", { name: "Show only one kind" });
+  await summary.click();
+  await only.focus();
+  await page.keyboard.press("Escape");
+  await expect(only).toBeHidden();
+  await expect(page.locator(".legend-more summary")).toBeFocused();
+  await summary.click();
+  await expect(only).toBeVisible();
+  await page.locator(".years .chart").click({ position: { x: 5, y: 5 } });
+  await expect(only).toBeHidden();
+  await summary.click();
+  await only.selectOption("Excavation");
+  await expect(page.getByRole("combobox", { name: "Show only one kind" })).toBeHidden();
+});

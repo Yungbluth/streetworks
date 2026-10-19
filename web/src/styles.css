@@ -1435,6 +1435,14 @@ select {
   opacity: 0.45;
 }
 
+/* Zoomed out: every year in range one solid tone, as every dot is */
+.chart.flat .back,
+.chart.flat .old {
+  background: var(--ink);
+  box-shadow: none;
+  opacity: 1;
+}
+
 .chart .out {
   background: var(--bar-off);
 }

@@ -171,3 +171,12 @@ test("with no digging kind shown, the list ranks by permits and says so", async 
   await expect(page.getByRole("heading", { level: 2, name: "Busiest places in view" })).toBeVisible();
   await expect(page.locator(".focus")).toContainText("Counts are permits; no digging kind is shown.");
 });
+
+test("zoomed out, the chart draws its years in one tone, as the dots are", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.goto("/");
+  await expect(page.locator(".years .key")).toContainText("every dot is solid");
+  const tone = (sel: string) => page.locator(sel).first().evaluate((b) => getComputedStyle(b).backgroundColor);
+  expect(await tone(".chart .bars .back")).toBe(await tone(".chart .bars .recent"));
+  expect(await tone(".chart .bars .old")).toBe(await tone(".chart .bars .recent"));
+});

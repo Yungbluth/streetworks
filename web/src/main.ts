@@ -294,6 +294,22 @@ async function start() {
   });
   // The year chart and the legend share the strip under the map
   const legendSlot = h("div", { class: "legend-slot" });
+  // "More options" opens over the chips, so Esc or a click anywhere else folds it away
+  const closeMore = () => {
+    const more = legendSlot.querySelector<HTMLDetailsElement>(".legend-more");
+    if (more) more.open = false;
+  };
+  legendSlot.addEventListener("keydown", (e) => {
+    const more = legendSlot.querySelector<HTMLDetailsElement>(".legend-more[open]");
+    if (e.key !== "Escape" || !more) return;
+    e.preventDefault();
+    more.open = false;
+    more.querySelector("summary")?.focus();
+  });
+  document.addEventListener("pointerdown", (e) => {
+    const more = legendSlot.querySelector<HTMLDetailsElement>(".legend-more[open]");
+    if (more && !more.contains(e.target as Node)) more.open = false;
+  });
   $("years").replaceWith(h("div", { class: "strip", id: "strip" }, years.el, legendSlot));
   zoomNote();
   // the strip isn't a control itself, so the skip link lands on Replay
@@ -327,8 +343,9 @@ async function start() {
           showMeanings,
           showOnly(c) {
             filter = { ...filter, cats: new Set([c]) };
+            closeMore();
             render({ focus: true, filters: true });
-            legendSlot.querySelector<HTMLSelectElement>(".only")?.focus();
+            legendSlot.querySelector<HTMLElement>(".legend-more summary")?.focus();
             $("status").textContent = `Only ${site.index.categories[c]} shown. ${years.el.querySelector("h3")?.textContent ?? ""}`;
           },
           reset: { visible: filtersChanged() && !replaying, go: resetFilters },
