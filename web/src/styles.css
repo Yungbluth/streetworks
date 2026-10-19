@@ -1012,8 +1012,8 @@ select {
 /* The legend: each kind in its paint and with its count, and the switch that shows or hides it */
 .legend {
   display: grid;
-  gap: 8px;
-  padding: 12px 20px 10px;
+  gap: 6px;
+  padding: 10px 20px 8px;
 }
 
 .cell-label {
@@ -1034,7 +1034,7 @@ select {
 .legend .kinds {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
+  gap: 3px;
   padding: 0;
   list-style: none;
 }
@@ -1045,8 +1045,8 @@ select {
   align-items: center;
   gap: 7px;
   width: 100%;
-  min-height: 30px;
-  padding: 3px 8px;
+  min-height: 24px;
+  padding: 1px 8px;
   border: 1px solid var(--line);
   border-radius: 4px;
   background: var(--field);
@@ -1072,32 +1072,44 @@ select {
 }
 
 /* The rarer options, folded away under the chips */
+/* Opens upward over the legend, so the strip and the map never change size */
 .legend-more {
-  flex: 1 1 auto;
+  position: relative;
 }
 
 .legend-more summary {
+  list-style: none;
   cursor: pointer;
   color: var(--muted);
 }
 
-/* Open, it takes its own line below "What the kinds mean" */
-.legend-more[open] {
-  order: 1;
-  flex-basis: 100%;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 14px;
+.legend-more summary::before {
+  content: "▸";
+  margin-right: 6px;
 }
 
-.legend-more[open] summary {
-  flex-basis: 100%;
+.legend-more[open] summary::before {
+  content: "▾";
+}
+
+.legend-more-body {
+  position: absolute;
+  z-index: 900;
+  left: 0;
+  bottom: calc(100% + 6px);
+  display: grid;
+  gap: 8px;
+  width: max-content;
+  padding: 10px 12px;
+  border: 1px solid var(--muted);
+  border-radius: 6px;
+  background: var(--panel);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
 }
 
 .legend .only {
   padding: 2px 6px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--muted);
   border-radius: 4px;
   background: var(--field);
   color: var(--ink);
@@ -1323,7 +1335,7 @@ select {
 .years .key {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 16px;
+  gap: 4px 12px;
   font-size: 13px;
   color: var(--muted);
 }

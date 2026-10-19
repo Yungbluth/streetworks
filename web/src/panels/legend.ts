@@ -97,7 +97,12 @@ export function legend(site: Site, f: Filter, ev: LegendEvents, linkClass = "lin
       "div",
       { class: "legend-foot" },
       only
-        ? h("details", { class: "legend-more", open: !!ev.moreOpen || f.includeNoWork }, h("summary", {}, "More options"), only, noWork)
+        ? h(
+            "details",
+            { class: "legend-more", open: !!ev.moreOpen || f.includeNoWork },
+            h("summary", {}, "More options"),
+            h("div", { class: "legend-more-body" }, only, noWork),
+          )
         : noWork,
       h("button", { type: "button", class: linkClass, onclick: ev.showMeanings }, "What the kinds mean"),
     ),

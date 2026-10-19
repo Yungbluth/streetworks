@@ -66,7 +66,7 @@ export function yearStrip(site: Site, ev: YearEvents) {
   const key = h("p", { class: "key" });
   const play = h("button", { type: "button", class: "play primary" });
   const sparseNote = h("span", { class: "sparse-note" });
-  const zoomNote = h("span", { class: "zoom-note", hidden: true }, "Zoom in to see rings and specks");
+  let zoomedOut = false;
   const axis = h("div", { class: "axis", "aria-hidden": "true" });
   for (let y = first; y <= last; y++) {
     // every fifth year and the ends, unless an end would crowd its neighbour
@@ -218,19 +218,21 @@ export function yearStrip(site: Site, ev: YearEvents) {
       h("span", {}, svg("solid"), hidden("Solid dots: "), clampText(r.recent[0], r.recent[1])),
       r.back[1] >= from ? h("span", { class: "older" }, svg("ring"), hidden("Rings: "), clampText(r.back[0], r.back[1])) : null,
       r.oldBefore > from ? h("span", { class: "older" }, svg("speck"), hidden("Specks: "), yearsText(from, r.oldBefore - 1)) : null,
-      zoomNote,
     );
-    sparseNote.textContent =
-      from < sparse
-        ? `Before ${sparse} the city's records are thin, so those years look quieter than they were.`
-        : moved
-          ? "\u00a0"
-          : "Drag either end to choose the years.";
+    sparseNote.textContent = note();
   }
 
-  function showZoomNote(zoomedOut: boolean) {
-    zoomNote.hidden = !zoomedOut;
-    key.classList.toggle("zoomed-out", zoomedOut);
+  // One line of notes under the key, the most useful first, so the strip never grows a line
+  function note() {
+    if (from < sparse) return `Before ${sparse} the city's records are thin, so those years look quieter than they were.`;
+    if (!moved) return "Drag either end to choose the years.";
+    return zoomedOut ? "Zoom in to see rings and specks." : "\u00a0";
+  }
+
+  function showZoomNote(zoomedOutNow: boolean) {
+    zoomedOut = zoomedOutNow;
+    key.classList.toggle("zoomed-out", zoomedOutNow);
+    sparseNote.textContent = note();
   }
 
   return { el, update, showZoomNote };

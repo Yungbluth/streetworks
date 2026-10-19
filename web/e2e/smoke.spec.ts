@@ -54,7 +54,9 @@ test("the zoom note shows only", async ({ page }) => {
   await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
   await page.goto("/#place=b%3AE+SPEEDWAY+BLVD%3A700");
   await expect(page.getByRole("heading", { level: 2, name: "700 block of E Speedway Blvd" })).toBeVisible();
-  const note = page.getByText("Zoom in to see rings and specks");
+  // It shares a line with the drag hint, which comes first until the years are moved.
+  await page.getByRole("slider", { name: "Last year" }).press("ArrowLeft");
+  const note = page.getByText("Zoom in to see rings and specks.");
   await expect(note).toBeHidden();
 
   const out = page.locator(".leaflet-control-zoom-out");
