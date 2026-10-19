@@ -145,7 +145,8 @@ h2 {
 }
 
 /* Headings get focus so screen readers land on a new panel; no ring needed. */
-[tabindex="-1"]:focus {
+/* a heading the page moves focus to shows a ring when the keyboard brought it there */
+[tabindex="-1"]:focus:not(:focus-visible) {
   outline: none;
 }
 
@@ -1230,8 +1231,19 @@ select {
 }
 
 .about summary {
+  list-style: none;
   cursor: pointer;
   font-weight: 600;
+}
+
+/* Drawn here: on touch it's a flex box (for 44px) and loses the native marker. */
+.about summary::before {
+  content: "▸";
+  margin-right: 6px;
+}
+
+.about[open] > summary::before {
+  content: "▾";
 }
 
 .about p,

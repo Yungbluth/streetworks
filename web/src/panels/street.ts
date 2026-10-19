@@ -30,7 +30,7 @@ export function streetPanel(ctx: Ctx, street: number): HTMLElement {
     h("p", { class: "sub" }, total ? `${plural(total, "permit")} on ${plural(busy.length, "block")}.` : "No permits on this street match the filters."),
     h("h3", {}, "Blocks in address order"),
     total ? h("p", { class: "quiet" }, `Busiest ${peak.name ? "stretch" : "block"}: the ${peak.name ?? `${peak.block} block`}, ${plural(peak.n, "permit")} of ${num(total)}.`) : null,
-    streetProfile(bars, String),
+    streetProfile(bars, String, "Block"),
     ...(top.length
       ? [
           h("h3", {}, bars.length < blocks.length ? "Busiest single blocks" : "Busiest blocks"),
@@ -95,7 +95,7 @@ export function stretches(blocks: Station[]): Station[] {
 }
 
 // a street as a profile: its blocks in address order, each a bar as tall as its permit count
-export function streetProfile(stations: Station[], label: (block: number) => string): HTMLElement {
+export function streetProfile(stations: Station[], label: (block: number) => string, unit?: string): HTMLElement {
   const max = Math.max(1, ...stations.map((s) => s.n));
   const busiest = stations.reduce((best, s, i) => (s.n > stations[best]!.n ? i : best), 0);
   const ticks = stationTicks(stations.length);
@@ -182,6 +182,7 @@ export function streetProfile(stations: Station[], label: (block: number) => str
     readout,
     // the tallest bar's count, so the heights have a scale
     h("div", { class: "profile-plot" }, h("span", { class: "profile-max", "aria-hidden": "true" }, num(max)), bars),
-    h("div", { class: "profile-axis", "aria-hidden": "true" }, ...stations.map((s, i) => h("span", {}, ticks[i] ? label(s.block) : ""))),
+    // The first label carries the unit ("Block 0"), where there's room for it
+    h("div", { class: "profile-axis", "aria-hidden": "true" }, ...stations.map((s, i) => h("span", {}, ticks[i] ? `${unit && i === 0 ? `${unit} ` : ""}${label(s.block)}` : ""))),
   );
 }
