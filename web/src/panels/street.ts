@@ -97,7 +97,7 @@ export function streetProfile(stations: Station[], label: (block: number) => str
     h(
       "button",
       {
-        type: "button", class: "station", tabindex: i === busiest ? 0 : -1, onclick: s.open,
+        type: "button", class: "station", tabindex: i === busiest ? 0 : -1, onclick: () => press(i),
         style: `--h: ${(s.n / max) * 100}%`,
         "aria-label": `${s.name ?? `${s.block} block`}, ${plural(s.n, "permit")}${s.opens === undefined ? "" : `, opens the ${s.opens} block`}`,
         title: `${s.name ?? `${s.block} block`}: ${plural(s.n, "permit")}${s.opens === undefined ? "" : `, opens the ${s.opens} block`}`,
@@ -106,6 +106,22 @@ export function streetProfile(stations: Station[], label: (block: number) => str
     ),
   );
   const bars = h("div", { class: "profile-bars", role: "group", "aria-label": "Blocks in address order" }, ...buttons);
+  // a finger can't hover, and a bar is a few pixels wide
+  let touching = false;
+  let armed = -1;
+  bars.addEventListener("pointerdown", (e) => (touching = e.pointerType === "touch"));
+  function press(i: number) {
+    if (touching && armed !== i) {
+      armed = i;
+      buttons[near]?.classList.remove("near");
+      near = i;
+      buttons[i]!.classList.add("near");
+      readout.textContent = say(i);
+      return;
+    }
+    armed = -1;
+    stations[i]!.open();
+  }
   bars.addEventListener("keydown", (e) => {
     const at = buttons.indexOf(e.target as HTMLButtonElement);
     if (at < 0) return;
@@ -135,6 +151,7 @@ export function streetProfile(stations: Station[], label: (block: number) => str
     readout.textContent = say(i);
   });
   bars.addEventListener("pointerleave", () => {
+    if (touching) return;
     buttons[near]?.classList.remove("near");
     near = -1;
     readout.textContent = "\u00a0";

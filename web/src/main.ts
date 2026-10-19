@@ -105,6 +105,7 @@ async function start() {
         : place === undefined
           ? "Nothing at the center. Arrow keys move the map."
           : `Enter opens ${placeName(site.places, place)} (${plural(summary.count[place]!, "permit")})`;
+      $("aim-live").textContent = aimLine.textContent;
     },
   });
   const notes = new Annotations(map.map, "ring");
@@ -217,7 +218,7 @@ async function start() {
     // Say what was chosen for screen readers: the heading and its summary
     const box = $("focus");
     $("status").textContent = f
-      ? [box.querySelector("h2")?.textContent, box.querySelector(".lead, .sub")?.textContent].filter(Boolean).join(". ")
+      ? [box.querySelector("h2")?.textContent, box.querySelector(".digs, .lead, .sub")?.textContent].filter(Boolean).join(". ")
       : "";
     // The panel sits below the map on a phone, so bring the answer into view
     if (f && narrow.matches) {

@@ -81,6 +81,18 @@ test("a street's profile says which block the keyboard is on", async ({ page }) 
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
+  test("a first tap on the street profile previews a bar; a second opens it", async ({ page }) => {
+    await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+    await page.goto("/#q=e+speedway+blvd");
+    const bar = page.locator(".station").nth(5);
+    await bar.scrollIntoViewIfNeeded();
+    await bar.tap();
+    await expect(page.locator(".profile-readout")).toHaveText(/ · opens the \d+ block$/);
+    await expect(page.getByRole("heading", { level: 2, name: "E Speedway Blvd" })).toBeVisible();
+    await bar.tap();
+    await expect(page.getByRole("button", { name: "Back to E Speedway Blvd" })).toBeVisible();
+  });
+
   test("the pinned place header is whole while its record scrolls", async ({ page }) => {
     await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
     await page.goto("/#place=b%3AE+SPEEDWAY+BLVD%3A1200");

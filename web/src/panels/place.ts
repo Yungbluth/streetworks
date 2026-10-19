@@ -1,9 +1,10 @@
-import type { Detail } from "../data";
+import { PlaceKind, type Detail } from "../data";
 import { h } from "../dom";
-import { num, placeName, plural, yearsText } from "../format";
+import { num, placeName, plural, prettyStreet, yearsText } from "../format";
 import { byDateDesc, detailsFor, permitsOf, placeAt, type Ctx } from "../model";
 import { failed, kindSplit, loading, note, panelHead, showAll, tableStyle } from "./common";
 import { nearby } from "./radius";
+import { streetBlocks } from "./street";
 import { permitTable } from "./table";
 
 /** The answer to "what's been happening here?" in one sentence */
@@ -21,6 +22,35 @@ export function placeSummary(byCategory: Map<number, number>, years: number[], c
   else if (top.length === 1) kinds = `all ${name(top[0]![0])}`;
   else kinds = `mostly ${name(top[0]![0])} (${top[0]![1]}) and ${name(top[1]![0])} (${top[1]![1]})`;
   return `${plural(total, "permit")}${when}, ${kinds}.`;
+}
+
+// the kinds that mean the street was dug into (see "What the kinds mean")
+const DIGS = ["Excavation", "Combo"];
+
+const median = (xs: number[]) => {
+  const s = [...xs].sort((a, b) => a - b);
+  const mid = s.length >> 1;
+  return s.length % 2 ? s[mid]! : (s[mid - 1]! + s[mid]!) / 2;
+};
+
+const times = (n: number) => (n === 1 ? "once" : n === 2 ? "twice" : `${num(n)} times`);
+
+export function digSummary(years: number[], street: { typical: number; street: string } | undefined): string {
+  if (!years.length) return "Not dug up in these years.";
+  const n = years.length;
+  const last = Math.max(...years);
+  const head = n === 1 ? `Dug up once, in ${last}` : `Dug up ${times(n)}, most recently in ${last}`;
+  if (!street) return `${head}.`;
+  const shown = Math.round(street.typical);
+  if (street.typical === 0) return `${head}; most blocks on ${street.street} haven't been dug up at all.`;
+  const r = n / street.typical;
+  const than = `the typical block on ${street.street} (${num(shown)})`;
+  if (r >= 1.5) {
+    const ratio = r < 2.5 ? "about twice" : r < 3.5 ? "about three times" : `about ${Math.round(r)} times`;
+    return `${head}, ${ratio} ${than}.`;
+  }
+  if (r <= 2 / 3) return `${head}, fewer than ${than}.`;
+  return `${head}, about the same as ${than}.`;
 }
 
 export function whoFor(details: Detail[]): string | null {
@@ -60,6 +90,18 @@ export function placePanel(ctx: Ctx, place: number, extraNote?: string, back?: {
   const byCategory = new Map<number, number>();
   for (const i of mine) byCategory.set(site.permits.cat[i]!, (byCategory.get(site.permits.cat[i]!) ?? 0) + 1);
 
+  // digging counts whatever kinds are switched on
+  const allKinds = { ...filter, cats: new Set(site.index.categories.map((_, c) => c)) };
+  const digCats = new Set(DIGS.map((d) => site.index.categories.indexOf(d)).filter((c) => c >= 0));
+  const digYears = (p: number) => permitsOf(site, p, allKinds).filter((i) => digCats.has(site.permits.cat[i]!)).map((i) => site.permits.year[i]!);
+  const isBlock = site.places.kind[place] === PlaceKind.Block;
+  const neighbours = isBlock ? streetBlocks(ctx, site.places.street[place]!).filter((p) => permitsOf(site, p, allKinds).length) : [];
+  const typical = neighbours.length > 1 ? median(neighbours.map((p) => digYears(p).length)) : undefined;
+  const digs = digSummary(
+    digYears(place),
+    typical === undefined ? undefined : { typical, street: prettyStreet(site.places.streets[site.places.street[place]!]!) },
+  );
+
   const history = h("div", { class: "history" }, mine.length ? loading() : null);
   const who = h("p", { class: "who", hidden: true });
   const out = h(
@@ -68,6 +110,7 @@ export function placePanel(ctx: Ctx, place: number, extraNote?: string, back?: {
     back ? h("button", { type: "button", class: "linkish back-to", onclick: back.go }, `Back to ${back.label}`) : null,
     panelHead(placeName(site.places, place), () => ctx.go(null)),
     note(extraNote),
+    h("p", { class: "digs" }, digs),
     h("p", { class: "lead" }, placeSummary(byCategory, mine.map((i) => site.permits.year[i]!), site.index.categories)),
     who,
     byCategory.size > 1 ? kindSplit(byCategory, site.index.categories) : null,

@@ -664,6 +664,12 @@ h3 {
 
 /* ---- permit history ---------------------------------------------------- */
 
+.digs {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
 .lead {
   font-size: 16px;
   line-height: 1.45;
@@ -915,8 +921,10 @@ h3 {
   color: var(--muted);
 }
 
+/* Room for two lines held from the start */
 .profile-readout {
-  min-height: 1.5em;
+  min-height: 2.8em;
+  line-height: 1.4;
   font-size: 13px;
   color: var(--muted);
 }
@@ -960,7 +968,7 @@ h3 {
 
 select {
   padding: 3px 6px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--muted);
   border-radius: 4px;
   background: var(--field);
   font-weight: 400;
@@ -1109,7 +1117,6 @@ select {
 
 .legend .only {
   padding: 2px 6px;
-  border: 1px solid var(--muted);
   border-radius: 4px;
   background: var(--field);
   color: var(--ink);
@@ -1563,6 +1570,7 @@ select {
   .byline .linkish,
   .legend .reset,
   .legend-foot .linkish,
+  .legend-more summary,
   .legend .only {
     display: inline-flex;
     align-items: center;

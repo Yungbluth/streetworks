@@ -29,7 +29,7 @@
         <div id="about"></div>
       </aside>
       <main class="map-area">
-        <div id="map" aria-label="Map of street permits"></div>
+        <div id="map" role="region" aria-label="Map of street permits"></div>
         <!-- The years on show, large on the map; Replay runs them forward. -->
         <p id="year-stamp" class="year-stamp" aria-hidden="true"></p>
         <!-- What a finished replay showed; #status says it aloud. -->
@@ -37,8 +37,11 @@
         <div id="tip" class="tip" hidden></div>
         <div id="aim" class="aim" hidden>
           <span class="crosshair" aria-hidden="true"></span>
-          <p class="aim-line" aria-live="polite"></p>
+          <p class="aim-line"></p>
         </div>
+        <!-- Outside the line above, which is hidden until the map has the
+             keyboard: a live region shown at the moment it changes can go unheard. -->
+        <p id="aim-live" class="visually-hidden" aria-live="polite"></p>
       </main>
       <div id="years"></div>
     </div>
