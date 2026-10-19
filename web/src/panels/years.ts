@@ -163,20 +163,19 @@ export function yearStrip(site: Site, ev: YearEvents) {
     });
   }
 
+  let held: { at: [number, number]; chosen: [number, number] } | null = null;
   function stop(finished = false) {
     if (!timer) return;
     clearInterval(timer);
     timer = 0;
     ev.replaying?.(false, finished);
     label(false);
+    held = !finished && before ? { at: [from, to], chosen: before } : null;
     const [f, t] = finished && before ? before : [from, to];
     before = null;
     set(f, t, false);
   }
-  play.addEventListener("click", () => {
-    if (timer) return stop();
-    before = [from, to];
-    const end = to;
+  function run(end: number) {
     ev.replaying?.(true);
     // start the timer first: setting the range redraws this strip
     timer = window.setInterval(() => {
@@ -184,6 +183,19 @@ export function yearStrip(site: Site, ev: YearEvents) {
       set(from, to + 1, true);
     }, STEP_MS);
     label(true);
+  }
+  play.addEventListener("click", () => {
+    if (timer) return stop();
+    const resume = held && held.at[0] === from && held.at[1] === to ? held : null;
+    held = null;
+    if (resume) {
+      before = resume.chosen;
+      run(resume.chosen[1]);
+      set(from, to, true);
+      return;
+    }
+    before = [from, to];
+    run(to);
     set(from, from, true);
   });
 

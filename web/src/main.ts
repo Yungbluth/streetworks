@@ -11,7 +11,7 @@ import { feet, placeName, plural, prettyStreet } from "./format";
 import { DETAIL_ZOOM } from "./dots";
 import { Annotations, mapDevices } from "./annotations";
 import { PermitMap } from "./map";
-import { digsByPlace, placeAt, type Ctx, type Focus } from "./model";
+import { digKinds, digsByPlace, placeAt, type Ctx, type Focus } from "./model";
 import { aboutPanel } from "./panels/about";
 import { busiestPanel } from "./panels/busiest";
 import { filtersPanel } from "./panels/filters";
@@ -197,7 +197,7 @@ async function start() {
         $("focus").querySelector<HTMLElement>("h2");
       opener = null;
       back?.focus({ preventScroll: true });
-      $("status").textContent = "Closed. Most dug-up places in view.";
+      $("status").textContent = `Closed. ${$("focus").querySelector("h2")?.textContent ?? ""}.`;
       return;
     }
     // a new place is a step people expect Back to undo
@@ -238,7 +238,8 @@ async function start() {
   /** the ring and count on the open place or spot, and its radius */
   function markFocus(at: { lat: number; lng: number }) {
     notes.clear();
-    const n = focus?.kind === "place" ? summary.count[focus.place]! : 0;
+    const place = focus?.kind === "place" ? focus.place : undefined;
+    const n = place === undefined ? 0 : digKinds(site, filter).size ? digsByPlace(site, filter)[place]! : summary.count[place]!;
     notes.mark(at, n ? String(n) : undefined);
     notes.dimension(at, radiusM);
   }

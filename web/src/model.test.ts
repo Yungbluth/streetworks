@@ -25,14 +25,17 @@ describe("permitsOf", () => {
 });
 
 describe("digsByPlace", () => {
-  it("counts the Excavation and Combo permits at each place", () => {
+  it("counts the Excavation and Combo permits at each place, among the kinds switched on", () => {
     const site = {
       index: { categories: ["Barricade", "Combo", "Excavation"] },
       places: { kind: [0, 0] },
       permits: { place: [0, 0, 0, 1], year: [2010, 2011, 2012, 2011], cat: [0, 1, 2, 2], noWork: [0, 0, 0, 1] },
     } as unknown as Site;
-    const filter = { from: 2005, to: 2026, cats: new Set([0]), includeNoWork: false };
+    const filter = { from: 2005, to: 2026, cats: new Set([0, 1, 2]), includeNoWork: false };
     expect([...digsByPlace(site, filter)]).toEqual([2, 0]);
     expect([...digsByPlace(site, { ...filter, from: 2012 })]).toEqual([1, 0]);
+    // Hide Combo and only Excavation counts; hide both and nothing does.
+    expect([...digsByPlace(site, { ...filter, cats: new Set([0, 2]) })]).toEqual([1, 0]);
+    expect([...digsByPlace(site, { ...filter, cats: new Set([0]) })]).toEqual([0, 0]);
   });
 });

@@ -2,13 +2,15 @@ import type L from "leaflet";
 import { h } from "../dom";
 import { num, placeName } from "../format";
 import { showAll } from "./common";
-import { digsByPlace, type Ctx } from "../model";
+import { digKinds, digsByPlace, type Ctx } from "../model";
 
 // For when nothing is selected
 export function busiestPanel(ctx: Ctx, view: L.LatLngBounds): HTMLElement {
   const { places } = ctx.site;
   const { count } = ctx.summary;
-  const digs = digsByPlace(ctx.site, ctx.filter);
+  // With no digging kind shown, rank by permits instead, and say so
+  const digging = digKinds(ctx.site, ctx.filter).size > 0;
+  const digs = digging ? digsByPlace(ctx.site, ctx.filter) : count;
   // Among the dots on the map now, so the list matches what's drawn.
   const shown: number[] = [];
   for (let p = 0; p < places.kind.length; p++) {
@@ -21,7 +23,7 @@ export function busiestPanel(ctx: Ctx, view: L.LatLngBounds): HTMLElement {
   return h(
     "section",
     { class: "focus" },
-    h("h2", { tabindex: "-1" }, "Most dug-up places in view"),
+    h("h2", { tabindex: "-1" }, digging ? "Most dug-up places in view" : "Busiest places in view"),
     ...(top.length
       ? [
           h(
@@ -36,7 +38,7 @@ export function busiestPanel(ctx: Ctx, view: L.LatLngBounds): HTMLElement {
               ),
             ),
           ),
-          h("p", { class: "quiet" }, "Counts are times dug up: Excavation and Combo permits."),
+          h("p", { class: "quiet" }, digging ? "Counts are times dug up: Excavation and Combo permits." : "Counts are permits; no digging kind is shown."),
         ]
       : shown.length
         ? [h("p", { class: "sub" }, "Nothing dug up on the map in this view. Select a dot to see what was filed there.")]

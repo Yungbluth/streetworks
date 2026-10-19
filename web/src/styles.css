@@ -1255,6 +1255,7 @@ select {
 
 .years .head h3 {
   min-width: 0;
+  text-wrap: balance;
 }
 
 /* One line on a desktop, where the strip has room */

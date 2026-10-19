@@ -67,11 +67,16 @@ export const DIG_KINDS = ["Excavation", "Combo"];
 
 const digCache = new WeakMap<Site, { key: string; out: Uint32Array }>();
 
+/** The digging kinds that are switched on: digs follow the same filters as the map */
+export function digKinds(site: Site, f: Filter): Set<number> {
+  return new Set(DIG_KINDS.map((k) => site.index.categories.indexOf(k)).filter((c) => c >= 0 && f.cats.has(c)));
+}
+
 export function digsByPlace(site: Site, f: Filter): Uint32Array {
-  const key = `${f.from} ${f.to} ${f.includeNoWork}`;
+  const cats = digKinds(site, f);
+  const key = `${f.from} ${f.to} ${f.includeNoWork} ${[...cats].sort((a, b) => a - b)}`;
   const hit = digCache.get(site);
   if (hit?.key === key) return hit.out;
-  const cats = new Set(DIG_KINDS.map((k) => site.index.categories.indexOf(k)).filter((c) => c >= 0));
   const ok = matcher(site.permits, { ...f, cats });
   const out = new Uint32Array(site.places.kind.length);
   for (let i = 0; i < site.permits.place.length; i++) if (ok(i)) out[site.permits.place[i]!]!++;

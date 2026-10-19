@@ -89,6 +89,13 @@ test.describe("on a phone", () => {
       return range.getBoundingClientRect().right;
     });
     expect(right).toBeLessThanOrEqual(390 - 16);
+    // Wrapped, its lines are near even: no lone "2026".
+    const lines = await total.evaluate((t) => {
+      const r = document.createRange();
+      r.selectNodeContents(t);
+      return [...r.getClientRects()].map((x) => x.width);
+    });
+    if (lines.length > 1) expect(Math.min(...lines) / Math.max(...lines)).toBeGreaterThan(0.5);
   });
 
   test("a first tap on the street profile previews a bar; a second opens it", async ({ page }) => {
@@ -154,4 +161,13 @@ test("Esc from a block opened on the street profile lands back on its bar", asyn
   await expect(page.getByRole("button", { name: "Back to E Speedway Blvd" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.locator(".station:focus")).toHaveAttribute("aria-label", label!);
+});
+
+test("with no digging kind shown, the list ranks by permits and says so", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.goto("/");
+  await page.locator(".legend").getByText("More options").click();
+  await page.getByRole("combobox", { name: "Show only one kind" }).selectOption("Utility");
+  await expect(page.getByRole("heading", { level: 2, name: "Busiest places in view" })).toBeVisible();
+  await expect(page.locator(".focus")).toContainText("Counts are permits; no digging kind is shown.");
 });

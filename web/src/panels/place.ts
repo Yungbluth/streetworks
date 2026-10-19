@@ -1,7 +1,7 @@
 import { PlaceKind, type Detail } from "../data";
 import { h } from "../dom";
 import { num, placeName, plural, prettyStreet, yearsText } from "../format";
-import { byDateDesc, detailsFor, DIG_KINDS, permitsOf, placeAt, type Ctx } from "../model";
+import { byDateDesc, detailsFor, digKinds, permitsOf, placeAt, type Ctx } from "../model";
 import { failed, kindSplit, loading, note, panelHead, showAll, tableStyle } from "./common";
 import { nearby } from "./radius";
 import { streetBlocks } from "./street";
@@ -87,17 +87,14 @@ export function placePanel(ctx: Ctx, place: number, extraNote?: string, back?: {
   const byCategory = new Map<number, number>();
   for (const i of mine) byCategory.set(site.permits.cat[i]!, (byCategory.get(site.permits.cat[i]!) ?? 0) + 1);
 
-  // digging counts whatever kinds are switched on
-  const allKinds = { ...filter, cats: new Set(site.index.categories.map((_, c) => c)) };
-  const digCats = new Set(DIG_KINDS.map((d) => site.index.categories.indexOf(d)).filter((c) => c >= 0));
-  const digYears = (p: number) => permitsOf(site, p, allKinds).filter((i) => digCats.has(site.permits.cat[i]!)).map((i) => site.permits.year[i]!);
+  const digCats = digKinds(site, filter);
+  const digYears = (p: number) => permitsOf(site, p, filter).filter((i) => digCats.has(site.permits.cat[i]!)).map((i) => site.permits.year[i]!);
   const isBlock = site.places.kind[place] === PlaceKind.Block;
-  const neighbours = isBlock ? streetBlocks(ctx, site.places.street[place]!).filter((p) => permitsOf(site, p, allKinds).length) : [];
+  const neighbours = isBlock ? streetBlocks(ctx, site.places.street[place]!).filter((p) => permitsOf(site, p, filter).length) : [];
   const typical = neighbours.length > 1 ? median(neighbours.map((p) => digYears(p).length)) : undefined;
-  const digs = digSummary(
-    digYears(place),
-    typical === undefined ? undefined : { typical, street: prettyStreet(site.places.streets[site.places.street[place]!]!) },
-  );
+  const digs = digCats.size
+    ? digSummary(digYears(place), typical === undefined ? undefined : { typical, street: prettyStreet(site.places.streets[site.places.street[place]!]!) })
+    : null;
 
   const history = h("div", { class: "history" }, mine.length ? loading() : null);
   const who = h("p", { class: "who", hidden: true });
@@ -107,7 +104,7 @@ export function placePanel(ctx: Ctx, place: number, extraNote?: string, back?: {
     back ? h("button", { type: "button", class: "linkish back-to", onclick: back.go }, `Back to ${back.label}`) : null,
     panelHead(placeName(site.places, place), () => ctx.go(null)),
     note(extraNote),
-    h("p", { class: "digs" }, digs),
+    digs ? h("p", { class: "digs" }, digs) : null,
     h("p", { class: "lead" }, placeSummary(byCategory, mine.map((i) => site.permits.year[i]!), site.index.categories)),
     who,
     byCategory.size > 1 ? kindSplit(byCategory, site.index.categories) : null,
