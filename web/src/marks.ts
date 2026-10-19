@@ -62,9 +62,10 @@ export function cloudPath(cx: number, cy: number, radius: number, scallops = 11)
 export const station = (block: number) => `${Math.floor(block / 100)}+00`;
 
 export function stationTicks(n: number): boolean[] {
-  const step = Math.max(1, Math.ceil(n / 6));
-  // The last label is right-aligned at the end, so the one before it keeps a step and a half clear
-  return Array.from({ length: n }, (_, i) => i === n - 1 || (i % step === 0 && n - 1 - i >= step * 1.5));
+  // Five labels at even fractions of the strip (fewer on a short one)
+  const parts = Math.min(4, n - 1);
+  const at = new Set(Array.from({ length: parts + 1 }, (_, k) => Math.round((k * (n - 1)) / Math.max(1, parts))));
+  return Array.from({ length: n }, (_, i) => at.has(i));
 }
 
 export function northArrow(): SVGSVGElement {

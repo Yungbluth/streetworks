@@ -41,7 +41,7 @@ export function digSummary(years: number[], street: { typical: number; street: s
   const shown = Math.round(street.typical);
   if (street.typical === 0) return `${head}; most blocks on ${street.street} haven't been dug up at all.`;
   const r = n / street.typical;
-  const than = `the typical block on ${street.street} (${num(shown)})`;
+  const than = `the typical block on ${street.street} (${plural(shown, "dig")})`;
   if (r >= 1.5) {
     const ratio = r < 2.5 ? "about twice" : r < 3.5 ? "about three times" : `about ${Math.round(r)} times`;
     return `${head}, ${ratio} ${than}.`;

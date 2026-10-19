@@ -59,3 +59,12 @@ describe("stretches", () => {
     expect(opened).toEqual([3100]);
   });
 });
+
+describe("a street with a gap in its addresses", () => {
+
+  it("draws a gap as an empty slot that isn't a control", () => {
+    const el = streetProfile(stretches([0, 300].map((block) => ({ block, n: 2, open: () => {} }))), String);
+    expect(el.querySelectorAll(".station")).toHaveLength(2);
+    expect(el.querySelectorAll(".station-gap")).toHaveLength(2);
+  });
+});

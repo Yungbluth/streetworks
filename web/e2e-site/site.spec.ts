@@ -70,6 +70,14 @@ test("a street's profile says which block the keyboard is on", async ({ page }) 
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
+  test("a place opened from a link scrolls to its answer", async ({ page }) => {
+    await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+    await page.goto("/#place=b%3AE+SPEEDWAY+BLVD%3A1200");
+    await expect(page.locator(".digs")).toBeVisible();
+    // As a place opened by hand does: its name at the top, the answer under it
+    await expect.poll(async () => (await page.getByRole("heading", { level: 2, name: "1200 block of E Speedway Blvd" }).boundingBox())!.y).toBeLessThan(120);
+  });
+
   test("the year total keeps inside the page's side gutter", async ({ page }) => {
     await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
     await page.goto("/");

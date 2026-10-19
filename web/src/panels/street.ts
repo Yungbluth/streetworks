@@ -58,34 +58,40 @@ export interface Station {
   // for a stretch of several blocks, such as "3000–3200 blocks"
   name?: string;
   opens?: number;
+  /** A stretch of addresses with no blocks on record: an empty slot, not a control */
+  gap?: boolean;
 }
 
 // more bars than this and each is too thin to see or point at
 const MAX_BARS = 40;
 
 export function stretches(blocks: Station[]): Station[] {
-  if (blocks.length <= MAX_BARS) return blocks;
+  if (!blocks.length) return blocks;
   const first = Math.min(...blocks.map((b) => b.block));
   const last = Math.max(...blocks.map((b) => b.block));
   const span = (last - first) / 100 + 1;
-  const width = [2, 3, 5, 10, 20, 50, 100].find((w) => Math.ceil(span / w) <= MAX_BARS) ?? 100;
+  const width = [1, 2, 3, 5, 10, 20, 50, 100].find((w) => Math.ceil(span / w) <= MAX_BARS) ?? 100;
+  const step = width * 100;
   const groups = new Map<number, Station[]>();
   for (const b of blocks) {
-    const at = first + Math.floor((b.block - first) / (width * 100)) * width * 100;
+    const at = first + Math.floor((b.block - first) / step) * step;
     groups.set(at, [...(groups.get(at) ?? []), b]);
   }
-  return [...groups]
-    .sort((a, b) => a[0] - b[0])
-    .map(([at, members]) => {
+  const out: Station[] = [];
+  // Every stretch from first to last, empty ones included
+  for (let at = first; at <= last; at += step) {
+    const members = groups.get(at);
+    const name = width > 1 ? `${at}–${at + step - 100} blocks` : undefined;
+    if (!members) {
+      out.push({ block: at, n: 0, open: () => {}, gap: true, name });
+    } else if (width === 1) {
+      out.push(members[0]!);
+    } else {
       const busiest = members.reduce((best, b) => (b.n > best.n ? b : best), members[0]!);
-      return {
-        block: at,
-        n: members.reduce((sum, b) => sum + b.n, 0),
-        open: busiest.open,
-        opens: busiest.block,
-        name: `${at}–${at + (width - 1) * 100} blocks`,
-      };
-    });
+      out.push({ block: at, n: members.reduce((sum, b) => sum + b.n, 0), open: busiest.open, opens: busiest.block, name });
+    }
+  }
+  return out;
 }
 
 // a street as a profile: its blocks in address order, each a bar as tall as its permit count
@@ -93,8 +99,9 @@ export function streetProfile(stations: Station[], label: (block: number) => str
   const max = Math.max(1, ...stations.map((s) => s.n));
   const busiest = stations.reduce((best, s, i) => (s.n > stations[best]!.n ? i : best), 0);
   const ticks = stationTicks(stations.length);
-  const buttons = stations.map((s, i) =>
-    h(
+  // One slot per station; a gap is an empty slot, not a control
+  const buttons: HTMLElement[] = stations.map((s, i) =>
+    s.gap ? h("span", { class: "station-gap", "aria-hidden": "true" }) : h(
       "button",
       {
         type: "button", class: "station", tabindex: i === busiest ? 0 : -1, onclick: () => press(i),
@@ -122,15 +129,16 @@ export function streetProfile(stations: Station[], label: (block: number) => str
     armed = -1;
     stations[i]!.open();
   }
+  const real = buttons.filter((b) => b.tagName === "BUTTON");
   bars.addEventListener("keydown", (e) => {
-    const at = buttons.indexOf(e.target as HTMLButtonElement);
+    const at = real.indexOf(e.target as HTMLElement);
     if (at < 0) return;
-    const to = { ArrowLeft: at - 1, ArrowRight: at + 1, Home: 0, End: buttons.length - 1 }[e.key];
-    if (to === undefined || to < 0 || to >= buttons.length) return;
+    const to = { ArrowLeft: at - 1, ArrowRight: at + 1, Home: 0, End: real.length - 1 }[e.key];
+    if (to === undefined || to < 0 || to >= real.length) return;
     e.preventDefault();
-    buttons[at]!.tabIndex = -1;
-    buttons[to]!.tabIndex = 0;
-    buttons[to]!.focus();
+    real[at]!.tabIndex = -1;
+    real[to]!.tabIndex = 0;
+    real[to]!.focus();
   });
   const readout = h("p", { class: "profile-readout", "aria-hidden": "true" }, "\u00a0");
   const at = (clientX: number) => {
@@ -139,6 +147,7 @@ export function streetProfile(stations: Station[], label: (block: number) => str
   };
   const say = (i: number) => {
     const s = stations[i]!;
+    if (s.gap) return `${s.name ?? `${s.block} block`} · no blocks on record`;
     return `${s.name ?? `${s.block} block`} · ${plural(s.n, "permit")}${s.opens === undefined ? "" : ` · opens the ${s.opens} block`}`;
   };
   let near = -1;
@@ -158,7 +167,7 @@ export function streetProfile(stations: Station[], label: (block: number) => str
   });
   // the keyboard gets the same readout for the block it's on
   bars.addEventListener("focusin", (e) => {
-    const i = buttons.indexOf(e.target as HTMLButtonElement);
+    const i = buttons.indexOf(e.target as HTMLElement);
     if (i >= 0) readout.textContent = say(i);
   });
   bars.addEventListener("focusout", () => {

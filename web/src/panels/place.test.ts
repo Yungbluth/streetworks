@@ -24,10 +24,10 @@ describe("digSummary", () => {
   const street = "E Speedway Blvd";
   it("says how often a place was dug up, when last", () => {
     expect(digSummary([2010, 2024, 2018, 2015, 2019, 2021, 2022, 2012, 2016, 2013, 2011], { typical: 5, street })).toBe(
-      "Dug up 11 times, most recently in 2024, about twice the typical block on E Speedway Blvd (5).",
+      "Dug up 11 times, most recently in 2024, about twice the typical block on E Speedway Blvd (5 digs).",
     );
-    expect(digSummary([2019, 2020], { typical: 2, street })).toBe("Dug up twice, most recently in 2020, about the same as the typical block on E Speedway Blvd (2).");
-    expect(digSummary([2019], { typical: 4, street })).toBe("Dug up once, in 2019, fewer than the typical block on E Speedway Blvd (4).");
+    expect(digSummary([2019, 2020], { typical: 2, street })).toBe("Dug up twice, most recently in 2020, about the same as the typical block on E Speedway Blvd (2 digs).");
+    expect(digSummary([2019], { typical: 4, street })).toBe("Dug up once, in 2019, fewer than the typical block on E Speedway Blvd (4 digs).");
     expect(digSummary([2019, 2020, 2021], { typical: 0, street })).toBe("Dug up 3 times, most recently in 2021; most blocks on E Speedway Blvd haven't been dug up at all.");
   });
 });
@@ -77,7 +77,7 @@ describe("placePanel", () => {
 
   it("leads with how often it was dug up, against the rest of its street", () => {
     const el = placePanel(ctx, 0);
-    expect(el.querySelector(".digs")!.textContent).toBe("Dug up twice, most recently in 2024, about the same as the typical block on E A St (2).");
+    expect(el.querySelector(".digs")!.textContent).toBe("Dug up twice, most recently in 2024, about the same as the typical block on E A St (2 digs).");
   });
 
   it("draws its permits per year across the chosen years", () => {

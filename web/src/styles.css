@@ -77,7 +77,26 @@ body {
   background: var(--panel);
   color: var(--ink);
   font: 400 15px/1.5 "Public Sans", system-ui, sans-serif;
+}
+
+/* Figures line up in columns and counters */
+.n,
+.kind-n,
+.cell-count,
+.permit-date,
+.permit-first,
+.years h3,
+.axis,
+.profile-axis,
+.profile-max,
+.year-stamp,
+.split-key {
   font-variant-numeric: tabular-nums;
+}
+
+input[type="search"]::-webkit-search-cancel-button {
+  filter: grayscale(1);
+  cursor: pointer;
 }
 
 h1,
@@ -860,6 +879,12 @@ h3 {
   background:
     linear-gradient(var(--line), var(--line)) 0 33% / 100% 1px no-repeat,
     linear-gradient(var(--line), var(--line)) 0 66% / 100% 1px no-repeat;
+}
+
+/* A stretch of addresses with no blocks on record keeps its width, empty */
+.station-gap {
+  flex: 1;
+  min-width: 0;
 }
 
 .station {

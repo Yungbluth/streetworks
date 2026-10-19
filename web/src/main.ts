@@ -421,6 +421,7 @@ async function start() {
     // A place or street arrived by a link is said aloud, as one opened by hand is
     const shown = focus && $("focus").querySelector("h2")?.textContent;
     if (shown) $("status").textContent = `Showing ${shown}.`;
+    if (focus && narrow.matches) $("focus").scrollIntoView({ block: "start" });
   };
   restore();
   window.addEventListener("popstate", restore);
