@@ -248,7 +248,8 @@ export function yearStrip(site: Site, ev: YearEvents) {
   // zoomed out every dot is solid
   function drawKey() {
     if (zoomedOut) {
-      fill(key, h("span", { class: "key-note" }, "Zoomed out, every dot is solid. Zoom in to see how recent each place's work is."));
+      // zoomed out every dot is solid, so the line keys what a dot does say
+      fill(key, h("span", { class: "key-note" }, "Dot color: the kind filed there most often. Size: how many permits. Zoom in to see how recent."));
       return;
     }
     const r = ageRanges(to);

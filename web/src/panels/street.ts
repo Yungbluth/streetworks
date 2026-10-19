@@ -2,7 +2,7 @@ import { PlaceKind } from "../data";
 import { h } from "../dom";
 import { num, plural, prettyStreet } from "../format";
 import { stationTicks } from "../marks";
-import type { Ctx } from "../model";
+import { digKinds, digsByPlace, type Ctx } from "../model";
 import { panelHead } from "./common";
 
 export function streetBlocks(ctx: Ctx, street: number): number[] {
@@ -20,14 +20,24 @@ export function streetPanel(ctx: Ctx, street: number): HTMLElement {
   const busy = blocks.filter((p) => summary.count[p]! > 0);
   const total = busy.reduce((a, p) => a + summary.count[p]!, 0);
   const open = (p: number) => () => ctx.go({ kind: "place", place: p }, { move: true });
-  const top = [...busy].sort((a, b) => summary.count[b]! - summary.count[a]!).slice(0, 8);
+  // The busiest blocks rank by digs, as the first view's list does, while a digging kind is shown
+  const digging = digKinds(site, ctx.filter).size > 0;
+  const rank = digging ? digsByPlace(site, ctx.filter) : summary.count;
+  const dug = digging ? busy.reduce((a, p) => a + rank[p]!, 0) : 0;
+  const top = busy.filter((p) => rank[p]).sort((a, b) => rank[b]! - rank[a]! || summary.count[b]! - summary.count[a]!).slice(0, 8);
   const bars = stretches(blocks.map((p) => ({ block: site.places.block[p]!, n: summary.count[p]!, open: open(p) })));
   const peak = bars.reduce((best, b) => (b.n > best.n ? b : best), bars[0]!);
   return h(
     "section",
     { class: "focus" },
     panelHead(prettyStreet(site.places.streets[street]!), () => ctx.go(null)),
-    h("p", { class: "sub" }, total ? `${plural(total, "permit")} on ${plural(busy.length, "block")}.` : "No permits on this street match the filters."),
+    h(
+      "p",
+      { class: "sub" },
+      total
+        ? `${plural(total, "permit")} on ${plural(busy.length, "block")}${digging ? `; dug up ${dug === 1 ? "once" : dug === 2 ? "twice" : `${num(dug)} times`}` : ""}.`
+        : "No permits on this street match the filters.",
+    ),
     h("h3", {}, "Blocks in address order"),
     total ? h("p", { class: "quiet" }, `Busiest ${peak.name ? "stretch" : "block"}: the ${peak.name ?? `${peak.block} block`}, ${plural(peak.n, "permit")} of ${num(total)}.`) : null,
     streetProfile(bars, String, "Block"),
@@ -42,7 +52,7 @@ export function streetPanel(ctx: Ctx, street: number): HTMLElement {
                 "li",
                 {},
                 h("button", { type: "button", class: "linkish", onclick: open(p) }, `${site.places.block[p]} block`),
-                h("span", { class: "n" }, plural(summary.count[p]!, "permit")),
+                h("span", { class: "n" }, plural(rank[p]!, digging ? "dig" : "permit")),
               ),
             ),
           ),

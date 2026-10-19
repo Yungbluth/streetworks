@@ -103,15 +103,12 @@ class DotLayer extends L.Layer {
       d.y[i] = pt.y;
       d.r[i] = Math.max(style.r, 4); // a comfortable target to click, whatever is drawn
 
-      if (arriving(summary.newest[p]!, this.end, this.arrivals)) {
-        ctx.globalAlpha = 0.35;
-        ctx.beginPath();
-        ctx.arc(pt.x, pt.y, style.r + 3, 0, Math.PI * 2);
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = colors[cat]!;
-        ctx.stroke();
-      }
       ctx.globalAlpha = style.alpha;
+      // Each year's new dots land with a glow in their own paint.
+      if (arriving(summary.newest[p]!, this.end, this.arrivals)) {
+        ctx.shadowColor = colors[cat]!;
+        ctx.shadowBlur = 12;
+      }
       if (style.halo) {
         ctx.shadowColor = style.halo;
         // As soft as the dot is big: full halos on tiny city-wide dots pile into smudges

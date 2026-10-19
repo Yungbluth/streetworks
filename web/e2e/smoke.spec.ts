@@ -68,8 +68,8 @@ test("Replay ends by saying what it showed, until the years change", async ({ pa
   await page.getByRole("button", { name: "Replay" }).click();
   const note = page.locator(".replay-note");
   // something the first view didn't already say
-  await expect(note).toHaveText(/^2 years · (no|\d+) blocks? dug up 5\+ times · peak year \d{4} \([\d,]+ permits?\)$/, { timeout: 5000 });
-  await expect(page.locator("#status")).toHaveText(/^Replay finished\. 2 years\. (No|\d+) blocks? dug up five times or more\. Peak year \d{4}, [\d,]+ permits?\.$/);
+  await expect(note).toHaveText(/^2 years · (no blocks|[\d,]+ of [\d,]+ blocks?) dug up 5\+ times(, picked out on the map)? · peak year \d{4} \([\d,]+ permits?\)$/, { timeout: 5000 });
+  await expect(page.locator("#status")).toHaveText(/^Replay finished\. 2 years\. (No blocks|[\d,]+ of [\d,]+ blocks?) dug up five times or more\. Peak year \d{4}, [\d,]+ permits?\.$/);
   await page.getByRole("slider", { name: "First year" }).press("ArrowRight");
   await expect(note).toBeHidden();
 });
@@ -110,6 +110,15 @@ test.describe("on a phone", () => {
     const play = page.getByRole("button", { name: "Replay" });
     await expect(play).toBeFocused();
     await expect(play).toBeInViewport();
+  });
+
+  test("with nothing open", async ({ page }) => {
+    await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+    await page.goto("/");
+    const list = (await page.getByRole("heading", { level: 2, name: "Most dug-up places in view" }).boundingBox())!;
+    const legend = (await page.locator(".legend").boundingBox())!;
+    expect(list.y).toBeLessThan(legend.y);
+    await expect(page.locator(".chart")).toBeInViewport({ ratio: 0.9 });
   });
 
   test("the page never scrolls sideways", async ({ page }) => {

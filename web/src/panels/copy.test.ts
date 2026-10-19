@@ -34,7 +34,7 @@ describe("a whole street", () => {
     };
     const labels = [...streetPanel(ctx, 0).querySelectorAll(".station")].map((l) => l.getAttribute("aria-label"));
     expect(labels).toEqual(["0 block, 1 permit", "100 block, 1 permit"]);
-    expect(streetPanel(ctx, 0).textContent).toContain("2 permits on 2 blocks.");
+    expect(streetPanel(ctx, 0).textContent).toContain("2 permits on 2 blocks; dug up twice.");
     expect(streetPanel(ctx, 0).textContent).toContain("Busiest block: the 0 block, 1 permit of 2.");
   });
 });

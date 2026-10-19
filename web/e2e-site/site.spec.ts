@@ -175,8 +175,38 @@ test("with no digging kind shown, the list ranks by permits and says so", async 
 test("zoomed out, the chart draws its years in one tone, as the dots are", async ({ page }) => {
   await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
   await page.goto("/");
-  await expect(page.locator(".years .key")).toContainText("every dot is solid");
+  await expect(page.locator(".years .key")).toContainText("Dot color: the kind filed there most often");
   const tone = (sel: string) => page.locator(sel).first().evaluate((b) => getComputedStyle(b).backgroundColor);
   expect(await tone(".chart .bars .back")).toBe(await tone(".chart .bars .recent"));
   expect(await tone(".chart .bars .old")).toBe(await tone(".chart .bars .recent"));
+});
+
+test("a street ranks its blocks by digs, as the home list does", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.goto("/#q=e+speedway+blvd");
+  await expect(page.locator(".focus .busiest li .n").first()).toHaveText(/^\d+ digs?$/);
+  await expect(page.locator(".focus .sub").first()).toContainText("dug up");
+});
+
+test("a finished replay picks out the blocks dug again and again", async ({ page }) => {
+  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.goto("/#from=2020&to=2026");
+  await expect(page.locator(".years h3")).toHaveText(/permits/);
+  const drawn = () => page.locator("canvas.dots").evaluate((c: HTMLCanvasElement) => {
+    const d = c.getContext("2d")!.getImageData(0, 0, c.width, c.height).data;
+    let h = 0;
+    for (let i = 0; i < d.length; i += 97) h = (h * 31 + d[i]!) | 0;
+    return h;
+  });
+  await page.waitForTimeout(500);
+  const before = await drawn();
+  await page.getByRole("button", { name: "Replay" }).click();
+  await expect(page.locator(".replay-note")).toHaveText(/ of [\d,]+ blocks dug up 5\+ times, picked out on the map/, { timeout: 8000 });
+  await page.waitForTimeout(300);
+  expect(await drawn()).not.toBe(before);
+  // Changing the years puts the map back as it was
+  await page.getByRole("slider", { name: "First year" }).press("ArrowLeft");
+  await page.getByRole("slider", { name: "First year" }).press("ArrowRight");
+  await page.waitForTimeout(300);
+  expect(await drawn()).toBe(before);
 });

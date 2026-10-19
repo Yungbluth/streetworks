@@ -7,7 +7,7 @@ import "./styles.css";
 import { errorMessage, loadSite, PlaceKind, yearSpan, type Site } from "./data";
 import { fill, h } from "./dom";
 import { countByYear, summarizePlaces, type Filter } from "./filters";
-import { feet, placeName, plural, prettyStreet } from "./format";
+import { feet, num, placeName, plural, prettyStreet } from "./format";
 import { DETAIL_ZOOM } from "./dots";
 import { Annotations, mapDevices } from "./annotations";
 import { PermitMap } from "./map";
@@ -137,23 +137,34 @@ async function start() {
   function endReplay() {
     const span = filter.to - filter.from + 1;
     const digs = digsByPlace(site, filter);
-    let repeated = 0;
-    for (let p = 0; p < digs.length; p++) if (digs[p]! >= 5 && site.places.kind[p] === PlaceKind.Block) repeated++;
+    const repeatedBlocks: number[] = [];
+    for (let p = 0; p < digs.length; p++) if (digs[p]! >= 5 && site.places.kind[p] === PlaceKind.Block) repeatedBlocks.push(p);
+    const repeated = repeatedBlocks.length;
+    let blocksOnMap = 0;
+    for (let p = 0; p < summary.count.length; p++) if (summary.count[p] && site.places.kind[p] === PlaceKind.Block) blocksOnMap++;
+    picked = !focus && repeated > 0 ? repeatedBlocks : null;
+    if (picked) map.outline(picked, false);
     let peak = filter.from;
     let peakN = 0;
     for (const [y, n] of countByYear(site.permits, filter)) {
       if (y >= filter.from && y <= filter.to && n > peakN) [peak, peakN] = [y, n];
     }
-    const blocks = repeated ? plural(repeated, "block") : "no blocks";
+    const blocks = repeated ? `${num(repeated)} of ${plural(blocksOnMap, "block")}` : "no blocks";
     const note = $("replay-note");
-    note.textContent = `${plural(span, "year")} · ${blocks} dug up 5+ times · peak year ${peak} (${plural(peakN, "permit")})`;
+    note.textContent = `${plural(span, "year")} · ${blocks} dug up 5+ times${picked ? ", picked out on the map" : ""} · peak year ${peak} (${plural(peakN, "permit")})`;
     note.hidden = false;
     noteKey = filterKey(filter);
     $("status").textContent =
-      `Replay finished. ${plural(span, "year")}. ${repeated ? plural(repeated, "block") : "No blocks"} dug up five times or more. ` +
+      `Replay finished. ${plural(span, "year")}. ${repeated ? `${num(repeated)} of ${plural(blocksOnMap, "block")}` : "No blocks"} dug up five times or more. ` +
       `Peak year ${peak}, ${plural(peakN, "permit")}.`;
   }
-  const hideReplayNote = () => ($("replay-note").hidden = true);
+  let picked: number[] | null = null;
+  function hideReplayNote() {
+    $("replay-note").hidden = true;
+    if (!picked) return;
+    picked = null;
+    if (!focus) map.clearFocus();
+  }
   const filterKey = (f: Filter) => `${f.from} ${f.to} ${[...f.cats].sort((a, b) => a - b)} ${f.includeNoWork}`;
   let noteKey = "";
 
@@ -252,7 +263,8 @@ async function start() {
     const box = $("focus");
     notes.clear();
     if (!focus) {
-      map.clearFocus();
+      if (picked) map.outline(picked, false);
+      else map.clearFocus();
       fill(box, busiestPanel(c, map.visible()));
       return;
     }

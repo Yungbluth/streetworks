@@ -1549,11 +1549,11 @@ select {
   bottom: 84px;
   max-width: calc(100% - 24px);
   margin: 0;
-  padding: 4px 10px;
+  padding: 6px 12px;
   border-radius: 6px;
-  background: color-mix(in srgb, var(--panel) 90%, transparent);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
   color: var(--ink);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   pointer-events: none;
 }
@@ -1584,6 +1584,33 @@ select {
   }
   .panel-head h2 {
     margin-right: auto;
+  }
+  /* with nothing open, the answer */
+  .strip {
+    display: contents;
+  }
+  .years {
+    order: 3;
+    border-top: 1px solid var(--line);
+  }
+  #focus {
+    order: 4;
+  }
+  .legend-slot {
+    order: 5;
+    border-bottom: 1px solid var(--line);
+  }
+  #filters {
+    order: 6;
+  }
+  #about {
+    order: 7;
+  }
+  .has-focus #focus {
+    order: 3;
+  }
+  .has-focus .years {
+    order: 4;
   }
   /* Two chips to a row leave no room for a count beside a long name, so the count goes under it */
   .kind {
