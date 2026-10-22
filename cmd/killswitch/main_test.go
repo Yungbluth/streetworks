@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -64,4 +66,77 @@ func newFakes(t *testing.T) *fakes {
 		Log:         slog.New(slog.NewJSONHandler(f.logs, nil)),
 	}
 	return f
+}
+
+func push(t *testing.T, cfg config, data string) *httptest.ResponseRecorder {
+	t.Helper()
+	body := `{"message":{"data":"` + data + `","messageId":"1"},"subscription":"s"}`
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	handler(cfg).ServeHTTP(rec, req)
+	return rec
+}
+
+func encode(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) }
+
+func TestDetachesOnCost(t *testing.T) {
+	f := newFakes(t)
+	rec := push(t, f.cfg, encode(`{"costAmount":0.01,"budgetAmount":1,"currencyCode":"USD"}`))
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", rec.Code)
+	}
+	want := []string{
+		"GET /computeMetadata/v1/instance/service-accounts/default/token",
+		"GET /v1/projects/my-proj/billingInfo",
+		"PUT /v1/projects/my-proj/billingInfo",
+	}
+	if strings.Join(f.calls, "|") != strings.Join(want, "|") {
+		t.Fatalf("calls = %v, want %v", f.calls, want)
+	}
+	if f.tokenHeader != "Google" {
+		t.Errorf("Metadata-Flavor = %q, want Google", f.tokenHeader)
+	}
+	if f.putAuth != "Bearer tok-123" {
+		t.Errorf("Authorization = %q", f.putAuth)
+	}
+	if strings.TrimSpace(f.putBody) != `{"billingAccountName":""}` {
+		t.Errorf("PUT body = %q", f.putBody)
+	}
+}
+
+func TestIgnoresZeroCost(t *testing.T) {
+	f := newFakes(t)
+	rec := push(t, f.cfg, encode(`{"costAmount":0,"budgetAmount":1,"currencyCode":"USD"}`))
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", rec.Code)
+	}
+	if len(f.calls) != 0 {
+		t.Fatalf("calls = %v, want none", f.calls)
+	}
+	if !strings.Contains(f.logs.String(), "no cost reported") {
+		t.Errorf("log %q does not say no cost reported", f.logs.String())
+	}
+}
+
+func TestAlreadyDetached(t *testing.T) {
+	f := newFakes(t)
+	f.enabled = false
+	rec := push(t, f.cfg, encode(`{"costAmount":5,"budgetAmount":1,"currencyCode":"USD"}`))
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", rec.Code)
+	}
+	for _, c := range f.calls {
+		if strings.HasPrefix(c, "PUT") {
+			t.Fatalf("made a PUT although billing was already off: %v", f.calls)
+		}
+	}
+}
+
+func TestBillingFailureRetries(t *testing.T) {
+	f := newFakes(t)
+	f.putStatus = http.StatusInternalServerError
+	rec := push(t, f.cfg, encode(`{"costAmount":0.01}`))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
 }
