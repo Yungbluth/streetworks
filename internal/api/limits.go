@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -160,4 +161,40 @@ func (g *gzipper) Write(p []byte) (int, error) {
 		return g.ResponseWriter.Write(p)
 	}
 	return g.zw.Write(p)
+}
+
+func (g *gzipper) Unwrap() http.ResponseWriter { return g.ResponseWriter }
+
+func (g *gzipper) finish() {
+	switch {
+	case g.zw != nil:
+		g.zw.Close()
+	case !g.started && g.status != 0:
+		g.ResponseWriter.WriteHeader(g.status)
+	}
+}
+
+func gzipResponses(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Vary", "Accept-Encoding")
+		if !acceptsGzip(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		g := &gzipper{ResponseWriter: w}
+		defer g.finish()
+		next.ServeHTTP(g, r)
+	})
+}
+
+func acceptsGzip(r *http.Request) bool {
+	for _, v := range r.Header.Values("Accept-Encoding") {
+		for _, enc := range strings.Split(v, ",") {
+			name, params, _ := strings.Cut(strings.TrimSpace(enc), ";")
+			if strings.EqualFold(name, "gzip") && strings.ReplaceAll(strings.TrimSpace(params), " ", "") != "q=0" {
+				return true
+			}
+		}
+	}
+	return false
 }
