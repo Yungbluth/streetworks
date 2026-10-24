@@ -291,6 +291,14 @@ func TestCORS(t *testing.T) {
 	if v := rec.Header().Get("Access-Control-Allow-Origin"); v != "http://localhost:5173" {
 		t.Errorf("localhost in local mode: %q", v)
 	}
+	rec = do(t, local, "GET", "/v1/meta", "", "Origin", "http://127.0.0.1:8080")
+	if v := rec.Header().Get("Access-Control-Allow-Origin"); v != "http://127.0.0.1:8080" {
+		t.Errorf("127.0.0.1 in local mode: %q", v)
+	}
+	rec = do(t, local, "GET", "/v1/meta", "", "Origin", "http://127.0.0.1.evil.example")
+	if v := rec.Header().Get("Access-Control-Allow-Origin"); v != "" {
+		t.Errorf("lookalike host allowed in local mode: %q", v)
+	}
 }
 
 func TestNotFound(t *testing.T) {

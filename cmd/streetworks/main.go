@@ -1,4 +1,3 @@
-// Command streetworks builds a static map of Tucson's right-of-way permits
 package main
 
 import (
@@ -17,7 +16,7 @@ import (
 	"github.com/yungbluth/streetworks/internal/survey"
 )
 
-var errUsage = errors.New("usage: streetworks fetch|build|preview|survey [flags]")
+var errUsage = errors.New("usage: streetworks fetch|build|serve|preview|survey [flags]")
 
 var newClient = arcgis.New
 
@@ -61,6 +60,8 @@ func run(ctx context.Context, cmd string, args []string, w io.Writer) error {
 		return fetchCmd(ctx, w, args)
 	case "build":
 		return buildCmd(ctx, w, args)
+	case "serve":
+		return serveCmd(ctx, w, args)
 	case "preview":
 		return preview(ctx, os.Stdin, w, args)
 	case "survey":

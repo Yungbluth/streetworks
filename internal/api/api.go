@@ -138,7 +138,11 @@ func allowedOrigin(configured, got string) bool {
 		return got == configured
 	}
 	u, err := url.Parse(got)
-	return err == nil && u.Scheme == "http" && u.Hostname() == "localhost"
+	if err != nil || u.Scheme != "http" {
+		return false
+	}
+	h := u.Hostname()
+	return h == "localhost" || h == "127.0.0.1"
 }
 
 func (s *server) healthz(w http.ResponseWriter, r *http.Request) {
