@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -211,3 +212,90 @@ type badQueryErr string
 
 func (e badQueryErr) Error() string        { return string(e) }
 func (e badQueryErr) Is(target error) bool { return target == store.ErrBadQuery }
+
+func TestStoreErr(t *testing.T) {
+	h := newHandler(&fakeStore{err: errors.New("disk on fire: /var/db")})
+	for _, c := range []struct{ method, target, body string }{
+		{"GET", "/v1/meta", ""},
+		{"POST", "/v1/permits/lookup", `{"ids":[1]}`},
+		{"GET", "/v1/permits/T23SY041246", ""},
+		{"GET", "/v1/search?q=curb", ""},
+	} {
+		rec := do(t, h, c.method, c.target, c.body)
+		if rec.Code != 500 {
+			t.Errorf("%s: status %d", c.target, rec.Code)
+		}
+		if msg := decode(t, rec)["message"]; msg != "Something went wrong on the server. Try again in a moment." {
+			t.Errorf("%s: message %q", c.target, msg)
+		}
+		if strings.Contains(rec.Body.String(), "fire") {
+			t.Errorf("%s leaked the error", c.target)
+		}
+	}
+}
+
+func TestETag(t *testing.T) {
+	h := newHandler(&fakeStore{})
+	rec := do(t, h, "GET", "/v1/meta", "")
+	if cc := rec.Header().Get("Cache-Control"); cc != "public, max-age=3600" {
+		t.Errorf("cache-control %q", cc)
+	}
+	if et := rec.Header().Get("ETag"); et != `"`+built+`"` {
+		t.Errorf("etag %q", et)
+	}
+	rec = do(t, h, "GET", "/v1/meta", "", "If-None-Match", `"`+built+`"`)
+	if rec.Code != 304 || rec.Body.Len() != 0 {
+		t.Errorf("got %d with %d body bytes", rec.Code, rec.Body.Len())
+	}
+	if rec.Header().Get("X-Streetworks-Built") != built {
+		t.Error("304 lacks built header")
+	}
+	rec = do(t, h, "GET", "/v1/meta", "", "If-None-Match", `"old"`)
+	if rec.Code != 200 {
+		t.Errorf("stale etag gave %d", rec.Code)
+	}
+}
+
+func TestCORS(t *testing.T) {
+	h := newHandler(&fakeStore{})
+	const origin = "https://streetworks.example"
+
+	rec := do(t, h, "GET", "/v1/meta", "", "Origin", origin)
+	if rec.Header().Get("Access-Control-Allow-Origin") != origin || rec.Header().Get("Vary") != "Origin" {
+		t.Errorf("headers %v", rec.Header())
+	}
+
+	rec = do(t, h, "OPTIONS", "/v1/permits/lookup", "", "Origin", origin)
+	if rec.Code != 204 {
+		t.Fatalf("preflight status %d", rec.Code)
+	}
+	if rec.Header().Get("X-Streetworks-Built") != built {
+		t.Error("preflight lacks built header")
+	}
+	if rec.Header().Get("Access-Control-Allow-Methods") != "GET, POST" ||
+		rec.Header().Get("Access-Control-Allow-Headers") != "Content-Type" {
+		t.Errorf("headers %v", rec.Header())
+	}
+
+	rec = do(t, h, "GET", "/v1/meta", "", "Origin", "https://evil.example")
+	if v := rec.Header().Get("Access-Control-Allow-Origin"); v != "" {
+		t.Errorf("evil origin allowed: %q", v)
+	}
+
+	rec = do(t, h, "GET", "/v1/meta", "", "Origin", "http://localhost:5173")
+	if v := rec.Header().Get("Access-Control-Allow-Origin"); v != "" {
+		t.Errorf("localhost allowed with an origin set: %q", v)
+	}
+	local := New(&fakeStore{}, built, Options{})
+	rec = do(t, local, "GET", "/v1/meta", "", "Origin", "http://localhost:5173")
+	if v := rec.Header().Get("Access-Control-Allow-Origin"); v != "http://localhost:5173" {
+		t.Errorf("localhost in local mode: %q", v)
+	}
+}
+
+func TestNotFound(t *testing.T) {
+	rec := do(t, newHandler(&fakeStore{}), "GET", "/nope", "")
+	if rec.Code != 404 || decode(t, rec)["message"] == "" {
+		t.Errorf("got %d %s", rec.Code, rec.Body)
+	}
+}
