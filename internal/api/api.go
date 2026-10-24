@@ -218,7 +218,6 @@ func (s *server) byNumber(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) search(w http.ResponseWriter, r *http.Request) {
-	println("search", r.URL.RawQuery)
 	q := r.URL.Query()
 	limit := defaultLimit
 	if v := q.Get("limit"); v != "" {
