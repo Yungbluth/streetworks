@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/yungbluth/streetworks/internal/store"
 )
@@ -18,6 +20,8 @@ const (
 	maxLookupIDs = 2000
 	defaultLimit = 20
 	maxLimit     = 50
+	maxBodyBytes = 64 << 10
+	maxResponse  = 2 << 20
 )
 
 type Store interface {
@@ -31,6 +35,10 @@ type Options struct {
 	// Origin is the one site allowed to call the API from a browser
 	Origin string
 	Log    *slog.Logger
+	// rate and Burst set the per-client request limit, in requests per second and requests at once
+	Rate  float64
+	Burst int
+	Now   func() time.Time
 }
 
 type server struct {
@@ -45,6 +53,18 @@ func New(s Store, built string, o Options) http.Handler {
 	if log == nil {
 		log = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
+	rate, burst, now := o.Rate, o.Burst, o.Now
+	if rate == 0 {
+		rate = defaultRate
+	}
+	if burst == 0 {
+		burst = defaultBurst
+	}
+	if now == nil {
+		now = time.Now
+	}
+	// TODO limits per route? probably overkill for this
+	lim := newLimiter(rate, burst, now)
 	srv := &server{store: s, built: built, log: log}
 
 	mux := http.NewServeMux()
@@ -57,7 +77,8 @@ func New(s Store, built string, o Options) http.Handler {
 		writeError(w, http.StatusNotFound, "There is nothing at this address.")
 	})
 
-	return builtHeader(built, cors(o.Origin, srv.stamp(mux)))
+	// builtHeader stays outermost so that a 429 carries the build too
+	return builtHeader(built, logRequests(log, lim.middleware(cors(o.Origin, gzipResponses(srv.stamp(mux))))))
 }
 
 func allow(method string, h http.HandlerFunc) http.HandlerFunc {
@@ -131,16 +152,21 @@ func (s *server) meta(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, m)
+	s.writeJSON(w, r, http.StatusOK, m)
 }
 
 func (s *server) lookup(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		IDs []int `json:"ids"`
 	}
-	dec := json.NewDecoder(r.Body)
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&body); err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			writeError(w, http.StatusBadRequest, "That request is too large.")
+			return
+		}
 		writeError(w, http.StatusBadRequest, `Send a JSON body like {"ids":[1,2,3]}.`)
 		return
 	}
@@ -168,7 +194,7 @@ func (s *server) lookup(w http.ResponseWriter, r *http.Request) {
 	if permits == nil {
 		permits = map[int]store.Detail{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"built": s.built, "permits": permits})
+	s.writeJSON(w, r, http.StatusOK, map[string]any{"built": s.built, "permits": permits})
 }
 
 func (s *server) byNumber(w http.ResponseWriter, r *http.Request) {
@@ -183,7 +209,7 @@ func (s *server) byNumber(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	s.writeJSON(w, r, http.StatusOK, map[string]any{
 		"built":  s.built,
 		"id":     p.ID,
 		"place":  p.Place,
@@ -217,7 +243,7 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 	if hits == nil {
 		hits = []store.Hit{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"built": s.built, "hits": hits})
+	s.writeJSON(w, r, http.StatusOK, map[string]any{"built": s.built, "hits": hits})
 }
 
 func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
@@ -225,15 +251,40 @@ func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	writeError(w, http.StatusInternalServerError, "Something went wrong on the server. Try again in a moment.")
 }
 
-func writeJSON(w http.ResponseWriter, status int, v any) {
+func (s *server) writeJSON(w http.ResponseWriter, r *http.Request, status int, v any) {
+	body, err := encode(v)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	if len(body) > maxResponse {
+		writeError(w, http.StatusBadRequest, "That's too many permits for one request; ask for fewer.")
+		return
+	}
+	sendJSON(w, status, body)
+}
+
+// encode leaves <, > and & alone so that search snippets keep their <mark> tags readable
+func encode(v any) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func sendJSON(w http.ResponseWriter, status int, body []byte) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	w.Write(body)
 }
 
 // writeError sends {"message": msg}. Errors aren't worth caching
 func writeError(w http.ResponseWriter, status int, msg string) {
 	w.Header().Del("Cache-Control")
 	w.Header().Del("ETag")
-	writeJSON(w, status, map[string]string{"message": msg})
+	body, _ := encode(map[string]string{"message": msg}) // a string map always encodes
+	sendJSON(w, status, body)
 }

@@ -1,0 +1,163 @@
+package api
+
+import (
+	"compress/gzip"
+	"log/slog"
+	"net"
+	"net/http"
+	"strconv"
+	"sync"
+	"time"
+)
+
+const (
+	defaultRate  = 10.0
+	defaultBurst = 20
+	idleAfter    = time.Minute
+)
+
+// limiter lets burst requests through per client in each second
+type limiter struct {
+	burst int
+	now   func() time.Time
+
+	mu      sync.Mutex
+	clients map[string]*window
+}
+
+type window struct {
+	start time.Time
+	n     int
+}
+
+func newLimiter(rate float64, burst int, now func() time.Time) *limiter {
+	return &limiter{burst: burst, now: now, clients: map[string]*window{}}
+}
+
+func (l *limiter) allow(key string) (ok bool, retryAfter int) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	now := l.now()
+	w, found := l.clients[key]
+	if !found || now.Sub(w.start) >= time.Second {
+		l.clients[key] = &window{start: now, n: 1}
+		return true, 0
+	}
+	if w.n >= l.burst {
+		return false, 1
+	}
+	w.n++
+	return true, 0
+}
+
+func (l *limiter) size() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return len(l.clients)
+}
+
+func clientKey(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
+
+func (l *limiter) middleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if ok, retry := l.allow(clientKey(r)); !ok {
+			w.Header().Set("Retry-After", strconv.Itoa(retry))
+			writeError(w, http.StatusTooManyRequests, "Too many requests. Wait a moment and try again.")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+type recorder struct {
+	http.ResponseWriter
+	status int
+	bytes  int
+}
+
+func (r *recorder) WriteHeader(code int) {
+	if r.status == 0 {
+		r.status = code
+	}
+	r.ResponseWriter.WriteHeader(code)
+}
+
+func (r *recorder) Write(p []byte) (int, error) {
+	if r.status == 0 {
+		r.status = http.StatusOK
+	}
+	n, err := r.ResponseWriter.Write(p)
+	r.bytes += n
+	return n, err
+}
+
+func (r *recorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
+
+// logRequests writes one line per request
+func logRequests(log *slog.Logger, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		rec := &recorder{ResponseWriter: w}
+		next.ServeHTTP(rec, r)
+
+		// the mux fills in r.Pattern on this same request
+		route := r.Pattern
+		if route == "" {
+			route = r.URL.Path
+		}
+		status := rec.status
+		if status == 0 {
+			status = http.StatusOK
+		}
+		log.Info("request",
+			"method", r.Method,
+			"route", route,
+			"status", status,
+			"ms", time.Since(start).Milliseconds(),
+			"bytes", rec.bytes,
+		)
+	})
+}
+
+// gzipper compresses a response when the client accepts it
+type gzipper struct {
+	http.ResponseWriter
+	zw      *gzip.Writer
+	status  int
+	started bool
+}
+
+func (g *gzipper) WriteHeader(code int) {
+	if !g.started && g.status == 0 {
+		g.status = code
+	}
+}
+
+func (g *gzipper) start() {
+	g.started = true
+	if g.status == 0 {
+		g.status = http.StatusOK
+	}
+	if g.status != http.StatusNoContent && g.status != http.StatusNotModified {
+		g.Header().Set("Content-Encoding", "gzip")
+		g.Header().Del("Content-Length")
+		g.zw = gzip.NewWriter(g.ResponseWriter)
+	}
+	g.ResponseWriter.WriteHeader(g.status)
+}
+
+func (g *gzipper) Write(p []byte) (int, error) {
+	if !g.started {
+		g.start()
+	}
+	if g.zw == nil {
+		return g.ResponseWriter.Write(p)
+	}
+	return g.zw.Write(p)
+}
