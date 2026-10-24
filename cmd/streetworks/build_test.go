@@ -30,9 +30,13 @@ func readIndex(t *testing.T, dir string) map[string]any {
 
 func TestBuildSample(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "data")
+	db := filepath.Join(t.TempDir(), "streetworks.db")
 	var buf bytes.Buffer
-	if err := run(context.Background(), "build", []string{"-raw", rawSample, "-out", out}, &buf); err != nil {
+	if err := run(context.Background(), "build", []string{"-raw", rawSample, "-out", out, "-db", db}, &buf); err != nil {
 		t.Fatalf("%v\n%s", err, buf.String())
+	}
+	if _, err := os.Stat(db); err != nil {
+		t.Errorf("-db wasn't written: %v", err)
 	}
 	idx := readIndex(t, out)
 	if q := idx["quality"].(map[string]any); q["unique_permits"] != 10.0 {
@@ -42,7 +46,7 @@ func TestBuildSample(t *testing.T) {
 	if len(srcs) != 1 || srcs[0].(map[string]any)["rows"] != 10.0 {
 		t.Errorf("sources = %v", srcs)
 	}
-	for _, want := range []string{"Unique permits:       10", "10 permits on the map at 10 places", "first load", "wrote " + out} {
+	for _, want := range []string{"Unique permits:       10", "10 permits on the map at 10 places", "first load", "wrote " + out, "wrote " + db} {
 		if !strings.Contains(buf.String(), want) {
 			t.Errorf("output missing %q:\n%s", want, buf.String())
 		}
@@ -57,7 +61,7 @@ func TestBuildOverlays(t *testing.T) {
 	os.WriteFile(filepath.Join(raw, "prop409_major.jsonl"), []byte(line), 0o644)
 
 	out := filepath.Join(t.TempDir(), "data")
-	if err := run(context.Background(), "build", []string{"-raw", raw, "-out", out}, &bytes.Buffer{}); err != nil {
+	if err := run(context.Background(), "build", []string{"-raw", raw, "-out", out, "-db", filepath.Join(t.TempDir(), "streetworks.db")}, &bytes.Buffer{}); err != nil {
 		t.Fatal(err)
 	}
 	ovs := readIndex(t, out)["overlays"].([]any)
@@ -79,7 +83,7 @@ func TestBuildGuard(t *testing.T) {
 	}))
 	defer srv.Close()
 	out := filepath.Join(t.TempDir(), "data")
-	err := run(context.Background(), "build", []string{"-raw", rawSample, "-out", out, "-guard", srv.URL + "/data/index.json"}, &bytes.Buffer{})
+	err := run(context.Background(), "build", []string{"-raw", rawSample, "-out", out, "-db", filepath.Join(t.TempDir(), "streetworks.db"), "-guard", srv.URL + "/data/index.json"}, &bytes.Buffer{})
 	if err == nil || !strings.Contains(err.Error(), "down from 100") {
 		t.Fatalf("err = %v", err)
 	}

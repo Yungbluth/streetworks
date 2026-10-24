@@ -2,6 +2,7 @@ package site
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -13,26 +14,10 @@ import (
 
 	"github.com/yungbluth/streetworks/internal/arcgis"
 	"github.com/yungbluth/streetworks/internal/permits"
+	"github.com/yungbluth/streetworks/internal/store"
 )
 
 var update = flag.Bool("update", false, "rewrite testdata/golden from the current output")
-
-func TestCellKey(t *testing.T) {
-	for _, c := range []struct {
-		lat, lng float64
-		want     string
-	}{
-		{32.2215, -110.97, "3222_-11097"},
-		{32.2215, -110.96999, "3222_-11097"},
-		{32.23, -110.9701, "3223_-11098"},
-		{32.0, -111.0, "3200_-11100"},
-		{-0.001, 0.001, "-1_0"},
-	} {
-		if got := CellKey(c.lat, c.lng); got != c.want {
-			t.Errorf("CellKey(%v, %v) = %q, want %q", c.lat, c.lng, got, c.want)
-		}
-	}
-}
 
 func sampleInput(t *testing.T) Input {
 	t.Helper()
@@ -77,7 +62,7 @@ func readJSON(t *testing.T, path string, v any) {
 
 func TestWriteGolden(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "data")
-	if _, err := Write(dir, sampleInput(t)); err != nil {
+	if _, err := Write(dir, filepath.Join(t.TempDir(), "streetworks.db"), sampleInput(t)); err != nil {
 		t.Fatal(err)
 	}
 	golden := filepath.Join("testdata", "golden")
@@ -124,7 +109,7 @@ type gotPermits struct {
 func TestWriteShape(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "data")
 	in := sampleInput(t)
-	sum, err := Write(dir, in)
+	sum, err := Write(dir, filepath.Join(t.TempDir(), "streetworks.db"), in)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +119,6 @@ func TestWriteShape(t *testing.T) {
 		Categories   []string
 		DateRange    []string
 		Bounds       []float64
-		DetailCell   float64
 		Overlays     []struct {
 			Name, Label, File string
 			Rows              int
@@ -146,7 +130,7 @@ func TestWriteShape(t *testing.T) {
 		}
 	}
 	readJSON(t, filepath.Join(dir, "index.json"), &idx)
-	if idx.Version != 1 || idx.SparseBefore != 2005 || idx.DetailCell != 0.01 || len(idx.Bounds) != 4 {
+	if idx.Version != 2 || idx.SparseBefore != 2005 || len(idx.Bounds) != 4 {
 		t.Errorf("index: %+v", idx)
 	}
 	if len(idx.DateRange) != 2 || idx.DateRange[0] != in.Meta.DateMin || idx.Quality.UniquePermits != 11 || idx.Quality.Unplaced != 1 {
@@ -207,68 +191,67 @@ func TestWriteShape(t *testing.T) {
 		}
 	}
 
-	seen := map[string]string{}
-	entries, _ := os.ReadDir(filepath.Join(dir, "details"))
-	for _, e := range entries {
-		var cell struct {
-			Built   string
-			Permits map[string]struct{ Permit string }
-		}
-		readJSON(t, filepath.Join(dir, "details", e.Name()), &cell)
-		if cell.Built != "2026-08-29T18:00:00Z" {
-			t.Errorf("%s: built = %q", e.Name(), cell.Built)
-		}
-		for k := range cell.Permits {
-			if prev, dup := seen[k]; dup {
-				t.Errorf("permit %s in %s and %s", k, prev, e.Name())
-			}
-			seen[k] = e.Name()
-		}
-	}
-	for i := 0; i < m; i++ {
-		want := CellKey(float64(pm.Lat[i])/1e5, float64(pm.Lng[i])/1e5) + ".json"
-		if seen[fmt.Sprint(i)] != want {
-			t.Errorf("permit %d is in %q, want %q", i, seen[fmt.Sprint(i)], want)
-		}
-	}
 	if sum.FirstLoadBytes <= 0 || sum.FirstLoadGzip <= 0 || sum.FirstLoadGzip >= sum.FirstLoadBytes {
 		t.Errorf("summary sizes: %+v", sum)
 	}
 }
 
-func TestDetailRecordFields(t *testing.T) {
+func TestWriteDatabase(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "data")
-	if _, err := Write(dir, sampleInput(t)); err != nil {
+	dbPath := filepath.Join(t.TempDir(), "streetworks.db")
+	if _, err := Write(dir, dbPath, sampleInput(t)); err != nil {
 		t.Fatal(err)
 	}
-	var found bool
-	entries, _ := os.ReadDir(filepath.Join(dir, "details"))
-	for _, e := range entries {
-		var cell struct{ Permits map[string]map[string]any }
-		readJSON(t, filepath.Join(dir, "details", e.Name()), &cell)
-		for _, d := range cell.Permits {
-			if d["filed"] == "10602 E CERULEAN WAY" {
-				found = true
-				flags, _ := d["flags"].([]any)
-				if len(flags) != 1 || flags[0] != "street read from location text" {
-					t.Errorf("flags = %v", d["flags"])
-				}
-			}
-			for _, k := range []string{"permit", "type", "status", "noWork", "date", "dateBasis", "description", "filed"} {
-				if _, ok := d[k]; !ok {
-					t.Errorf("detail missing %q: %v", k, d)
-				}
+	var idx struct{ Built string }
+	readJSON(t, filepath.Join(dir, "index.json"), &idx)
+	var pm gotPermits
+	readJSON(t, filepath.Join(dir, "permits.json"), &pm)
+	n := len(pm.Place)
+
+	db, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	meta, err := db.Meta(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.Permits != n || meta.Built != idx.Built || meta.Version != version {
+		t.Errorf("meta = %+v; want %d permits, built %q, version %d", meta, n, idx.Built, version)
+	}
+	ids := make([]int, n)
+	for i := range ids {
+		ids[i] = i
+	}
+	got, err := db.Lookup(context.Background(), ids)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != n {
+		t.Fatalf("looked up %d of %d permits", len(got), n)
+	}
+	_, mapped := placesFile(sampleInput(t).Places, sampleInput(t).Records)
+	if want := sampleInput(t).Records[mapped[0].record].Permit; got[0].Permit != want {
+		t.Errorf("permit 0 = %q, want %q", got[0].Permit, want)
+	}
+	var filed bool
+	for _, d := range got {
+		if d.Filed == "10602 E CERULEAN WAY" {
+			filed = true
+			if len(d.Flags) != 1 || d.Flags[0] != "street read from location text" {
+				t.Errorf("flags = %v", d.Flags)
 			}
 		}
 	}
-	if !found {
+	if !filed {
 		t.Error("the permit whose street came from LOCATION wasn't written")
 	}
 }
 
 func TestWrite(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "data")
-	if _, err := Write(dir, sampleInput(t)); err != nil {
+	if _, err := Write(dir, filepath.Join(t.TempDir(), "streetworks.db"), sampleInput(t)); err != nil {
 		t.Fatal(err)
 	}
 	before, _ := os.ReadFile(filepath.Join(dir, "index.json"))
@@ -276,7 +259,7 @@ func TestWrite(t *testing.T) {
 	bad := sampleInput(t)
 	bad.Built = bad.Built.Add(time.Hour) // so a half-finished write would show up in index.json
 	bad.Overlays[0].Features[0].Geometry = json.RawMessage(`{not json`)
-	if _, err := Write(dir, bad); err == nil {
+	if _, err := Write(dir, filepath.Join(t.TempDir(), "streetworks.db"), bad); err == nil {
 		t.Fatal("a broken overlay should fail the write")
 	}
 	after, err := os.ReadFile(filepath.Join(dir, "index.json"))
@@ -291,7 +274,7 @@ func TestWrite(t *testing.T) {
 func TestOverlayNamesMustBeSafeFileNames(t *testing.T) {
 	in := sampleInput(t)
 	in.Overlays[0].Name = "../escape"
-	if _, err := Write(filepath.Join(t.TempDir(), "data"), in); err == nil {
+	if _, err := Write(filepath.Join(t.TempDir(), "data"), filepath.Join(t.TempDir(), "streetworks.db"), in); err == nil {
 		t.Error("an overlay name with a path in it was accepted")
 	}
 }

@@ -17,14 +17,13 @@ import (
 
 	"github.com/yungbluth/streetworks/internal/arcgis"
 	"github.com/yungbluth/streetworks/internal/permits"
+	"github.com/yungbluth/streetworks/internal/store"
 )
 
 const (
-	version = 1
+	version = 2
 	// Per-year counts roughly double from 2004 to 2005
 	sparseBefore = 2005
-	// detailCell is the size of a detail square in degrees, about 1.1 km by 0.9 km in Tucson
-	detailCell = 0.01
 )
 
 type Overlay struct {
@@ -52,27 +51,19 @@ type Summary struct {
 // fixed is a coordinate in degrees times 1e5, about a metre of precision
 func fixed(deg float64) int { return int(math.Round(deg * 1e5)) }
 
-func CellKey(lat, lng float64) string {
-	floorDiv := func(n int) int { // floor(n / 1000), rounding toward minus infinity
-		q := n / 1000
-		if n%1000 != 0 && n < 0 {
-			q--
-		}
-		return q
-	}
-	return strconv.Itoa(floorDiv(fixed(lat))) + "_" + strconv.Itoa(floorDiv(fixed(lng)))
-}
-
 var safeName = regexp.MustCompile(`^[a-z0-9_]+$`)
 
-// Write replaces dir with the site's data files
-func Write(dir string, in Input) (Summary, error) {
+func Write(dir, dbPath string, in Input) (Summary, error) {
 	tmp := dir + ".tmp"
 	if err := os.RemoveAll(tmp); err != nil {
 		return Summary{}, err
 	}
-	sum, err := writeAll(tmp, in)
+	sum, db, err := writeAll(tmp, in)
 	if err != nil {
+		os.RemoveAll(tmp)
+		return Summary{}, err
+	}
+	if err := store.Write(dbPath, db.meta, db.permits); err != nil {
 		os.RemoveAll(tmp)
 		return Summary{}, err
 	}
@@ -112,7 +103,12 @@ func (w *writer) json(name string, v any, firstLoad bool) error {
 	return os.WriteFile(path, b, 0o644)
 }
 
-func writeAll(dir string, in Input) (Summary, error) {
+type database struct {
+	meta    store.Meta
+	permits []store.Permit
+}
+
+func writeAll(dir string, in Input) (Summary, database, error) {
 	w := &writer{dir: dir}
 
 	cats, catID := categoryTable(in.Records)
@@ -121,7 +117,7 @@ func writeAll(dir string, in Input) (Summary, error) {
 		Place: make([]int, len(mapped)), Year: make([]int, len(mapped)), Cat: make([]int, len(mapped)),
 		NoWork: make([]int, len(mapped)), Lat: make([]int, len(mapped)), Lng: make([]int, len(mapped)),
 	}
-	details := map[string]map[string]detail{}
+	dbPermits := make([]store.Permit, len(mapped))
 	for i, m := range mapped {
 		r := in.Records[m.record]
 		pm.Place[i], pm.Cat[i] = m.place, catID[r.Category]
@@ -132,29 +128,25 @@ func writeAll(dir string, in Input) (Summary, error) {
 		if r.NoWork() {
 			pm.NoWork[i] = 1
 		}
-		key := CellKey(r.Lat, r.Lng)
-		if details[key] == nil {
-			details[key] = map[string]detail{}
-		}
-		details[key][strconv.Itoa(i)] = detailOf(r)
+		dbPermits[i] = store.Permit{ID: i, Place: m.place, Year: pm.Year[i], Cat: pm.Cat[i], Detail: detailOf(r)}
 	}
 
 	idx := indexFile{
 		Version: version, Built: in.Built.UTC().Format(time.RFC3339), Sources: []source{},
 		Categories: cats, DateRange: []string{in.Meta.DateMin, in.Meta.DateMax}, SparseBefore: sparseBefore,
 		Bounds: permits.PlaceBounds(in.Places), Quality: in.Meta, Basemap: in.Basemap,
-		Overlays: []overlayRef{}, DetailCell: detailCell,
+		Overlays: []overlayRef{},
 	}
 	for _, s := range in.Sources {
 		idx.Sources = append(idx.Sources, source{s.Name, s.URL, s.FetchedAt.UTC().Format(time.RFC3339), s.Count})
 	}
 	for _, o := range in.Overlays {
 		if !safeName.MatchString(o.Name) {
-			return Summary{}, fmt.Errorf("overlay name %q: use lowercase letters, digits and _", o.Name)
+			return Summary{}, database{}, fmt.Errorf("overlay name %q: use lowercase letters, digits and _", o.Name)
 		}
 		file := "overlays/" + o.Name + ".json"
 		if err := w.json(file, geoJSON(o.Features), false); err != nil {
-			return Summary{}, err
+			return Summary{}, database{}, err
 		}
 		idx.Overlays = append(idx.Overlays, overlayRef{o.Name, o.Label, file, len(o.Features)})
 	}
@@ -164,20 +156,15 @@ func writeAll(dir string, in Input) (Summary, error) {
 		v    any
 	}{{"index.json", idx}, {"places.json", places}, {"permits.json", pm}} {
 		if err := w.json(f.name, f.v, true); err != nil {
-			return Summary{}, err
+			return Summary{}, database{}, err
 		}
 	}
-	for key, cell := range details {
-		if err := w.json("details/"+key+".json", detailFile{Built: idx.Built, Permits: cell}, false); err != nil {
-			return Summary{}, err
-		}
-	}
-
 	var gz bytes.Buffer
 	zw, _ := gzip.NewWriterLevel(&gz, gzip.BestCompression)
 	zw.Write(w.firstLoad)
 	zw.Close()
-	return Summary{Permits: len(mapped), FirstLoadBytes: int64(len(w.firstLoad)), FirstLoadGzip: int64(gz.Len())}, nil
+	sum := Summary{Permits: len(mapped), FirstLoadBytes: int64(len(w.firstLoad)), FirstLoadGzip: int64(gz.Len())}
+	return sum, database{store.Meta{Built: idx.Built, Version: version, Permits: len(mapped)}, dbPermits}, nil
 }
 
 type indexFile struct {
@@ -191,7 +178,6 @@ type indexFile struct {
 	Quality      permits.Meta `json:"quality"`
 	Basemap      Basemap      `json:"basemap"`
 	Overlays     []overlayRef `json:"overlays"`
-	DetailCell   float64      `json:"detailCell"`
 }
 
 type source struct {
@@ -286,31 +272,8 @@ func placesFile(places []permits.Place, recs []permits.Record) (placesJSON, []ma
 	return out, mapped
 }
 
-type detailFile struct {
-	Built   string            `json:"built"`
-	Permits map[string]detail `json:"permits"`
-}
-
-type detail struct {
-	Permit      string   `json:"permit"`
-	Type        string   `json:"type"`
-	SubType     string   `json:"subType,omitempty"`
-	Status      string   `json:"status"`
-	NoWork      bool     `json:"noWork"`
-	Date        string   `json:"date"`
-	DateBasis   string   `json:"dateBasis"`
-	Final       string   `json:"final,omitempty"`
-	Description string   `json:"description"`
-	Applicant   string   `json:"applicant,omitempty"`
-	Utility     string   `json:"utility,omitempty"`
-	Filed       string   `json:"filed"`
-	Link        string   `json:"link,omitempty"`
-	Located     string   `json:"located,omitempty"` // how the city placed the point, e.g. "Mapguide Location"
-	Flags       []string `json:"flags,omitempty"`
-}
-
-func detailOf(r permits.Record) detail {
-	d := detail{
+func detailOf(r permits.Record) store.Detail {
+	d := store.Detail{
 		Permit: r.Permit, Type: r.Type, SubType: r.SubType, Status: r.Status, NoWork: r.NoWork(),
 		Date: r.Date, DateBasis: r.DateBasis, Final: r.Final, Description: r.Description,
 		Applicant: r.Applicant, Utility: r.Utility, Filed: r.RawStreet, Link: r.ProURL, Located: r.GeocodeNote,

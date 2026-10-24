@@ -29,6 +29,7 @@ func buildCmd(ctx context.Context, w io.Writer, args []string) error {
 	fs := flag.NewFlagSet("build", flag.ContinueOnError)
 	raw := fs.String("raw", "data/raw", "where fetch saved the layers")
 	out := fs.String("out", "site/data", "where to write the site's data")
+	dbPath := fs.String("db", "streetworks.db", "where to write the permit database the API reads")
 	guard := fs.String("guard", "", "URL of the published index.json; refuse to write if the permit count drops more than 10%")
 	var bo site.BasemapOptions
 	fs.StringVar(&bo.CartoKey, "carto-key", "", "CARTO basemap key (carto.com/basemaps/apikey)")
@@ -88,7 +89,7 @@ func buildCmd(ctx context.Context, w io.Writer, args []string) error {
 	if err := site.CheckGuard(ctx, &http.Client{Timeout: 30 * time.Second}, *guard, in.Meta.UniquePermits); err != nil {
 		return err
 	}
-	sum, err := site.Write(*out, in)
+	sum, err := site.Write(*out, *dbPath, in)
 	if err != nil {
 		return err
 	}
@@ -96,6 +97,7 @@ func buildCmd(ctx context.Context, w io.Writer, args []string) error {
 	fmt.Fprintf(w, "first load: %.2f MB, %.2f MB compressed\n", float64(sum.FirstLoadBytes)/1e6, float64(sum.FirstLoadGzip)/1e6)
 	fmt.Fprintf(w, "basemap: %s\n", basemap.Describe())
 	fmt.Fprintf(w, "wrote %s\n", *out)
+	fmt.Fprintf(w, "wrote %s\n", *dbPath)
 	return nil
 }
 
