@@ -40,6 +40,10 @@ func TestServeAnswers(t *testing.T) {
 	if code, body := get(t, base+"/v1/meta"); code != 200 || !strings.Contains(body, `"permits":3`) {
 		t.Errorf("/v1/meta: %d %q", code, body)
 	}
+	// Request logs go to stdout with Cloud Run's field names
+	if log := out.String(); !strings.Contains(log, `"severity":"INFO"`) || !strings.Contains(log, `"message":"request"`) {
+		t.Errorf("no Cloud Run log line in the output:\n%s", log)
+	}
 
 	cancel()
 	select {

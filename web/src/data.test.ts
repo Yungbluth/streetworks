@@ -28,7 +28,7 @@ function fakeFetch(override: Override = () => undefined) {
 describe("loadSite", () => {
   it("loads the fixture site", async () => {
     const site = await loadSite(base, fakeFetch().fn);
-    expect(site.index.version).toBe(1);
+    expect(site.index.version).toBe(2);
     expect(site.index.sparseBefore).toBe(2005);
     expect(site.index.quality.unique_permits).toBe(10);
     expect(site.places.kind.length).toBe(10);
@@ -38,11 +38,11 @@ describe("loadSite", () => {
 
   it("rejects a data format it doesn't understand", async () => {
     const { fn } = fakeFetch((f) =>
-      f === "index.json" ? new Response(JSON.stringify({ version: 2 }), { status: 200 }) : undefined,
+      f === "index.json" ? new Response(JSON.stringify({ version: 1 }), { status: 200 }) : undefined,
     );
     const err = await loadSite(base, fn).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(DataError);
-    expect((err as Error).message).toContain("data format 2, this page expects 1");
+    expect((err as Error).message).toContain("data format 1, this page expects 2");
   });
 
   it("names the file that failed to load", async () => {
@@ -61,50 +61,19 @@ describe("loadSite", () => {
   });
 });
 
-describe("detail squares", () => {
-  const key = "3223_-11097"; // the square with 749 E Speedway in it
-
-  it("fetches a square once however often it's asked for", async () => {
-    const { fn, calls } = fakeFetch();
-    const site = await loadSite(base, fn);
-    const [a, b] = await Promise.all([site.detail(key), site.detail(key)]);
-    await site.detail(key);
-    expect(a).toBe(b);
-    expect(calls.filter((c) => c === `details/${key}.json`).length).toBe(1);
-    expect(Object.values(a).some((d) => d.filed === "749 E SPEEDWAY BL")).toBe(true);
-  });
-
-  it("tries a failed square again next time", async () => {
-    let fail = true;
-    const { fn, calls } = fakeFetch((f) => (f.startsWith("details/") && fail ? new Response("", { status: 503 }) : undefined));
-    const site = await loadSite(base, fn);
-    await expect(site.detail(key)).rejects.toBeInstanceOf(DataError);
-    fail = false;
-    await expect(site.detail(key)).resolves.toBeTypeOf("object");
-    expect(calls.filter((c) => c === `details/${key}.json`).length).toBe(2);
-  });
-
-  it("refuses a square from a newer build than the page loaded", async () => {
-    const { fn } = fakeFetch((f) =>
-      f.startsWith("details/") ? new Response(JSON.stringify({ built: "2099-01-01T00:00:00Z", permits: {} }), { status: 200 }) : undefined,
-    );
-    const site = await loadSite(base, fn);
-    const err = await site.detail(key).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(DataError);
-    expect((err as Error).message).toContain("Reload the page");
-  });
-
-  it("asks for a square by build", async () => {
-    const urls: string[] = [];
+describe("the permit server", () => {
+  it("is asked for records, and checks they're from the same build as the data", async () => {
+    const { built } = JSON.parse(readFileSync(join(fixtures, "index.json"), "utf8")) as { built: string };
+    const asked: string[] = [];
     const { fn } = fakeFetch();
-    const site = await loadSite(base, ((u: RequestInfo | URL) => (urls.push(String(u)), fn(u))) as typeof fetch);
-    await site.detail(key);
-    const asked = new URL(urls.find((u) => u.includes("details/"))!);
-    expect(asked.searchParams.get("v")).toBe(site.index.built);
-  });
-
-  it("treats a square with no file as empty", async () => {
-    const site = await loadSite(base, fakeFetch().fn);
-    await expect(site.detail("0_0")).resolves.toEqual({});
+    const both = (async (u: RequestInfo | URL, init?: RequestInit) => {
+      if (String(u).startsWith(base)) return fn(u, init);
+      asked.push(String(u));
+      return new Response(JSON.stringify({ built, permits: { "0": { permit: "T05EX000001" } } }), { status: 200 });
+    }) as typeof fetch;
+    const site = await loadSite(base, both, "https://api.example.test/");
+    const got = await site.api.records([0]);
+    expect(asked).toEqual(["https://api.example.test/v1/permits/lookup"]);
+    expect(got.get(0)?.permit).toBe("T05EX000001");
   });
 });

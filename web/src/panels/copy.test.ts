@@ -10,7 +10,7 @@ const site = {
   index: { categories: ["Civic event", "Excavation", "Small wireless"], overlays: [] } as unknown as Site["index"],
   places: { streets: ["E A ST"], kind: [PlaceKind.Block, PlaceKind.Block], street: [0, 0], cross: [-1, -1], block: [0, 100], lat: [3222000, 3222000], lng: [-11097000, -11096900], label: {} },
   permits: { place: [0, 1], year: [2020, 2021], cat: [1, 1], noWork: [0, 0], lat: [3222000, 3222000], lng: [-11097000, -11096900] },
-  detail: async () => ({}),
+  api: { records: async () => new Map(), byNumber: () => Promise.reject(new Error("not used here")), search: async () => [] },
 } as Site;
 const filter = { from: 2005, to: 2026, cats: new Set([1]), includeNoWork: false };
 const quality = { unique_permits: 2, no_block: 0, unplaced: 0, no_date: 0, no_work: 0, date_min: "2020-01-01", date_max: "2021-01-01" };

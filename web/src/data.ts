@@ -1,5 +1,7 @@
 
-export const DATA_VERSION = 1;
+import { API_BASE, apiClient, type Api } from "./api";
+
+export const DATA_VERSION = 2;
 
 export interface KV {
   key: string;
@@ -43,7 +45,6 @@ export interface Index {
   quality: Quality;
   basemap: { light: TileSource; dark: TileSource };
   overlays: { name: string; label: string; file: string; rows: number }[];
-  detailCell: number;
 }
 
 export function yearSpan(index: Index): [first: number, last: number] {
@@ -98,7 +99,8 @@ export interface Site {
   index: Index;
   places: Places;
   permits: Permits;
-  detail(cellKey: string): Promise<Record<string, Detail>>;
+  /** The permit server, for full records and search */
+  api: Api;
 }
 
 export class DataError extends Error {
@@ -124,7 +126,7 @@ async function getJSON<T>(base: string, file: string, fetchFn: typeof fetch): Pr
   }
 }
 
-export async function loadSite(base: string, fetchFn: typeof fetch = fetch): Promise<Site> {
+export async function loadSite(base: string, fetchFn: typeof fetch = fetch, apiBase = API_BASE): Promise<Site> {
   const index = await getJSON<Index>(base, "index.json", fetchFn);
   if (index.version !== DATA_VERSION) {
     throw new DataError(
@@ -135,32 +137,5 @@ export async function loadSite(base: string, fetchFn: typeof fetch = fetch): Pro
     getJSON<Places>(base, "places.json", fetchFn),
     getJSON<Permits>(base, "permits.json", fetchFn),
   ]);
-
-  const squares = new Map<string, Promise<Record<string, Detail>>>();
-  const detail = (cellKey: string) => {
-    let p = squares.get(cellKey);
-    if (!p) {
-      const url = new URL(`details/${cellKey}.json`, base);
-      url.searchParams.set("v", index.built);
-      p = fetchFn(url)
-        .catch((e: unknown) => {
-          throw new DataError(`Couldn't load the permits here: ${errorMessage(e)}`);
-        })
-        .then(async (res) => {
-          // squares with no permits aren't written, so a 404 just means empty
-          if (res.status === 404) return {};
-          if (!res.ok) throw new DataError(`Couldn't load the permits here: the server said ${res.status}`);
-          const square = (await res.json()) as { built: string; permits: Record<string, Detail> };
-          if (square.built !== index.built) {
-            throw new DataError("The permit data was updated while this page was open. Reload the page to see it.");
-          }
-          return square.permits;
-        });
-      p.catch(() => squares.delete(cellKey));
-      squares.set(cellKey, p);
-    }
-    return p;
-  };
-
-  return { index, places, permits, detail };
+  return { index, places, permits, api: apiClient(apiBase, index.built, fetchFn) };
 }

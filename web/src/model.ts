@@ -1,6 +1,6 @@
 import type { Detail, Site } from "./data";
 import { matcher, type Filter, type PlaceSummary } from "./filters";
-import { cellKey, type LatLng } from "./geo";
+import type { LatLng } from "./geo";
 
 export type Focus =
   | { kind: "place"; place: number; note?: string; q?: string; /** Where it was opened from, such as its street. */ from?: Focus }
@@ -39,25 +39,9 @@ export function permitsOf(site: Site, place: number, f: Filter): number[] {
   return out;
 }
 
-/** Full records for some permits, fetching each detail square once */
-export async function detailsFor(site: Site, permits: number[]): Promise<Map<number, Detail>> {
-  const byCell = new Map<string, number[]>();
-  for (const i of permits) {
-    const at = permitAt(site, i);
-    const key = cellKey(at.lat, at.lng);
-    byCell.set(key, [...(byCell.get(key) ?? []), i]);
-  }
-  const out = new Map<number, Detail>();
-  await Promise.all(
-    [...byCell].map(async ([key, list]) => {
-      const cell = await site.detail(key);
-      for (const i of list) {
-        const d = cell[String(i)];
-        if (d) out.set(i, d);
-      }
-    }),
-  );
-  return out;
+// full records for some permits, from the permit server
+export function detailsFor(site: Site, permits: number[]): Promise<Map<number, Detail>> {
+  return site.api.records(permits);
 }
 
 // newest first; permits with no date go last

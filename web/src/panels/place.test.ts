@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
+import type { Api } from "../api";
 import { PlaceKind, type Detail, type Site } from "../data";
 import { summarizePlaces } from "../filters";
 import type { Ctx } from "../model";
@@ -46,17 +47,30 @@ describe("perYear", () => {
   });
 });
 
-function tinySite(): Site {
-  const detail = (permit: string, date: string): Detail => ({
-    permit, type: "EXCAVATION", status: "CLOSED", noWork: false, date, dateBasis: "DATE_ISSUED", description: `Work ${permit}`, filed: "100 E A ST",
-  });
-  const details: Record<string, Detail> = { "0": detail("P0", "2020-01-02"), "1": detail("P1", "2024-05-06"), "2": detail("P2", "2022-03-04") };
+// An API that answers records with the given function and nothing else
+const fakeApi = (records: Api["records"]): Api => ({
+  records,
+  byNumber: () => Promise.reject(new Error("not used here")),
+  search: async () => [],
+});
+
+const recordsFrom = (details: Detail[]) =>
+  fakeApi(async (ids) => new Map(ids.flatMap((i) => (details[i] ? [[i, details[i]] as const] : []))));
+
+function tinySite(details = tinyDetails()): Site {
   return {
     index: { categories: ["Excavation"], built: "b" } as Site["index"],
     places: { streets: ["E A ST"], kind: [PlaceKind.Block, PlaceKind.Block], street: [0, 0], cross: [-1, -1], block: [100, 200], lat: [3222000, 3222000], lng: [-11097000, -11096970], label: {} },
     permits: { place: [0, 0, 1], year: [2020, 2024, 2022], cat: [0, 0, 0], noWork: [0, 0, 0], lat: [3222000, 3222000, 3222000], lng: [-11097000, -11097000, -11096970] },
-    detail: async () => details,
+    api: recordsFrom(details),
   };
+}
+
+function tinyDetails(): Detail[] {
+  const detail = (permit: string, date: string): Detail => ({
+    permit, type: "EXCAVATION", status: "CLOSED", noWork: false, date, dateBasis: "DATE_ISSUED", description: `Work ${permit}`, filed: "100 E A ST",
+  });
+  return [detail("P0", "2020-01-02"), detail("P1", "2024-05-06"), detail("P2", "2022-03-04")];
 }
 
 describe("placePanel", () => {
@@ -89,7 +103,7 @@ describe("placePanel", () => {
   });
 
   it("says who the work was filed for, once the records load", async () => {
-    const named = { ...site, detail: async () => Object.fromEntries(Object.entries(await site.detail("")).map(([k, v]) => [k, { ...v, utility: "Tucson Water" }])) };
+    const named = tinySite(tinyDetails().map((d) => ({ ...d, utility: "Tucson Water" })));
     const el = placePanel({ ...ctx, site: named }, 0);
     await new Promise((r) => setTimeout(r, 0));
     expect(el.querySelector(".who")!.textContent).toBe("All filed for Tucson Water.");
@@ -128,7 +142,7 @@ describe("when something goes wrong", () => {
   });
 
   it("offers to try again when the permits don't load", async () => {
-    const site = { ...tinySite(), detail: async () => { throw new Error("offline"); } };
+    const site = { ...tinySite(), api: fakeApi(async () => { throw new Error("offline"); }) };
     let retried = 0;
     const ctx: Ctx = {
       site, filter, radiusM: 152, summary: summarizePlaces(site.permits, filter, 2),

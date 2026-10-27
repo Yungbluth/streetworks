@@ -22,12 +22,12 @@ func serveCmd(ctx context.Context, w io.Writer, args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 	dbPath := fs.String("db", "streetworks.db", "the database written by streetworks build")
 	fs.StringVar(&addr, "addr", addr, "address to listen on")
-	origin := fs.String("origin", os.Getenv("ORIGIN"), "the site allowed to call the API from a browser (default: any http://localhost page)")
+	origin := fs.String("origin", os.Getenv("ORIGIN"), "the site allowed to call the API from a browser (default: any http://localhost or http://127.0.0.1 page)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
-	db, h, err := openAPI(ctx, *dbPath, api.Options{Origin: *origin, Log: slog.New(slog.NewJSONHandler(os.Stderr, nil))})
+	db, h, err := openAPI(ctx, *dbPath, api.Options{Origin: *origin, Log: cloudLogger(w)})
 	if err != nil {
 		return err
 	}
@@ -38,6 +38,22 @@ func serveCmd(ctx context.Context, w io.Writer, args []string) error {
 	}
 	fmt.Fprintf(w, "serving %s at http://%s\n", *dbPath, ln.Addr())
 	return runServer(ctx, ln, h, 5*time.Second)
+}
+
+func cloudLogger(w io.Writer) *slog.Logger {
+	return slog.New(slog.NewJSONHandler(w, &slog.HandlerOptions{
+		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			if len(groups) == 0 {
+				switch a.Key {
+				case slog.LevelKey:
+					a.Key = "severity"
+				case slog.MessageKey:
+					a.Key = "message"
+				}
+			}
+			return a
+		},
+	}))
 }
 
 // openAPI opens the database and returns the API's handler over it
