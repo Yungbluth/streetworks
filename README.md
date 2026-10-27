@@ -8,9 +8,9 @@ Map colors are the APWA utility color code, the paint crews spray on the street 
 
 ## What's where
 
-- `cmd/streetworks` is the Go command. `fetch` pulls the city's ArcGIS layers, `build` turns them into the JSON files the page loads, `preview` serves the result, `survey` lists the city's permit layers.
-- `internal/` is the rest of the Go code: permit parsing, the ArcGIS client, the site writer.
-- `web/` is the page. TypeScript, Vite and Leaflet, no framework. It loads the JSON that `build` writes and the map, filters and address search all run in the browser.
+- `cmd/streetworks` is the Go command. `fetch` pulls the city's ArcGIS layers, `build` turns them into the page's JSON files plus a SQLite database, `serve` is the API, `preview` runs the site and API together, `survey` lists the city's permit layers.
+- `internal/` is the rest of the Go code: permit parsing, the ArcGIS client, the SQLite store, the HTTP API.
+- `web/` is the page. TypeScript, Vite and Leaflet, no framework. The map, filters and address search run in the browser. Full permit records and permit text search come from the API.
 
 ## Running it
 
@@ -18,12 +18,12 @@ Needs Go and Node 22.
 
 ```sh
 go run ./cmd/streetworks fetch      # downloads to data/raw, takes a while
-go run ./cmd/streetworks build      # writes site/data
+go run ./cmd/streetworks build      # writes site/data and streetworks.db
 cd web && npm ci && npm run build   # builds the page into ../site
 cd .. && go run ./cmd/streetworks preview
 ```
 
-Preview serves the site on 127.0.0.1:8080. When working on the page, `npm run dev` in `web/` reads data from `site/data`.
+Preview serves the site on 127.0.0.1:8080 and the API on 8081. When working on the page, `npm run dev` in `web/` reads data from `site/data`.
 
 Tests:
 
