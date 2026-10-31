@@ -86,3 +86,16 @@ describe("nearby permits", () => {
     expect(el.querySelector(".permit-kind")!.textContent).toBe("Excavation · 1300 block of E Speedway Blvd");
   });
 });
+
+describe("a chosen permit", () => {
+  const many = (n: number, picked: number) => Array.from({ length: n }, (_, i) => ({ index: i, category: "Excavation", detail: base, picked: i === picked }));
+
+  it("is marked as the current row", () => {
+    const el = historyList(many(3, 1));
+    const rows = el.querySelectorAll(".permit-row");
+    expect(rows[1]!.getAttribute("aria-current")).toBe("true");
+    expect(rows[1]!.classList.contains("picked")).toBe(true);
+    expect(el.querySelectorAll("[aria-current], .picked")).toHaveLength(1);
+  });
+
+});

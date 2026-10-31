@@ -125,6 +125,24 @@ describe("placePanel", () => {
   });
 });
 
+describe("a place opened at one of its permits", () => {
+  const site = tinySite();
+  const filter = { from: 2005, to: 2026, cats: new Set([0]), includeNoWork: false };
+  const ctx: Ctx = {
+    site, filter, radiusM: 152, summary: summarizePlaces(site.permits, filter, 2),
+    go: () => {}, setRadius: () => {}, showAllKinds: () => {}, retry: () => {},
+  };
+
+  it("picks out that permit's row", async () => {
+    const el = placePanel(ctx, 0, undefined, undefined, { permit: 0, land: false });
+    await new Promise((r) => setTimeout(r, 0));
+    const picked = el.querySelectorAll('tr[aria-current="true"]');
+    expect(picked).toHaveLength(1);
+    expect(picked[0]!.textContent).toContain("Work P0");
+  });
+
+});
+
 describe("when something goes wrong", () => {
   const filter = { from: 2005, to: 2026, cats: new Set([0]), includeNoWork: false };
 
