@@ -1,6 +1,7 @@
+import type { PermitHit } from "../api";
 import type { Places } from "../data";
-import { h } from "../dom";
-import { feet, num, placeName, prettyStreet } from "../format";
+import { fill, h } from "../dom";
+import { feet, num, placeName, plural, prettyStreet } from "../format";
 import type { Focus } from "../model";
 import type { Found } from "../search";
 import { withoutDirection } from "../street";
@@ -61,11 +62,27 @@ export function emptyMessage(q: string): string {
   return `No street with permits matches that. Search knows street names, not places or businesses. ${forms}`;
 }
 
+const PERMIT_PAUSE_MS = 250;
+
+const permitSearchable = (q: string) => (q.match(/[\p{L}\p{N}]/gu)?.length ?? 0) >= 2 && [...q].length <= 100;
+
+/** a permit hit's snippet is escaped text with <mark> around the matches */
+function snippet(html: string): Node[] {
+  const parsed = new DOMParser().parseFromString(html, "text/html").body.childNodes;
+  return [...parsed].flatMap((n) => {
+    if (n.nodeType === Node.TEXT_NODE) return [document.createTextNode(n.textContent ?? "")];
+    if (n.nodeType !== Node.ELEMENT_NODE) return [];
+    const text = n.textContent ?? "";
+    return [n.nodeName === "MARK" ? h("mark", {}, text) : document.createTextNode(text)];
+  });
+}
+
 export function searchBox(
   places: Places,
   run: (q: string) => Found[],
   choose: (focus: Focus) => void,
   countOf?: (street: number) => number,
+  permits?: (q: string, signal: AbortSignal) => Promise<PermitHit[]>,
 ): HTMLElement {
   const listId = "search-results";
   const input = h("input", {
@@ -78,30 +95,113 @@ export function searchBox(
   const empty = h("p", { class: "results-empty", hidden: true, role: "status" });
   // said once above the list, rather than under every result
   const apart = h("p", { class: "results-note", hidden: true, role: "status" });
+  // permits arrive after the places, so a screen reader is told when they do
+  const permitsFound = h("p", { class: "visually-hidden", role: "status" });
+  const permitsDown = h("p", { class: "results-note", hidden: true, role: "status" });
   let results: ReturnType<typeof describe>[] = [];
+  let hits: PermitHit[] = [];
+  // The query the permit hits are for, or are being asked for
+  let hitsFor: string | undefined;
+  let asking: AbortController | undefined;
+  let permitTimer: number | undefined;
+  let choices: Focus[] = [];
   let emptyTimer: number | undefined;
   let active = -1;
 
   const close = () => {
     clearTimeout(emptyTimer);
+    // an answer still to come would open the list again, so it's dropped and asked for again later
+    clearTimeout(permitTimer);
+    if (asking) {
+      asking.abort();
+      asking = undefined;
+      hitsFor = undefined;
+    }
     list.hidden = true;
     empty.hidden = true;
     apart.hidden = true;
+    permitsDown.hidden = true;
     input.setAttribute("aria-expanded", "false");
     input.removeAttribute("aria-activedescendant");
     active = -1;
   };
+  const options = () => [...list.querySelectorAll<HTMLElement>("[role=option]")];
   const highlight = (i: number) => {
     active = i;
-    [...list.children].forEach((li, j) => li.setAttribute("aria-selected", String(j === i)));
-    if (i >= 0) input.setAttribute("aria-activedescendant", `result-${i}`);
+    options().forEach((li, j) => li.setAttribute("aria-selected", String(j === i)));
+    if (i < 0) return input.removeAttribute("aria-activedescendant");
+    input.setAttribute("aria-activedescendant", `result-${i}`);
+    options()[i]?.scrollIntoView({ block: "nearest" });
   };
   const pick = (i: number) => {
-    const r = results[i];
-    if (!r) return;
+    const f = choices[i];
+    if (!f) return;
     close();
     input.value = "";
-    choose(r.focus);
+    choose(f);
+  };
+  const option = (i: number, label: string, ...detail: (Node | string)[]) =>
+    h(
+      "li",
+      { id: `result-${i}`, role: "option", "aria-selected": "false", onmousedown: (e) => (e.preventDefault(), pick(i)) },
+      h("span", { class: "label" }, label),
+      h("span", { class: "detail" }, ...detail),
+    );
+  const draw = () => {
+    const keep = active < results.length ? active : -1;
+    fill(
+      list,
+      ...results.map((r, i) => option(i, r.label, r.detail)),
+      hits.length
+        ? h(
+            "li",
+            { role: "group", class: "permit-hits", "aria-labelledby": "permit-hits-label" },
+            h("h4", { id: "permit-hits-label", "aria-hidden": "true" }, "Permits"),
+            h(
+              "ul",
+              { role: "none" },
+              ...hits.map((hit, j) => option(results.length + j, hit.year ? `${hit.number}, ${hit.year}` : hit.number, ...snippet(hit.snippet))),
+            ),
+          )
+        : null,
+    );
+    choices = [...results.map((r) => r.focus), ...hits.map((hit): Focus => ({ kind: "place", place: hit.place, permit: hit.id }))];
+    list.hidden = !choices.length;
+    input.setAttribute("aria-expanded", String(!!choices.length));
+    if (hits.length) empty.hidden = true;
+    highlight(keep);
+  };
+  const askPermits = (q: string) => {
+    clearTimeout(permitTimer);
+    asking?.abort();
+    asking = undefined;
+    hits = [];
+    hitsFor = q;
+    permitsFound.textContent = "";
+    permitsDown.hidden = true;
+    permitsDown.textContent = "";
+    if (!permits || !permitSearchable(q)) return;
+    const ctrl = (asking = new AbortController());
+    permitTimer = window.setTimeout(() => {
+      permits(q, ctrl.signal).then(
+        (found) => {
+          if (ctrl.signal.aborted) return;
+          asking = undefined;
+          hits = found;
+          draw();
+          permitsFound.textContent = found.length ? `${plural(found.length, "permit")} found.` : "";
+        },
+        () => {
+          if (ctrl.signal.aborted) return;
+          asking = undefined;
+          // Asked again the next time the list opens
+          hitsFor = undefined;
+          // Set as it happens, so a screen reader hears it
+          permitsDown.textContent = "Permit search is unavailable right now.";
+          permitsDown.hidden = false;
+        },
+      );
+    }, PERMIT_PAUSE_MS);
   };
   const update = () => {
     const q = input.value.trim();
@@ -112,24 +212,15 @@ export function searchBox(
     const gap = first?.kind === "street" ? first.apart : undefined;
     apart.hidden = !gap;
     apart.textContent = gap ? apartMessage(places, gap) : "";
-    list.replaceChildren(
-      ...results.map((r, i) =>
-        h(
-          "li",
-          { id: `result-${i}`, role: "option", "aria-selected": "false", onmousedown: (e) => (e.preventDefault(), pick(i)) },
-          h("span", { class: "label" }, r.label),
-          h("span", { class: "detail" }, r.detail),
-        ),
-      ),
-    );
-    list.hidden = !results.length;
-    input.setAttribute("aria-expanded", String(!!results.length));
-    highlight(-1);
+    if (q !== hitsFor) askPermits(q);
+    active = -1;
+    draw();
     // Most queries are mid-word, so "nothing matches" waits for a pause
     clearTimeout(emptyTimer);
     empty.hidden = true;
-    if (results.length) return;
+    if (choices.length) return;
     emptyTimer = window.setTimeout(() => {
+      if (choices.length) return;
       const message = numberOnly.test(q) && !zip.test(q) ? "Now the street, like 1200 E Speedway." : q.length >= 3 ? emptyMessage(q) : "";
       empty.textContent = message;
       empty.hidden = !message;
@@ -142,10 +233,10 @@ export function searchBox(
   input.addEventListener("keydown", (e) => {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       if (list.hidden) update();
-      if (!results.length) return;
+      if (!choices.length) return;
       e.preventDefault();
       const step = e.key === "ArrowDown" ? 1 : -1;
-      highlight((active + step + results.length) % results.length);
+      highlight((active + step + choices.length) % choices.length);
     } else if (e.key === "Enter") {
       e.preventDefault();
       if (list.hidden) update();
@@ -155,6 +246,11 @@ export function searchBox(
     }
   });
 
-  // The note, the list and the empty message float together under the field
-  return h("div", { class: "search", role: "search" }, input, h("div", { class: "dropdown" }, apart, list, empty));
+  // the notes, the list and the empty message float together under the field
+  return h(
+    "div",
+    { class: "search", role: "search" },
+    input,
+    h("div", { class: "dropdown" }, apart, list, permitsDown, empty, permitsFound),
+  );
 }

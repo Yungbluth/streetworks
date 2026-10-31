@@ -12,6 +12,7 @@ export interface Entry {
   distanceM?: number;
   placeName?: string;
   onPlace?: () => void;
+  picked?: boolean;
 }
 
 export interface TableStyle {
@@ -91,7 +92,7 @@ function rows(e: Entry, style: TableStyle): HTMLTableRowElement[] {
     style.first === "Away" ? (e.distanceM === undefined ? "" : feet(e.distanceM)) : style.first === "Δ" && e.delta ? `Δ${e.delta}` : "";
   const row = h(
     "tr",
-    { class: d?.noWork ? "permit-row no-work" : "permit-row" },
+    { class: ["permit-row", d?.noWork && "no-work", e.picked && "picked"].filter(Boolean).join(" "), "aria-current": e.picked ? "true" : undefined },
     style.first ? h("td", { class: "permit-first" }, first) : null,
     h("td", { class: "permit-date" }, d ? dateText(d.date) : ""),
     h("td", { class: "permit-work" }, toggle),
@@ -99,7 +100,7 @@ function rows(e: Entry, style: TableStyle): HTMLTableRowElement[] {
   return [row, more];
 }
 
-export function permitTable(entries: Entry[], style: TableStyle): HTMLElement {
+export function permitTable(entries: Entry[], style: TableStyle, opts: { land?: boolean } = {}): HTMLElement {
   const body = h("tbody", {});
   const table = h(
     "table",
@@ -131,6 +132,16 @@ export function permitTable(entries: Entry[], style: TableStyle): HTMLElement {
   };
   more.addEventListener("click", () => page()?.querySelector<HTMLElement>(".permit-open")?.focus());
   wrap.append(more);
-  page();
+  // A chosen permit is shown however far down the list it is
+  const picked = entries.findIndex((e) => e.picked);
+  do page();
+  while (shown <= picked);
+  if (picked >= 0 && opts.land) {
+    // once the table is on the page
+    requestAnimationFrame(() => {
+      const row = body.querySelector(".picked");
+      if (row?.isConnected) row.scrollIntoView({ block: "center" });
+    });
+  }
   return wrap;
 }

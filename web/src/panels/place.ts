@@ -81,7 +81,13 @@ function placeYears(years: number[], from: number, to: number): HTMLElement {
   );
 }
 
-export function placePanel(ctx: Ctx, place: number, extraNote?: string, back?: { label: string; go: () => void }): HTMLElement {
+export function placePanel(
+  ctx: Ctx,
+  place: number,
+  extraNote?: string,
+  back?: { label: string; go: () => void },
+  picked?: { permit: number; land: boolean },
+): HTMLElement {
   const { site, filter } = ctx;
   const mine = permitsOf(site, place, filter);
   const byCategory = new Map<number, number>();
@@ -120,9 +126,13 @@ export function placePanel(ctx: Ctx, place: number, extraNote?: string, back?: {
     detailsFor(site, mine)
       .then((details) => {
         const entries = mine
-          .map((i) => ({ index: i, category: site.index.categories[site.permits.cat[i]!]!, detail: details.get(i) }))
+          .map((i) => ({ index: i, category: site.index.categories[site.permits.cat[i]!]!, detail: details.get(i), picked: i === picked?.permit }))
           .sort((a, b) => byDateDesc(a.detail, b.detail));
-        history.replaceWith(permitTable(entries, tableStyle(null)));
+        history.replaceWith(permitTable(entries, tableStyle(null), { land: picked?.land }));
+        // Someone who chose a permit lands on it, unless they've already moved on from the heading.
+        if (picked?.land && document.activeElement === out.querySelector("h2")) {
+          out.querySelector<HTMLElement>(".picked .permit-open")?.focus({ preventScroll: true });
+        }
         const named = whoFor(entries.flatMap((e) => (e.detail ? [e.detail] : [])));
         if (named) {
           who.textContent = named;

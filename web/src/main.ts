@@ -4,9 +4,9 @@ import "@fontsource/public-sans/800.css";
 import "leaflet/dist/leaflet.css";
 import "./styles.css";
 
-import { errorMessage, loadSite, PlaceKind, yearSpan, type Site } from "./data";
+import { DataError, errorMessage, loadSite, PlaceKind, yearSpan, type Site } from "./data";
 import { fill, h } from "./dom";
-import { countByYear, summarizePlaces, type Filter } from "./filters";
+import { countByYear, matcher, summarizePlaces, type Filter } from "./filters";
 import { feet, num, placeName, plural, prettyStreet } from "./format";
 import { DETAIL_ZOOM } from "./dots";
 import { Annotations, mapDevices } from "./annotations";
@@ -14,6 +14,7 @@ import { PermitMap } from "./map";
 import { digKinds, digsByPlace, placeAt, type Ctx, type Focus } from "./model";
 import { aboutPanel } from "./panels/about";
 import { busiestPanel } from "./panels/busiest";
+import { failed, note } from "./panels/common";
 import { filtersPanel } from "./panels/filters";
 import { legend } from "./panels/legend";
 import { placePanel, spotPanel } from "./panels/place";
@@ -75,6 +76,16 @@ async function start() {
   let replaying = false;
   const zoomNote = () => years.showZoomNote(map.map.getZoom() < DETAIL_ZOOM);
   const findPlace = placeLookup(site.places);
+  // permit numbers by index, for links: from search hits and from links followed
+  const permitNumbers = new Map<number, string>();
+  // counts permit lookups, so only the latest one opens anything
+  let permitAsk = 0;
+  // a permit number from a link that hasn't opened yet
+  let linkedPermit: string | undefined;
+  // true from choosing a permit until its place is first drawn, which goes to its row
+  let landOnPermit = false;
+  // what went wrong following a permit link, shown above the panel until something is opened
+  let linkProblem: HTMLElement | null = null;
 
   const tip = $("tip");
   const aim = $("aim");
@@ -196,7 +207,12 @@ async function start() {
       opener = { el: document.activeElement, text: document.activeElement.textContent ?? "" };
     }
     const closing = !f && focus !== null;
+    showLinkProblem(null);
+    linkedPermit = undefined;
+    landOnPermit = f?.kind === "place" && f.permit !== undefined;
+    const widened = f?.kind === "place" && f.permit !== undefined && reveal(f.permit);
     focus = f;
+    if (widened) render({ filters: true, save: false });
     renderFocus(opts.move ?? true);
     if (closing) {
       saveHash(true);
@@ -222,7 +238,9 @@ async function start() {
     // Say what was chosen for screen readers: the heading and its summary
     const box = $("focus");
     $("status").textContent = f
-      ? [box.querySelector("h2")?.textContent, box.querySelector(".digs, .lead, .sub")?.textContent].filter(Boolean).join(". ")
+      ? [box.querySelector("h2")?.textContent, box.querySelector(".digs, .lead, .sub")?.textContent, widened && "The filters now include the permit you chose."]
+          .filter(Boolean)
+          .join(". ")
       : "";
     // The panel sits below the map on a phone, so bring the answer into view
     if (f && narrow.matches) {
@@ -275,7 +293,9 @@ async function start() {
         markFocus(at);
         const from = focus.from;
         const back = from?.kind === "street" ? { label: prettyStreet(site.places.streets[from.street]!), go: () => go(from) } : undefined;
-        fill(box, placePanel(c, focus.place, focus.note, back));
+        const picked = focus.permit === undefined ? undefined : { permit: focus.permit, land: landOnPermit };
+        landOnPermit = false;
+        fill(box, placePanel(c, focus.place, focus.note, back, picked));
         break;
       }
       case "street":
@@ -368,7 +388,7 @@ async function start() {
     );
   }
 
-  function render(what: { focus?: boolean; filters?: boolean } = {}) {
+  function render(what: { focus?: boolean; filters?: boolean; save?: boolean } = {}) {
     if (!replaying && filterKey(filter) !== noteKey) hideReplayNote();
     summary = summarizePlaces(site.permits, filter, placeCount);
     const digging = digKinds(site, filter).size > 0;
@@ -378,14 +398,16 @@ async function start() {
     $("year-stamp").textContent = filter.from === filter.to ? String(filter.from) : `${filter.from}–${filter.to}`;
     if (what.filters) renderFilters();
     if (what.focus) renderFocus(false);
-    saveHash();
+    if (what.save !== false) saveHash();
   }
 
   function saveHash(push = false) {
     const keepQuery = focus && focus.kind !== "place" ? focus.q : undefined;
+    const permit = focus?.kind === "place" && focus.permit !== undefined ? permitNumbers.get(focus.permit) : focus ? undefined : linkedPermit;
     const hash = toHash({
-      place: focus?.kind === "place" ? placeKey(site.places, focus.place) : undefined,
+      place: focus?.kind === "place" && !permit ? placeKey(site.places, focus.place) : undefined,
       q: keepQuery,
+      permit,
       radiusM: radiusM === DEFAULT_RADIUS ? undefined : radiusM,
       from: filter.from,
       to: filter.to,
@@ -397,7 +419,8 @@ async function start() {
     else history.replaceState(null, "", url);
   }
 
-  function applyHash() {
+  /** Sets up the view a link describes, and returns the permit number it names, to look up */
+  function applyHash(): string | undefined {
     const s = fromHash(location.hash, site.index);
     const [first, last] = yearSpan(site.index);
     const clamp = (y: number) => Math.min(last, Math.max(first, y));
@@ -411,12 +434,73 @@ async function start() {
     if (filter.from > filter.to) [filter.from, filter.to] = [filter.to, filter.from];
     radiusM = s.radiusM ?? DEFAULT_RADIUS;
     focus = null;
+    showLinkProblem(null);
+    // A link followed now wins over one still being looked up
+    permitAsk++;
+    linkedPermit = s.permit;
+    if (s.permit) return s.permit;
     const linked = s.place === undefined ? undefined : findPlace(s.place);
     if (linked !== undefined) focus = { kind: "place", place: linked };
     else if (s.q) {
       const hit = search(s.q, 1)[0];
       if (hit) focus = describe(site.places, hit, s.q).focus;
     }
+    return undefined;
+  }
+
+  function showLinkProblem(el: HTMLElement | null) {
+    linkProblem?.remove();
+    linkProblem = el;
+    if (el) $("focus").before(el);
+  }
+
+  function reveal(i: number): boolean {
+    const y = site.permits.year[i]!;
+    if (!y || matcher(site.permits, filter)(i)) return false;
+    filter = {
+      from: Math.min(filter.from, y),
+      to: Math.max(filter.to, y),
+      cats: new Set([...filter.cats, site.permits.cat[i]!]),
+      includeNoWork: filter.includeNoWork || site.permits.noWork[i] === 1,
+    };
+    return true;
+  }
+
+  /** Opens the place of a permit named in a link, with the permit picked out */
+  function openPermit(n: string, retrying = false) {
+    const ask = ++permitAsk;
+    const number = n.toUpperCase();
+    site.api.byNumber(n).then(
+      ({ id, place, permit }) => {
+        // something else was opened, or another link followed, while this was on its way
+        if (ask !== permitAsk || focus) return;
+        showLinkProblem(null);
+        linkedPermit = undefined;
+        permitNumbers.set(id, permit.permit);
+        focus = { kind: "place", place, permit: id };
+        landOnPermit = true;
+        reveal(id);
+        render({ filters: true });
+        renderFocus(true);
+        const heading = $("focus").querySelector<HTMLElement>("h2");
+        if (retrying) heading?.focus({ preventScroll: true });
+        $("status").textContent = `Showing permit ${permit.permit}, ${heading?.textContent ?? ""}.`;
+        if (narrow.matches) $("focus").scrollIntoView({ block: "start" });
+      },
+      (e: unknown) => {
+        if (ask !== permitAsk || focus) return;
+        const missing = e instanceof DataError && e.status === 404;
+        const message = `No permit ${number} is on record.`;
+        showLinkProblem(missing ? note(message) : failed(`permit ${number}`, e, () => openPermit(n, true)));
+        if (missing) {
+          $("status").textContent = message;
+          linkedPermit = undefined;
+          saveHash();
+        }
+        // the Try again button that was pressed has gone; keep the keyboard on the new one
+        if (retrying) (linkProblem?.querySelector("button") ?? $("focus").querySelector<HTMLElement>("h2"))?.focus();
+      },
+    );
   }
 
   $("lede").textContent = `Every permit to dig up, close or work in a Tucson street, back to ${site.index.dateRange[0].slice(0, 4)}. Drag the years, or press Replay to watch the city fill in.`;
@@ -429,16 +513,22 @@ async function start() {
     else blocksOf.set(s, [p]);
   });
   const streetCount = (s: number) => (blocksOf.get(s) ?? []).reduce((a, p) => a + summary.count[p]!, 0);
-  fill($("search"), searchBox(site.places, (q) => search(q), (f) => go(f), streetCount));
+  const permitSearch = async (q: string, signal: AbortSignal) => {
+    const hits = await site.api.search(q, signal);
+    for (const hit of hits) permitNumbers.set(hit.id, hit.number);
+    return hits;
+  };
+  fill($("search"), searchBox(site.places, (q) => search(q), (f) => go(f), streetCount, permitSearch));
   fill($("about"), aboutPanel(site.index));
   const restore = () => {
-    applyHash();
+    const permit = applyHash();
     render({ filters: true });
     renderFocus(true);
     // A place or street arrived by a link is said aloud, as one opened by hand is
     const shown = focus && $("focus").querySelector("h2")?.textContent;
     if (shown) $("status").textContent = `Showing ${shown}.`;
     if (focus && narrow.matches) $("focus").scrollIntoView({ block: "start" });
+    if (permit) openPermit(permit);
   };
   restore();
   window.addEventListener("popstate", restore);
