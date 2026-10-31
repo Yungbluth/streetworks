@@ -98,6 +98,16 @@ describe("byNumber", () => {
   });
 });
 
+describe("byNumber when there's no such permit", () => {
+  it("keeps the status, so the page can tell a missing permit from a failure", async () => {
+    const { fn } = fakeFetch(() => json({ message: "No permit T00XX000000 is on record." }, 404));
+    const err = await rejection(apiClient(base, built, fn).byNumber("t00xx000000"));
+    expect(err).toBeInstanceOf(DataError);
+    expect((err as DataError).status).toBe(404);
+    expect(err.message).toBe("No permit T00XX000000 is on record.");
+  });
+});
+
 afterEach(() => {
   vi.useRealTimers();
 });

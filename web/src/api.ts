@@ -21,6 +21,7 @@ export interface Api {
 
 const CHUNK = 2000; // the most ids the server takes in one lookup
 const TIMEOUT_MS = 10_000;
+const SEARCH_HITS = 8; // as many as the search list shows
 
 export function apiClient(base: string, built: string, fetchFn: typeof fetch = fetch): Api {
   const root = base.replace(/\/+$/, "");
@@ -30,8 +31,9 @@ export function apiClient(base: string, built: string, fetchFn: typeof fetch = f
   async function call<T extends { built: string }>(path: string, init: RequestInit = {}): Promise<T> {
     const ctrl = new AbortController();
     const caller = init.signal;
-    if (caller?.aborted) ctrl.abort(caller.reason);
-    caller?.addEventListener("abort", () => ctrl.abort(caller.reason), { once: true });
+    const cancel = () => ctrl.abort(caller?.reason);
+    if (caller?.aborted) cancel();
+    caller?.addEventListener("abort", cancel, { once: true });
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, reject) => {
       timer = setTimeout(() => {
@@ -43,6 +45,7 @@ export function apiClient(base: string, built: string, fetchFn: typeof fetch = f
       return await Promise.race([send<T>(root + path, { ...init, signal: ctrl.signal }, caller), timeout]);
     } finally {
       clearTimeout(timer);
+      caller?.removeEventListener("abort", cancel);
     }
   }
 
@@ -57,12 +60,13 @@ export function apiClient(base: string, built: string, fetchFn: typeof fetch = f
     let body: unknown;
     try {
       body = await res.json();
-    } catch {
+    } catch (e) {
+      if (caller?.aborted) throw e;
       body = undefined;
     }
     if (!res.ok) {
       const message = (body as { message?: unknown } | undefined)?.message;
-      throw new DataError(typeof message === "string" && message ? message : `The permit server said ${res.status}.`);
+      throw new DataError(typeof message === "string" && message ? message : `The permit server said ${res.status}.`, res.status);
     }
     if (typeof body !== "object" || body === null) {
       throw new DataError("The permit server sent an answer this page can't read.");
@@ -113,7 +117,7 @@ export function apiClient(base: string, built: string, fetchFn: typeof fetch = f
     },
 
     async search(q, signal) {
-      const res = await call<{ built: string; hits: PermitHit[] }>(`/v1/search?${new URLSearchParams({ q })}`, { signal });
+      const res = await call<{ built: string; hits: PermitHit[] }>(`/v1/search?${new URLSearchParams({ q, limit: String(SEARCH_HITS) })}`, { signal });
       return res.hits;
     },
   };

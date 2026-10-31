@@ -3,7 +3,15 @@ import { matcher, type Filter, type PlaceSummary } from "./filters";
 import type { LatLng } from "./geo";
 
 export type Focus =
-  | { kind: "place"; place: number; note?: string; q?: string; /** Where it was opened from, such as its street. */ from?: Focus }
+  | {
+      kind: "place";
+      place: number;
+      note?: string;
+      q?: string;
+      from?: Focus;
+      /** A permit to pick out in its list, by index, when one was chosen by search or by link */
+      permit?: number;
+    }
   | { kind: "street"; street: number; q: string }
   | { kind: "spot"; at: LatLng; title: string; note?: string; q: string };
 

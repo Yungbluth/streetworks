@@ -4,6 +4,8 @@ export interface ViewState {
   place?: string;
   // a search to run again, for views that aren't a single place (a street, a crossing)
   q?: string;
+  /** A permit by its number, such as T23SY041246, opened at its place. */
+  permit?: string;
   radiusM?: number;
   from?: number;
   to?: number;
@@ -44,6 +46,7 @@ export function toHash(s: ViewState, idx: Index): string {
   const p = new URLSearchParams();
   if (s.place !== undefined) p.set("place", s.place);
   if (s.q) p.set("q", s.q);
+  if (s.permit) p.set("permit", s.permit);
   if (s.radiusM !== undefined) p.set("r", String(s.radiusM));
   if (s.from !== undefined) p.set("from", String(s.from));
   if (s.to !== undefined) p.set("to", String(s.to));
@@ -53,6 +56,9 @@ export function toHash(s: ViewState, idx: Index): string {
   const out = p.toString();
   return out ? `#${out}` : "";
 }
+
+// Letters, digits and dashes
+const permitNumber = /^[A-Za-z0-9-]{1,40}$/;
 
 const wholeNumber = (v: string | null) => (v !== null && /^\d{1,9}$/.test(v) ? Number(v) : undefined);
 const year = (v: string | null) => {
@@ -73,6 +79,8 @@ export function fromHash(hash: string, idx: Index): ViewState {
   if (place && place.length <= 200) s.place = place;
   const q = p.get("q");
   if (q && q.length <= 120) s.q = q;
+  const permit = p.get("permit")?.trim();
+  if (permit && permitNumber.test(permit)) s.permit = permit;
   const r = wholeNumber(p.get("r"));
   if (r !== undefined && RADII.some((x) => x.m === r)) s.radiusM = r;
   const from = year(p.get("from"));

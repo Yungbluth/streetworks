@@ -105,6 +105,10 @@ export interface Site {
 
 export class DataError extends Error {
   override name = "DataError";
+
+  constructor(message: string, readonly status?: number) {
+    super(message);
+  }
 }
 
 export const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));

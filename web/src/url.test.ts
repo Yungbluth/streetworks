@@ -10,6 +10,16 @@ describe("url state", () => {
     expect(fromHash(toHash(s, idx), idx)).toEqual(s);
   });
 
+  it("opens a permit by its number", () => {
+    expect(fromHash("#permit=T23SY041246", idx)).toEqual({ permit: "T23SY041246" });
+    // spaces from a copied link, as %20 or +, are trimmed off
+    expect(fromHash("#permit=%20T23SY041246%20", idx)).toEqual({ permit: "T23SY041246" });
+    expect(fromHash("#permit=+t23sy041246", idx)).toEqual({ permit: "t23sy041246" });
+    const s: ViewState = { permit: "T23SY041246", from: 2005, to: 2012 };
+    expect(toHash(s, idx)).toContain("permit=T23SY041246");
+    expect(fromHash(toHash(s, idx), idx)).toEqual(s);
+  });
+
   it("names categories in the link", () => {
     expect(toHash({ cats: [0, 2] }, idx)).toBe("#cats=Barricade%2CExcavation");
     const later = { categories: ["Annual", "Barricade", "Combo", "Excavation", "Other"] } as unknown as Index;
