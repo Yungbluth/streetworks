@@ -82,7 +82,7 @@ func newHandler(f *fakeStore) http.Handler {
 }
 
 func TestHealthz(t *testing.T) {
-	rec := do(t, newHandler(&fakeStore{}), "GET", "/healthz", "")
+	rec := do(t, newHandler(&fakeStore{}), "GET", "/health", "")
 	if rec.Code != 200 || rec.Body.String() != "ok" {
 		t.Fatalf("got %d %q", rec.Code, rec.Body.String())
 	}

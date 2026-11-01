@@ -68,7 +68,7 @@ func New(s Store, built string, o Options) http.Handler {
 	srv := &server{store: s, built: built, log: log}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", allow("GET", srv.healthz))
+	mux.HandleFunc("/health", allow("GET", srv.health))
 	mux.HandleFunc("/v1/meta", allow("GET", srv.meta))
 	mux.HandleFunc("/v1/permits/lookup", allow("POST", srv.lookup))
 	mux.HandleFunc("/v1/permits/{number}", allow("GET", srv.byNumber))
@@ -103,7 +103,7 @@ func builtHeader(built string, next http.Handler) http.Handler {
 func (s *server) stamp(next http.Handler) http.Handler {
 	etag := `"` + s.built + `"`
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet && r.URL.Path != "/healthz" {
+		if r.Method == http.MethodGet && r.URL.Path != "/health" {
 			w.Header().Set("ETag", etag)
 			w.Header().Set("Cache-Control", "public, max-age=3600")
 			if r.Header.Get("If-None-Match") == etag {
@@ -145,7 +145,7 @@ func allowedOrigin(configured, got string) bool {
 	return h == "localhost" || h == "127.0.0.1"
 }
 
-func (s *server) healthz(w http.ResponseWriter, r *http.Request) {
+func (s *server) health(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	io.WriteString(w, "ok")
 }

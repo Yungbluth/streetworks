@@ -34,8 +34,8 @@ func TestServeAnswers(t *testing.T) {
 	waitFor(t, "the API to start", 5*time.Second, func() bool { return listenRE.MatchString(out.String()) })
 	base := listenRE.FindStringSubmatch(out.String())[1]
 
-	if code, body := get(t, base+"/healthz"); code != 200 || body != "ok" {
-		t.Errorf("/healthz: %d %q", code, body)
+	if code, body := get(t, base+"/health"); code != 200 || body != "ok" {
+		t.Errorf("/health: %d %q", code, body)
 	}
 	if code, body := get(t, base+"/v1/meta"); code != 200 || !strings.Contains(body, `"permits":3`) {
 		t.Errorf("/v1/meta: %d %q", code, body)

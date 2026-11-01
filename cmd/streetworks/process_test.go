@@ -96,7 +96,7 @@ func TestPreviewServesFilesAndStops(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("preview kept running after its context was cancelled")
 	}
-	if _, err := http.Get(m[1] + "/healthz"); err == nil {
+	if _, err := http.Get(m[1] + "/health"); err == nil {
 		t.Error("the API is still answering after preview stopped")
 	}
 }

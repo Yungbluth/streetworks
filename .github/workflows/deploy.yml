@@ -82,7 +82,7 @@ jobs:
         run: |
           docker build --target api -t streetworks-api .
           docker run -d --name api -p 8080:8080 -e PORT=8080 streetworks-api
-          curl -fsS --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:8080/healthz
+          curl -fsS --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:8080/health
           curl -fsS -X POST -H 'Content-Type: application/json' -d '{"ids":[0]}' \
             http://127.0.0.1:8080/v1/permits/lookup | jq -e '.permits["0"].permit'
 
@@ -166,7 +166,7 @@ jobs:
         name: Check the API
         run: |
           url=$(gcloud run services describe streetworks-api --region "$REGION" --format='value(status.url)')
-          curl -fsS --retry 5 --retry-all-errors "$url/healthz"
+          curl -fsS --retry 5 --retry-all-errors "$url/health"
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
   pages:

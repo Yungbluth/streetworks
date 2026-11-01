@@ -13,7 +13,7 @@ export default defineConfig({
     },
     {
       command: "go run ../cmd/streetworks serve -db ../streetworks.db -addr 127.0.0.1:8092 -origin http://127.0.0.1:4174",
-      url: "http://127.0.0.1:8092/healthz",
+      url: "http://127.0.0.1:8092/health",
       reuseExistingServer: false,
       timeout: 120_000,
     },
