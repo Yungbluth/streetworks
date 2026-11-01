@@ -9,6 +9,7 @@ Map colors are the APWA utility color code, the paint crews spray on the street 
 ## What's where
 
 - `cmd/streetworks` is the Go command. `fetch` pulls the city's ArcGIS layers, `build` turns them into the page's JSON files plus a SQLite database, `serve` is the API, `preview` runs the site and API together, `survey` lists the city's permit layers.
+- `cmd/killswitch` detaches the Google Cloud billing account if a budget alert shows any cost. See `docs/deploy.md`.
 - `internal/` is the rest of the Go code: permit parsing, the ArcGIS client, the SQLite store, the HTTP API.
 - `web/` is the page. TypeScript, Vite and Leaflet, no framework. The map, filters and address search run in the browser. Full permit records and permit text search come from the API.
 
@@ -36,4 +37,4 @@ cd web && npm test && npx playwright test
 
 ## Deploys
 
-A GitHub Action rebuilds everything on Mondays and deploys the page to GitHub Pages. If the new build has more than 10% fewer permits than the live site it stops instead of publishing.
+A GitHub Action rebuilds everything on Mondays and deploys the page to GitHub Pages and the API to Cloud Run. If the new build has more than 10% fewer permits than the live site it stops instead of publishing. Google Cloud setup, budget and kill switch are in `docs/deploy.md`.
