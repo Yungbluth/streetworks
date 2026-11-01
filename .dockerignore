@@ -1,0 +1,7 @@
+# Send the build only what it uses: the Go source and the database.
+*
+!go.mod
+!go.sum
+!cmd/
+!internal/
+!streetworks.db
