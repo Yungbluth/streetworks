@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -63,7 +62,7 @@ func newFakes(t *testing.T) *fakes {
 		MetadataURL: meta.URL,
 		BillingURL:  billing.URL,
 		Client:      http.DefaultClient,
-		Log:         slog.New(slog.NewJSONHandler(f.logs, nil)),
+		Log:         newLogger(f.logs),
 	}
 	return f
 }
@@ -134,7 +133,7 @@ func TestGarbage(t *testing.T) {
 			if len(f.calls) != 0 {
 				t.Fatalf("calls = %v, want none", f.calls)
 			}
-			if !strings.Contains(f.logs.String(), `"level":"WARN"`) {
+			if !strings.Contains(f.logs.String(), `"severity":"WARN"`) {
 				t.Errorf("no warning logged: %q", f.logs.String())
 			}
 		})

@@ -41,7 +41,7 @@ type budgetNotice struct {
 }
 
 func main() {
-	log := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	log := newLogger(os.Stdout)
 	project := os.Getenv("PROJECT_ID")
 	if project == "" {
 		fmt.Fprintln(os.Stderr, "killswitch: PROJECT_ID is not set")
@@ -78,6 +78,22 @@ func main() {
 		log.Error("server stopped", "error", err)
 		os.Exit(1)
 	}
+}
+
+func newLogger(w io.Writer) *slog.Logger {
+	return slog.New(slog.NewJSONHandler(w, &slog.HandlerOptions{
+		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			if len(groups) == 0 {
+				switch a.Key {
+				case slog.LevelKey:
+					a.Key = "severity"
+				case slog.MessageKey:
+					a.Key = "message"
+				}
+			}
+			return a
+		},
+	}))
 }
 
 // handler answers 204 for anything Pub/Sub should not redeliver, including messages it cannot read
