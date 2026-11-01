@@ -118,6 +118,29 @@ func TestIgnoresZeroCost(t *testing.T) {
 	}
 }
 
+func TestGarbage(t *testing.T) {
+	cases := map[string]string{
+		"bad base64":   "!!!not-base64!!!",
+		"bad json":     encode(`{"costAmount":`),
+		"missing cost": encode(`{"budgetAmount":1,"currencyCode":"USD"}`),
+	}
+	for name, data := range cases {
+		t.Run(name, func(t *testing.T) {
+			f := newFakes(t)
+			rec := push(t, f.cfg, data)
+			if rec.Code != http.StatusNoContent {
+				t.Fatalf("status = %d, want 204", rec.Code)
+			}
+			if len(f.calls) != 0 {
+				t.Fatalf("calls = %v, want none", f.calls)
+			}
+			if !strings.Contains(f.logs.String(), `"level":"WARN"`) {
+				t.Errorf("no warning logged: %q", f.logs.String())
+			}
+		})
+	}
+}
+
 func TestAlreadyDetached(t *testing.T) {
 	f := newFakes(t)
 	f.enabled = false

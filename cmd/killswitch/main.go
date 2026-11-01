@@ -33,10 +33,11 @@ type pushBody struct {
 }
 
 type budgetNotice struct {
-	CostAmount        float64 `json:"costAmount"`
-	BudgetAmount      float64 `json:"budgetAmount"`
-	CurrencyCode      string  `json:"currencyCode"`
-	BudgetDisplayName string  `json:"budgetDisplayName"`
+	// A pointer so a missing costAmount can be told apart from zero
+	CostAmount        *float64 `json:"costAmount"`
+	BudgetAmount      float64  `json:"budgetAmount"`
+	CurrencyCode      string   `json:"currencyCode"`
+	BudgetDisplayName string   `json:"budgetDisplayName"`
 }
 
 func main() {
@@ -79,23 +80,23 @@ func main() {
 	}
 }
 
-// handler takes the pub/sub push and detaches billing if the budget shows a cost
+// handler answers 204 for anything Pub/Sub should not redeliver, including messages it cannot read
 func handler(cfg config) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		notice, err := readNotice(r.Body)
 		if err != nil {
-			cfg.Log.Warn("unreadable message", "error", err)
-			http.Error(w, "bad message", http.StatusBadRequest)
+			cfg.Log.Warn("ignoring unreadable message", "error", err)
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		if notice.CostAmount <= 0 {
+		if *notice.CostAmount <= 0 {
 			cfg.Log.Info("no cost reported", "budget", notice.BudgetDisplayName)
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 
 		cfg.Log.Warn("cost reported, detaching billing",
-			"cost", notice.CostAmount, "budget_amount", notice.BudgetAmount,
+			"cost", *notice.CostAmount, "budget_amount", notice.BudgetAmount,
 			"currency", notice.CurrencyCode, "budget", notice.BudgetDisplayName)
 		if err := detach(r.Context(), cfg); err != nil {
 			cfg.Log.Error("could not detach billing", "error", err)
@@ -119,6 +120,9 @@ func readNotice(body io.Reader) (budgetNotice, error) {
 	var n budgetNotice
 	if err := json.Unmarshal(raw, &n); err != nil {
 		return budgetNotice{}, fmt.Errorf("decoding budget notice: %w", err)
+	}
+	if n.CostAmount == nil {
+		return budgetNotice{}, errors.New("budget notice has no costAmount")
 	}
 	return n, nil
 }
