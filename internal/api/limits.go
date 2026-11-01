@@ -3,8 +3,10 @@ package api
 import (
 	"compress/gzip"
 	"log/slog"
+	"math"
 	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,37 +19,59 @@ const (
 	idleAfter    = time.Minute
 )
 
-// limiter lets burst requests through per client in each second
+// limiter is a token bucket per client
+// TODO: all of this is in memory, so the limits only hold while Cloud Run max instances is 1
 type limiter struct {
-	burst int
+	rate  float64
+	burst float64
 	now   func() time.Time
 
-	mu      sync.Mutex
-	clients map[string]*window
+	mu        sync.Mutex
+	clients   map[string]*bucket
+	lastSweep time.Time
 }
 
-type window struct {
-	start time.Time
-	n     int
+type bucket struct {
+	tokens float64
+	seen   time.Time
 }
 
 func newLimiter(rate float64, burst int, now func() time.Time) *limiter {
-	return &limiter{burst: burst, now: now, clients: map[string]*window{}}
+	return &limiter{
+		rate:      rate,
+		burst:     float64(burst),
+		now:       now,
+		clients:   map[string]*bucket{},
+		lastSweep: now(),
+	}
 }
 
+// allow takes a token for key, or says how many seconds until there is one
 func (l *limiter) allow(key string) (ok bool, retryAfter int) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
 	now := l.now()
-	w, found := l.clients[key]
-	if !found || now.Sub(w.start) >= time.Second {
-		l.clients[key] = &window{start: now, n: 1}
-		return true, 0
+	if now.Sub(l.lastSweep) >= idleAfter {
+		for k, b := range l.clients {
+			if now.Sub(b.seen) > idleAfter {
+				delete(l.clients, k)
+			}
+		}
+		l.lastSweep = now
 	}
-	if w.n >= l.burst {
-		return false, 1
+
+	b, found := l.clients[key]
+	if !found {
+		b = &bucket{tokens: l.burst, seen: now}
+		l.clients[key] = b
 	}
-	w.n++
+	b.tokens = min(l.burst, b.tokens+now.Sub(b.seen).Seconds()*l.rate)
+	b.seen = now
+	if b.tokens < 1 {
+		return false, int(math.Ceil((1 - b.tokens) / l.rate))
+	}
+	b.tokens--
 	return true, 0
 }
 
@@ -57,7 +81,14 @@ func (l *limiter) size() int {
 	return len(l.clients)
 }
 
+// clientKey is the rightmost address in X-Forwarded-For that parses, falling back to the peer
 func clientKey(r *http.Request) string {
+	hops := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
+	for i := len(hops) - 1; i >= 0; i-- {
+		if addr, err := netip.ParseAddr(strings.TrimSpace(hops[i])); err == nil {
+			return addr.String()
+		}
+	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr

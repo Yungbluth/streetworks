@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 
 	"strings"
 	"testing"
@@ -21,6 +22,40 @@ func (c *clock) now() time.Time { return c.t }
 
 func limited(f *fakeStore, c *clock) http.Handler {
 	return New(f, built, Options{Now: c.now})
+}
+
+func TestRateLimit(t *testing.T) {
+	c := &clock{time.Date(2026, 10, 30, 10, 0, 0, 0, time.UTC)}
+	h := limited(&fakeStore{}, c)
+	from := func(xff string) *httptest.ResponseRecorder {
+		return do(t, h, "GET", "/v1/meta", "", "X-Forwarded-For", xff)
+	}
+
+	for i := range 20 {
+		if rec := from("9.9.9.9, 1.2.3.4"); rec.Code != 200 {
+			t.Fatalf("request %d: status %d, want 200", i+1, rec.Code)
+		}
+	}
+	rec := from("9.9.9.9, 1.2.3.4")
+	if rec.Code != 429 {
+		t.Fatalf("21st request: status %d, want 429", rec.Code)
+	}
+	if got := rec.Header().Get("Retry-After"); got != "1" {
+		t.Errorf("Retry-After = %q, want 1", got)
+	}
+	if rec.Header().Get("X-Streetworks-Built") != built {
+		t.Error("429 is missing the build header")
+	}
+	if decode(t, rec)["message"] == "" {
+		t.Error("429 has no message")
+	}
+	if rec := from("5.6.7.8"); rec.Code != 200 {
+		t.Errorf("other client: status %d, want 200", rec.Code)
+	}
+	c.t = c.t.Add(time.Second)
+	if rec := from("9.9.9.9, 1.2.3.4"); rec.Code != 200 {
+		t.Errorf("after a second: status %d, want 200", rec.Code)
+	}
 }
 
 func TestBodyCap(t *testing.T) {
