@@ -9,13 +9,13 @@ on:
         description: Publish even if the permit count fell more than 10% (only after checking why)
         type: boolean
         default: false
-  # Every branch runs the tests and builds; only main deploys.
+  # every branch and pull request runs the tests and builds; only main deploys
   push:
+  pull_request:
 
+# Jobs ask for more only where they need it
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 # One deploy at a time; a newer run waits rather than cancelling one mid-deploy
 concurrency:
@@ -25,6 +25,9 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read # configure-pages reads the live site's address for the guard
     steps:
       - uses: actions/checkout@v4
 
@@ -93,20 +96,33 @@ jobs:
       - name: Build the kill switch image
         run: docker build --target killswitch -t streetworks-killswitch .
 
+      # the api job pushes these very images, so it never builds anything
+      - name: Save the images
+        if: github.ref == 'refs/heads/main' && vars.GCP_PROJECT != ''
+        run: docker save streetworks-api streetworks-killswitch | gzip > images.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        if: github.ref == 'refs/heads/main' && vars.GCP_PROJECT != ''
+        with:
+          name: images
+          path: images.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
       - uses: actions/upload-artifact@v4
         with:
           name: data
-          path: |
-            site/data
-            streetworks.db
+          path: site/data
           if-no-files-found: error
           retention-days: 7
 
+  # deploys the new API revision without sending it any traffic
   api:
     needs: build
     # Skipped until the Google Cloud project exists; see docs/deploy.md
     if: github.ref == 'refs/heads/main' && vars.GCP_PROJECT != ''
     runs-on: ubuntu-latest
+    environment: gcp
     permissions:
       contents: read
       id-token: write
@@ -116,11 +132,9 @@ jobs:
     outputs:
       url: ${{ steps.check.outputs.url }}
     steps:
-      - uses: actions/checkout@v4
-
       - uses: actions/download-artifact@v4
         with:
-          name: data
+          name: images
 
       - uses: google-github-actions/auth@v2
         with:
@@ -134,24 +148,39 @@ jobs:
       - name: Log Docker in to Artifact Registry
         run: gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
 
-      - name: Build and push the images
+      - name: Push the images
         run: |
+          gunzip -c images.tar.gz | docker load
           repo="$REGION-docker.pkg.dev/$PROJECT/streetworks"
-          docker build --target api -t "$repo/api:$GITHUB_SHA" .
-          docker build --target killswitch -t "$repo/killswitch:$GITHUB_SHA" .
-          docker push "$repo/api:$GITHUB_SHA"
-          docker push "$repo/killswitch:$GITHUB_SHA"
+          for name in api killswitch; do
+            docker tag "streetworks-$name" "$repo/$name:$GITHUB_SHA"
+            docker push "$repo/$name:$GITHUB_SHA"
+          done
 
-      - name: Deploy the API
+      - name: Deploy the API without traffic
         run: |
-          gcloud run deploy streetworks-api \
+          traffic=()
+          if gcloud run services describe streetworks-api --region "$REGION" >/dev/null 2>&1; then
+            traffic=(--no-traffic)
+          fi
+          gcloud run deploy streetworks-api "${traffic[@]}" --tag next \
             --image "$REGION-docker.pkg.dev/$PROJECT/streetworks/api:$GITHUB_SHA" \
             --region "$REGION" \
             --service-account "streetworks-api@$PROJECT.iam.gserviceaccount.com" \
+            --execution-environment gen1 \
             --max-instances 1 --min-instances 0 --concurrency 80 --timeout 10s \
             --memory 256Mi --cpu 1 --cpu-throttling \
             --allow-unauthenticated \
             --set-env-vars ORIGIN=https://yungbluth.github.io
+
+      - id: check
+        name: Check the new revision
+        run: |
+          next=$(gcloud run services describe streetworks-api --region "$REGION" --format=json |
+            jq -r '.status.traffic[] | select(.tag == "next") | .url')
+          curl -fsS --retry 5 --retry-all-errors "$next/health"
+          url=$(gcloud run services describe streetworks-api --region "$REGION" --format='value(status.url)')
+          echo "url=$url" >> "$GITHUB_OUTPUT"
 
       - name: Deploy the kill switch
         run: |
@@ -159,23 +188,14 @@ jobs:
             --image "$REGION-docker.pkg.dev/$PROJECT/streetworks/killswitch:$GITHUB_SHA" \
             --region "$REGION" \
             --service-account "killswitch@$PROJECT.iam.gserviceaccount.com" \
+            --execution-environment gen1 \
             --no-allow-unauthenticated --max-instances 1 \
             --set-env-vars "PROJECT_ID=$PROJECT"
 
-      - id: check
-        name: Check the API
-        run: |
-          url=$(gcloud run services describe streetworks-api --region "$REGION" --format='value(status.url)')
-          curl -fsS --retry 5 --retry-all-errors "$url/health"
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-
-  pages:
-    needs: [build, api]
-    if: needs.api.result == 'success'
+  # Builds the page against the service's own address, not the tagged revision's
+  page:
+    needs: api
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -199,10 +219,43 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: data
+          path: site/data
 
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
 
+  pages:
+    needs: page
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  promote:
+    needs: pages
+    runs-on: ubuntu-latest
+    environment: gcp
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT }}
+
+      - name: Send all traffic to the new revision
+        env:
+          REGION: ${{ vars.GCP_REGION }}
+        run: gcloud run services update-traffic streetworks-api --region "$REGION" --to-latest
