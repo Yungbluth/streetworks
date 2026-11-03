@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from "vitest";
-import { cloudPath, station, swatch } from "./marks";
+import { cloudPath, station, stationTicks, swatch } from "./marks";
 
 describe("cloudPath", () => {
   it("draws a closed loop of outward scallops", () => {

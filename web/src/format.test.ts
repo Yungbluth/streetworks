@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PlaceKind, type Places } from "./data";
-import { feet, placeName, yearsText } from "./format";
+import { feet, placeName, prettyStreet, yearsText } from "./format";
 
 describe("placeName", () => {
   const places: Places = {

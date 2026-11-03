@@ -38,3 +38,16 @@ cd web && npm test && npx playwright test
 ## Deploys
 
 A GitHub Action rebuilds everything on Mondays and deploys the page to GitHub Pages and the API to Cloud Run. If the new build has more than 10% fewer permits than the live site it stops instead of publishing. Google Cloud setup, budget and kill switch are in `docs/deploy.md`.
+
+## Known gaps
+
+- Records before 2005 are thin, and the page says so.
+- Search only knows streets with at least one permit on them.
+- Some permits have no date, so they drop out as soon as you pick a range of years.
+- The API's rate limits are in memory, so they only work with a single Cloud Run instance.
+
+## todo
+
+- search only knows streets that have a permit, would be nice to have a proper street list
+- undated permits vanish when you pick years
+- the permit lookups could be cached in the browser
