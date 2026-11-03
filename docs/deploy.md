@@ -11,7 +11,7 @@ I want this to cost nothing. Google's own page on capping costs says even follow
 - $1 budget with email at 50%, 90% and 100%.
 - Every budget message goes to a small private service (`cmd/killswitch`). The first one that shows any cost detaches the billing account from the project. The map still works because Pages serves it. Only permit records and search go away until billing is back.
 
-Do 8 to 10 in one go so it isn't running for long without the kill switch.
+Do 8 to 11 in one go so it isn't running for long without the kill switch.
 
 Rough math: 50,000 requests a day is about 1.5 million a month and 25 MB a day is under 1 GB of egress, both inside the free tier. Refused requests (429/503) still count, so a big enough flood goes over anyway and only the kill switch stops that, hours late. The $1 budget is a trigger, not a limit.
 
@@ -152,7 +152,7 @@ gh workflow run deploy.yml --repo "$REPO" --ref main
 gh run watch --repo "$REPO"
 ```
 
-It runs the tests, deploys the API and checks `/health`, deploys the kill switch, then publishes the page. First run is about ten minutes, mostly downloading the city's data.
+It runs the tests, deploys the API with no traffic and checks `/health`, deploys the kill switch, publishes the page, then sends traffic to the new API revision. If something fails before the Pages step the old page and old API stay up together. If the last step fails just re-run the `promote` job. First run is about ten minutes, mostly downloading the city's data.
 
 ```sh
 API_URL=$(gcloud run services describe streetworks-api --region="$REGION" --format='value(status.url)')
