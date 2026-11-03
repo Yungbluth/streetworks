@@ -38,7 +38,10 @@ type Options struct {
 	// rate and Burst set the per-client request limit, in requests per second and requests at once
 	Rate  float64
 	Burst int
-	Now   func() time.Time
+	// DailyRequests and DailyBytes cap what the server answers in one UTC day
+	DailyRequests int
+	DailyBytes    int64
+	Now           func() time.Time
 }
 
 type server struct {
@@ -63,8 +66,16 @@ func New(s Store, built string, o Options) http.Handler {
 	if now == nil {
 		now = time.Now
 	}
+	requests, bytes := o.DailyRequests, o.DailyBytes
+	if requests == 0 {
+		requests = defaultDailyRequests
+	}
+	if bytes == 0 {
+		bytes = defaultDailyBytes
+	}
 	// TODO limits per route? probably overkill for this
 	lim := newLimiter(rate, burst, now)
+	day := newAllowance(requests, bytes, now)
 	srv := &server{store: s, built: built, log: log}
 
 	mux := http.NewServeMux()
@@ -77,8 +88,15 @@ func New(s Store, built string, o Options) http.Handler {
 		writeError(w, http.StatusNotFound, "There is nothing at this address.")
 	})
 
-	// builtHeader stays outermost so that a 429 carries the build too
-	return builtHeader(built, logRequests(log, lim.middleware(cors(o.Origin, gzipResponses(srv.stamp(mux))))))
+	// each line wraps the one before it, so the last (builtHeader) runs first
+	h := gzipResponses(srv.stamp(mux))
+	h = preflight(h)
+	h = day.middleware(h)
+	h = lim.middleware(h)
+	h = day.countBytes(h)
+	h = cors(o.Origin, h)
+	h = logRequests(log, h)
+	return builtHeader(built, h)
 }
 
 func allow(method string, h http.HandlerFunc) http.HandlerFunc {
@@ -123,8 +141,17 @@ func cors(origin string, next http.Handler) http.Handler {
 			if r.Method == http.MethodOptions {
 				w.Header().Set("Access-Control-Allow-Methods", "GET, POST")
 				w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+				// Two hours, the most Chrome will keep a preflight
+				w.Header().Set("Access-Control-Max-Age", "7200")
 			}
 		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// preflight answers OPTIONS requests, whose headers cors has already set
+func preflight(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

@@ -136,3 +136,85 @@ func TestLogLine(t *testing.T) {
 		t.Error("the query string was logged")
 	}
 }
+
+// unlimited turns the per-client limit off, so only the daily allowance applies
+func unlimited(c *clock, requests int) http.Handler {
+	return New(&fakeStore{}, built, Options{Now: c.now, Rate: 1e9, Burst: 1e9, DailyRequests: requests})
+}
+
+func TestDailyRequests(t *testing.T) {
+	c := &clock{time.Date(2026, 10, 30, 10, 0, 0, 0, time.UTC)}
+	h := unlimited(c, 3)
+	for i := range 3 {
+		if rec := do(t, h, "GET", "/v1/meta", ""); rec.Code != 200 {
+			t.Fatalf("request %d: status %d", i+1, rec.Code)
+		}
+	}
+	rec := do(t, h, "GET", "/v1/meta", "")
+	if rec.Code != 503 {
+		t.Fatalf("4th request: status %d, want 503", rec.Code)
+	}
+	if got := decode(t, rec)["message"]; got != "The permit server has reached its limit for today. Try again tomorrow." {
+		t.Errorf("message = %q", got)
+	}
+	if got := rec.Header().Get("Retry-After"); got != "50400" {
+		t.Errorf("Retry-After = %q, want 50400", got)
+	}
+	if rec.Header().Get("X-Streetworks-Built") != built {
+		t.Error("503 is missing the build header")
+	}
+	if rec := do(t, h, "GET", "/health", ""); rec.Code != 200 {
+		t.Errorf("health check: status %d, want 200", rec.Code)
+	}
+
+	c.t = time.Date(2026, 10, 30, 23, 59, 59, 500e6, time.UTC)
+	if got := do(t, h, "GET", "/v1/meta", "").Header().Get("Retry-After"); got != "1" {
+		t.Errorf("half a second before midnight, Retry-After = %q, want 1", got)
+	}
+	c.t = time.Date(2026, 10, 31, 0, 0, 0, 0, time.UTC)
+	if rec := do(t, h, "GET", "/v1/meta", ""); rec.Code != 200 {
+		t.Errorf("next day: status %d, want 200", rec.Code)
+	}
+}
+
+type sizedStore struct {
+	fakeStore
+	size int
+}
+
+func (s sizedStore) Lookup(context.Context, []int) (map[int]store.Detail, error) {
+	return map[int]store.Detail{1: {Permit: strings.Repeat("x", s.size)}}, nil
+}
+
+func TestDailyBytes(t *testing.T) {
+	c := &clock{time.Date(2026, 10, 30, 10, 0, 0, 0, time.UTC)}
+	newH := func(bytes int64) http.Handler {
+		return New(&sizedStore{size: 10_000}, built, Options{Now: c.now, Rate: 1e9, Burst: 1e9, DailyBytes: bytes})
+	}
+	lookup := func(h http.Handler) *httptest.ResponseRecorder {
+		return do(t, h, "POST", "/v1/permits/lookup", `{"ids":[1]}`, "Accept-Encoding", "gzip")
+	}
+	one := lookup(newH(0)).Body.Len()
+	if one > 1000 {
+		t.Fatalf("a gzipped answer is %d bytes; the test expects it under 1000", one)
+	}
+
+	// Room for two gzipped answers and part of a third
+	h := newH(int64(2*one + 1))
+	for i := range 3 {
+		if rec := lookup(h); rec.Code != 200 {
+			t.Fatalf("request %d: status %d", i+1, rec.Code)
+		}
+	}
+	rec := lookup(h)
+	if rec.Code != 503 || rec.Header().Get("Retry-After") != "50400" {
+		t.Fatalf("4th request: status %d, Retry-After %q", rec.Code, rec.Header().Get("Retry-After"))
+	}
+	if rec := do(t, h, "GET", "/health", ""); rec.Code != 200 {
+		t.Errorf("health check: status %d, want 200", rec.Code)
+	}
+	c.t = c.t.Add(14 * time.Hour)
+	if rec := lookup(h); rec.Code != 200 {
+		t.Errorf("next day: status %d, want 200", rec.Code)
+	}
+}

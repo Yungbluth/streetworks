@@ -4,7 +4,6 @@ import (
 	"compress/gzip"
 	"log/slog"
 	"math"
-	"net"
 	"net/http"
 	"net/netip"
 	"strconv"
@@ -14,9 +13,12 @@ import (
 )
 
 const (
-	defaultRate  = 10.0
-	defaultBurst = 20
-	idleAfter    = time.Minute
+	defaultRate          = 10.0
+	defaultBurst         = 20
+	idleAfter            = time.Minute
+	defaultDailyRequests = 50_000
+	// defaultDailyRequests = 100_000
+	defaultDailyBytes = 25_000_000
 )
 
 // limiter is a token bucket per client
@@ -86,14 +88,22 @@ func clientKey(r *http.Request) string {
 	hops := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
 	for i := len(hops) - 1; i >= 0; i-- {
 		if addr, err := netip.ParseAddr(strings.TrimSpace(hops[i])); err == nil {
-			return addr.String()
+			return addrKey(addr)
 		}
 	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
+	if ap, err := netip.ParseAddrPort(r.RemoteAddr); err == nil {
+		return addrKey(ap.Addr())
 	}
-	return host
+	return r.RemoteAddr
+}
+
+func addrKey(addr netip.Addr) string {
+	addr = addr.Unmap().WithZone("")
+	if addr.Is6() {
+		p, _ := addr.Prefix(64) // can't fail for an IPv6 address
+		return p.String()
+	}
+	return addr.String()
 }
 
 func (l *limiter) middleware(next http.Handler) http.Handler {
@@ -106,6 +116,82 @@ func (l *limiter) middleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
+
+// allowance caps the requests answered and the bytes sent in one UTC day
+type allowance struct {
+	requests int64
+	bytes    int64
+	now      func() time.Time
+
+	mu           sync.Mutex
+	day          time.Time // midnight UTC at the start of the day being counted
+	usedRequests int64
+	usedBytes    int64
+}
+
+func newAllowance(requests int, bytes int64, now func() time.Time) *allowance {
+	return &allowance{requests: int64(requests), bytes: bytes, now: now}
+}
+
+// today starts a fresh count at midnight UTC and returns the time now
+func (a *allowance) today() time.Time {
+	now := a.now().UTC()
+	if day := now.Truncate(24 * time.Hour); !day.Equal(a.day) {
+		a.day, a.usedRequests, a.usedBytes = day, 0, 0
+	}
+	return now
+}
+
+func (a *allowance) admit() (ok bool, retryAfter int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	now := a.today()
+	if a.usedRequests >= a.requests || a.usedBytes >= a.bytes {
+		return false, int(math.Ceil(a.day.Add(24 * time.Hour).Sub(now).Seconds()))
+	}
+	a.usedRequests++
+	return true, 0
+}
+
+func (a *allowance) spend(n int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.today()
+	a.usedBytes += int64(n)
+}
+
+// middleware turns requests away once the day's allowance is used up
+func (a *allowance) middleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/health" {
+			if ok, retry := a.admit(); !ok {
+				w.Header().Set("Retry-After", strconv.Itoa(retry))
+				writeError(w, http.StatusServiceUnavailable, "The permit server has reached its limit for today. Try again tomorrow.")
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (a *allowance) countBytes(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(&byteCounter{ResponseWriter: w, spend: a.spend}, r)
+	})
+}
+
+type byteCounter struct {
+	http.ResponseWriter
+	spend func(int)
+}
+
+func (c *byteCounter) Write(p []byte) (int, error) {
+	n, err := c.ResponseWriter.Write(p)
+	c.spend(n)
+	return n, err
+}
+
+func (c *byteCounter) Unwrap() http.ResponseWriter { return c.ResponseWriter }
 
 type recorder struct {
 	http.ResponseWriter
@@ -140,8 +226,8 @@ func logRequests(log *slog.Logger, next http.Handler) http.Handler {
 
 		// the mux fills in r.Pattern on this same request
 		route := r.Pattern
-		if route == "" {
-			route = r.URL.Path
+		if route == "" || route == "/" {
+			route = "unmatched"
 		}
 		status := rec.status
 		if status == 0 {
@@ -150,6 +236,7 @@ func logRequests(log *slog.Logger, next http.Handler) http.Handler {
 		log.Info("request",
 			"method", r.Method,
 			"route", route,
+			"client", clientKey(r),
 			"status", status,
 			"ms", time.Since(start).Milliseconds(),
 			"bytes", rec.bytes,

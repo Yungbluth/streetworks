@@ -4,7 +4,7 @@ import type { PermitHit } from "../api";
 import { PlaceKind, type Places } from "../data";
 import type { Focus } from "../model";
 import type { Found } from "../search";
-import { apartMessage, describe as describeFound, searchBox } from "./search";
+import { apartMessage, describe as describeFound, emptyMessage, searchBox } from "./search";
 
 const places: Places = {
   streets: ["E SPEEDWAY BLVD", "E GRANT RD"],
@@ -37,6 +37,21 @@ it("counts a whole street under the current filters", () => {
   expect(r.detail).toBe("Whole street, 99 permits");
 });
 
+describe("when nothing matches", () => {
+  it.each([
+    ["85719", /ZIP codes/],
+    ["University of Arizona", /1200 E Speedway/],
+    ["zzzz", /two cross streets/],
+  ])("%s gets advice that fits", (q, want) => {
+    expect(emptyMessage(q)).toMatch(want);
+  });
+
+  it("mentions permits, which search also finds", () => {
+    expect(emptyMessage("zzzz")).toMatch(/permit numbers and descriptions/);
+  });
+
+});
+
 describe("the search box while typing", () => {
   afterEach(() => vi.useRealTimers());
   const box = (run: (q: string) => Found[]) => {
@@ -61,6 +76,15 @@ describe("the search box while typing", () => {
     vi.advanceTimersByTime(500);
     expect(empty.textContent).toContain("ZIP codes");
     el.remove();
+  });
+});
+
+describe("the search box's name and hint", () => {
+  it("mention permits", () => {
+    const input = searchBox(places, () => [], () => {}).querySelector("input")!;
+    expect(input.getAttribute("aria-label")).toMatch(/permit number or description/);
+    expect(input.placeholder).toMatch(/permit/);
+    expect(input.placeholder.length).toBeLessThanOrEqual(32);
   });
 });
 
@@ -159,4 +183,19 @@ describe("permit search in the box", () => {
     expect(el.textContent).not.toContain("Permit search is unavailable");
     el.remove();
   });
+
+  it("says nothing matches once the permit search finds nothing too", async () => {
+    let answer!: (h: PermitHit[]) => void;
+    const { el, type } = setup(() => new Promise((resolve) => (answer = resolve)));
+    const empty = el.querySelector<HTMLElement>(".results-empty")!;
+    type("zzzz");
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(empty.hidden).toBe(true);
+    answer([]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(empty.hidden).toBe(false);
+    expect(empty.textContent).toContain("No street or permit matches that");
+    el.remove();
+  });
+
 });

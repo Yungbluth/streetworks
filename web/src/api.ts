@@ -111,13 +111,16 @@ export function apiClient(base: string, built: string, fetchFn: typeof fetch = f
       return out;
     },
 
+    // GETs carry the page's build as v
     async byNumber(n) {
-      const { id, place, permit } = await call<{ built: string; id: number; place: number; permit: Detail }>(`/v1/permits/${encodeURIComponent(n)}`);
+      const { id, place, permit } = await call<{ built: string; id: number; place: number; permit: Detail }>(
+        `/v1/permits/${encodeURIComponent(n)}?${new URLSearchParams({ v: built })}`,
+      );
       return { id, place, permit };
     },
 
     async search(q, signal) {
-      const res = await call<{ built: string; hits: PermitHit[] }>(`/v1/search?${new URLSearchParams({ q, limit: String(SEARCH_HITS) })}`, { signal });
+      const res = await call<{ built: string; hits: PermitHit[] }>(`/v1/search?${new URLSearchParams({ q, limit: String(SEARCH_HITS), v: built })}`, { signal });
       return res.hits;
     },
   };

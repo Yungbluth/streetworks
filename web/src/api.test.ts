@@ -93,7 +93,7 @@ describe("byNumber", () => {
   it("encodes the permit number into the path", async () => {
     const { fn, calls } = fakeFetch(() => json({ built, id: 4, place: 2, permit: detail("T23/1") }));
     const got = await apiClient(base, built, fn).byNumber("T23/1");
-    expect(calls[0]!.url).toBe(`${base}/v1/permits/T23%2F1`);
+    expect(calls[0]!.url).toBe(`${base}/v1/permits/T23%2F1?v=${encodeURIComponent(built)}`);
     expect(got).toEqual({ id: 4, place: 2, permit: detail("T23/1") });
   });
 });

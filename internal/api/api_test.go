@@ -81,7 +81,7 @@ func newHandler(f *fakeStore) http.Handler {
 	return New(f, built, Options{Origin: "https://streetworks.example"})
 }
 
-func TestHealthz(t *testing.T) {
+func TestHealth(t *testing.T) {
 	rec := do(t, newHandler(&fakeStore{}), "GET", "/health", "")
 	if rec.Code != 200 || rec.Body.String() != "ok" {
 		t.Fatalf("got %d %q", rec.Code, rec.Body.String())
@@ -273,7 +273,8 @@ func TestCORS(t *testing.T) {
 		t.Error("preflight lacks built header")
 	}
 	if rec.Header().Get("Access-Control-Allow-Methods") != "GET, POST" ||
-		rec.Header().Get("Access-Control-Allow-Headers") != "Content-Type" {
+		rec.Header().Get("Access-Control-Allow-Headers") != "Content-Type" ||
+		rec.Header().Get("Access-Control-Max-Age") != "7200" {
 		t.Errorf("headers %v", rec.Header())
 	}
 

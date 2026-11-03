@@ -208,6 +208,8 @@ async function start() {
     }
     const closing = !f && focus !== null;
     showLinkProblem(null);
+    // a permit link still being looked up mustn't open anything now
+    permitAsk++;
     linkedPermit = undefined;
     landOnPermit = f?.kind === "place" && f.permit !== undefined;
     const widened = f?.kind === "place" && f.permit !== undefined && reveal(f.permit);

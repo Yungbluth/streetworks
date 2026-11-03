@@ -59,7 +59,7 @@ const zip = /^\s*\d{5}(?:-\d{4})?\s*$/;
 export function emptyMessage(q: string): string {
   const forms = "Try an address like 1200 E Speedway, a street name, or two cross streets like Speedway & Campbell.";
   if (zip.test(q)) return `Search doesn't know ZIP codes. ${forms}`;
-  return `No street with permits matches that. Search knows street names, not places or businesses. ${forms}`;
+  return `No street or permit matches that. Search knows street names and permit numbers and descriptions, not places or businesses. ${forms}`;
 }
 
 const PERMIT_PAUSE_MS = 250;
@@ -87,9 +87,9 @@ export function searchBox(
   const listId = "search-results";
   const input = h("input", {
     type: "search", id: "q", autocomplete: "off", spellcheck: "false",
-    placeholder: "Address, street or cross streets",
+    placeholder: "Address, street or permit",
     role: "combobox", "aria-expanded": "false", "aria-controls": listId, "aria-autocomplete": "list",
-    "aria-label": "Search for an address, a street, or two cross streets",
+    "aria-label": "Search for an address, a street, two cross streets, or a permit number or description",
   });
   const list = h("ul", { id: listId, role: "listbox", class: "results", hidden: true });
   const empty = h("p", { class: "results-empty", hidden: true, role: "status" });
@@ -106,10 +106,13 @@ export function searchBox(
   let permitTimer: number | undefined;
   let choices: Focus[] = [];
   let emptyTimer: number | undefined;
+  // true once the pause after typing has passed, when "nothing matches" may be said
+  let paused = false;
   let active = -1;
 
   const close = () => {
     clearTimeout(emptyTimer);
+    paused = false;
     // an answer still to come would open the list again, so it's dropped and asked for again later
     clearTimeout(permitTimer);
     if (asking) {
@@ -171,6 +174,13 @@ export function searchBox(
     if (hits.length) empty.hidden = true;
     highlight(keep);
   };
+  const sayEmpty = () => {
+    if (!paused || asking || choices.length) return;
+    const q = input.value.trim();
+    const message = numberOnly.test(q) && !zip.test(q) ? "Now the street, like 1200 E Speedway." : q.length >= 3 ? emptyMessage(q) : "";
+    empty.textContent = message;
+    empty.hidden = !message;
+  };
   const askPermits = (q: string) => {
     clearTimeout(permitTimer);
     asking?.abort();
@@ -190,6 +200,7 @@ export function searchBox(
           hits = found;
           draw();
           permitsFound.textContent = found.length ? `${plural(found.length, "permit")} found.` : "";
+          sayEmpty();
         },
         () => {
           if (ctrl.signal.aborted) return;
@@ -199,6 +210,7 @@ export function searchBox(
           // Set as it happens, so a screen reader hears it
           permitsDown.textContent = "Permit search is unavailable right now.";
           permitsDown.hidden = false;
+          sayEmpty();
         },
       );
     }, PERMIT_PAUSE_MS);
@@ -217,13 +229,12 @@ export function searchBox(
     draw();
     // Most queries are mid-word, so "nothing matches" waits for a pause
     clearTimeout(emptyTimer);
+    paused = false;
     empty.hidden = true;
     if (choices.length) return;
     emptyTimer = window.setTimeout(() => {
-      if (choices.length) return;
-      const message = numberOnly.test(q) && !zip.test(q) ? "Now the street, like 1200 E Speedway." : q.length >= 3 ? emptyMessage(q) : "";
-      empty.textContent = message;
-      empty.hidden = !message;
+      paused = true;
+      sayEmpty();
     }, PAUSE_MS);
   };
 
