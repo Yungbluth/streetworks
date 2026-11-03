@@ -5,6 +5,7 @@ One-time setup for the API (permit records and search). The map is on GitHub Pag
 I want this to cost nothing. Google's own page on capping costs says even following their example "doesn't guarantee that you won't spend more than your budget", and budget alerts show up hours late. So a burst of traffic can cost money before anything reacts. What I did to keep it small:
 
 - One Cloud Run instance at most, no minimum, CPU only while a request is running, 10 second timeout, 256 MiB.
+- The API stops at 50,000 requests or 25 MB sent (after gzip) per UTC day and answers 503 until midnight UTC. With one instance that's the whole service.
 - Responses are gzipped and capped at 2 MB, search returns 50 hits max, and each client gets 10 requests a second. The client is the last address in `X-Forwarded-For` (Google adds that one itself, so it can't be faked). IPv6 clients count by /64.
 - Artifact Registry keeps the 2 newest images of each kind. Images are built on GitHub's runners, not Cloud Build.
 - $1 budget with email at 50%, 90% and 100%.
@@ -12,6 +13,7 @@ I want this to cost nothing. Google's own page on capping costs says even follow
 
 Do 8 to 10 in one go so it isn't running for long without the kill switch.
 
+Rough math: 50,000 requests a day is about 1.5 million a month and 25 MB a day is under 1 GB of egress, both inside the free tier. Refused requests (429/503) still count, so a big enough flood goes over anyway and only the kill switch stops that, hours late. The $1 budget is a trigger, not a limit.
 
 ## Before you start
 
