@@ -4,6 +4,7 @@ import { PlaceKind, type Site } from "../data";
 import { summarizePlaces } from "../filters";
 import type { Ctx } from "../model";
 import { aboutPanel } from "./about";
+import { legend } from "./legend";
 import { streetPanel } from "./street";
 
 const site = {

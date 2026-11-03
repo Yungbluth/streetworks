@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { canonicalStreet, withoutDirection } from "./street";
+import { canonicalStreet, splitStreet, withoutDirection } from "./street";
 
 // The same table the Go build is tested with, so both sides name streets alike
 const cases = JSON.parse(

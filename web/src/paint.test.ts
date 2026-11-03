@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from "vitest";
-import { edgeFor } from "./paint";
+import { edgeFor, haloFor } from "./paint";
 
 const root = document.documentElement.style;
 afterEach(() => root.cssText = "");

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PlaceKind, type Index, type Places } from "./data";
-import { fromHash, placeKey, toHash, type ViewState } from "./url";
+import { fromHash, placeKey, placeLookup, RADII, toHash, type ViewState } from "./url";
 
 const idx = { categories: ["Barricade", "Combo", "Excavation", "Other"] } as unknown as Index;
 
