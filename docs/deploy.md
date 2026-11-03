@@ -207,3 +207,58 @@ The thresholds email the billing admins. The topic gets a message several times 
 ```sh
 gcloud pubsub topics get-iam-policy budget
 ```
+
+You want `serviceAccount:billing-budget-alert@system.gserviceaccount.com` with `roles/pubsub.publisher`. If it's missing:
+
+```sh
+gcloud pubsub topics add-iam-policy-binding budget \
+  --member="serviceAccount:billing-budget-alert@system.gserviceaccount.com" \
+  --role=roles/pubsub.publisher
+```
+
+If the billing account isn't in USD use `--budget-amount=1`, which means 1 in the account's currency.
+
+## 11. Test the kill switch
+
+Send a fake message with no cost. It takes the same path as a real one and does nothing:
+
+```sh
+gcloud pubsub topics publish budget --message='{"costAmount":0,"budgetAmount":1}'
+```
+
+A minute later the log should say `no cost reported`:
+
+```sh
+gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="killswitch"' \
+  --freshness=10m --format='value(timestamp, jsonPayload.message)'
+```
+
+`ignoring unreadable message` means the message got mangled. Nothing at all: check the subscription and the invoker role from step 9. Don't try a cost above zero, that detaches billing for real.
+
+## 12. If the kill switch fires
+
+The log shows `cost reported, detaching billing` then `billing detached`, and there's probably a budget email.
+
+- Everything in the project stops, the API too. It can all be rebuilt from the workflow and the city's data.
+- The map still works (Pages), permit records and search say they can't reach the server.
+- The weekly workflow fails at the API deploy. Pages keeps the last good page.
+- You still owe whatever was spent before billing was detached.
+
+To find the cause: Billing > Reports, pick the project, group by SKU. Requests and egress are the likely ones. The API logs one JSON line per request, and the client is the same address the rate limit uses, so this shows who:
+
+```sh
+gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="streetworks-api" AND jsonPayload.message="request"' \
+  --freshness=2d --limit=200 \
+  --format='table(timestamp, jsonPayload.client, jsonPayload.method, jsonPayload.route, jsonPayload.status, jsonPayload.bytes)'
+```
+
+To turn it back on, fix the cause first, then re-link billing and redeploy:
+
+```sh
+gcloud billing projects link "$PROJECT_ID" --billing-account="$BILLING_ACCOUNT_ID"
+gh workflow run deploy.yml --repo "$REPO" --ref main
+```
+
+Wait until next month, the budget counts from the 1st and the kill switch will just detach again. Google says resources can take up to 24 hours to come back.
+
+To shut it all down instead: `gcloud projects delete "$PROJECT_ID"`
