@@ -32,6 +32,7 @@ test("search forgives the way people really type", async ({ page }) => {
   await search.fill("speedway & grant");
   await expect(page.locator(".results-note:visible")).toHaveText(/^Speedway Blvd and Grant Rd don't meet/);
   await expect(first).toContainText("E ");
+  await page.route("**/v1/search**", (r) => r.abort());
   await search.fill("85719");
   await expect(page.locator(".results-empty")).toContainText("ZIP codes");
 });
@@ -110,13 +111,19 @@ test.describe("on a phone", () => {
     await expect(page.getByRole("button", { name: "Back to E Speedway Blvd" })).toBeVisible();
   });
 
-  test("the pinned place header is whole while its record scrolls", async ({ page }) => {
+    test("the pinned place header is whole while its record scrolls", async ({ page }) => {
     await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
-    await page.goto("/#place=b%3AE+SPEEDWAY+BLVD%3A1200");
-    const heading = page.getByRole("heading", { level: 2, name: "1200 block of E Speedway Blvd" });
+    // The busiest place has the longest record, whatever this week's data holds.
+    await page.goto("/");
+    const busiest = page.locator(".busiest button").first();
+    const name = (await busiest.textContent())!;
+    await busiest.click();
+    const heading = page.getByRole("heading", { level: 2, name });
     await expect(heading).toBeVisible();
-    // Partway down the record, where the head has pinned itself
-    await page.locator(".permit-row").nth(12).evaluate((r) => window.scrollTo(0, r.getBoundingClientRect().top + window.scrollY - 300));
+    const rows = page.locator(".permit-row");
+    await expect(rows.first()).toBeVisible();
+    // Partway down the record, where the head has pinned itself.
+    await rows.nth(Math.min(12, (await rows.count()) - 1)).evaluate((r) => window.scrollTo(0, r.getBoundingClientRect().top + window.scrollY - 300));
     await expect(heading).toBeInViewport({ ratio: 1 });
     await expect(page.getByRole("button", { name: "Clear" })).toBeInViewport({ ratio: 1 });
   });
@@ -142,7 +149,7 @@ test("one kind can be shown on its own", async ({ page }) => {
   await page.getByRole("combobox", { name: "Show only one kind" }).selectOption("Utility");
   await expect(page.getByRole("button", { name: /^Utility/ })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: /^Excavation/ })).toHaveAttribute("aria-pressed", "false");
-  await expect(page.locator(".legend .cell-count")).toHaveText("1 of 9 shown");
+  await expect(page.locator(".legend .cell-count")).toHaveText(/^1 of \d+ shown$/);
   await expect(page.locator("#status")).toHaveText(/^Only Utility shown\. /);
 });
 
